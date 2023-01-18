@@ -1,0 +1,2 @@
+[workspace]
+members = ["image_dds", "bcndecode-sys"]

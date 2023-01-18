@@ -1,0 +1,12 @@
+[package]
+name = "image_dds"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+intel_tex_2 = "0.2.0"
+image = { version = "0.24.5" }
+ddsfile = { version = "0.5.1" }
+bcndecode-sys = { path = "../bcndecode-sys" }
+
+[features]
