@@ -14,7 +14,7 @@ fn main() {
         dds.get_dxgi_format().unwrap().try_into().unwrap(),
     )
     .unwrap();
-    println!("Compressed data in {:?}", start.elapsed());
+    println!("Decompressed data in {:?}", start.elapsed());
 
     let image = image::RgbaImage::from_raw(dds.get_width(), dds.get_height(), rgba).unwrap();
     image.save(&args[2]).unwrap();

@@ -52,6 +52,22 @@ impl TryFrom<DxgiFormat> for CompressionFormat {
     }
 }
 
+impl From<CompressionFormat> for DxgiFormat {
+    fn from(value: CompressionFormat) -> Self {
+        // TODO: Differentiate between unorm and srgb.
+        // TODO: Differentiate between signed and unsigned.
+        match value {
+            CompressionFormat::Bc1 => Self::BC1_UNorm,
+            CompressionFormat::Bc2 => Self::BC2_UNorm,
+            CompressionFormat::Bc3 => Self::BC3_UNorm,
+            CompressionFormat::Bc4 => Self::BC4_UNorm,
+            CompressionFormat::Bc5 => Self::BC5_UNorm,
+            CompressionFormat::Bc6 => Self::BC6H_UF16,
+            CompressionFormat::Bc7 => Self::BC7_UNorm,
+        }
+    }
+}
+
 // TODO: Add helper functions for working with image and ddsfile objects.
 
 fn div_round_up(x: usize, d: usize) -> usize {
