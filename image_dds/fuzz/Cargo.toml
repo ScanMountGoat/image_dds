@@ -1,0 +1,34 @@
+[package]
+name = "image_dds-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.image_dds]
+path = ".."
+features = ["arbitrary"]
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "rgba8_from_bcn"
+path = "fuzz_targets/rgba8_from_bcn.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "bcn_from_rgba8"
+path = "fuzz_targets/bcn_from_rgba8.rs"
+test = false
+doc = false

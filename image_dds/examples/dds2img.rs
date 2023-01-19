@@ -7,12 +7,13 @@ fn main() {
     // TODO: Why do bc4 dds files not work with ddsfile?
     // TODO: BC4 and BC5 DDS files created with paint.net don't have their formats recognized?
     let start = std::time::Instant::now();
-    let rgba = image_dds::bcn::rgba8_bytes_from_bcn(
+    let rgba = image_dds::bcn::rgba8_from_bcn(
         dds.get_width(),
         dds.get_height(),
         &dds.data,
         dds.get_dxgi_format().unwrap().try_into().unwrap(),
-    );
+    )
+    .unwrap();
     println!("Compressed data in {:?}", start.elapsed());
 
     let image = image::RgbaImage::from_raw(dds.get_width(), dds.get_height(), rgba).unwrap();

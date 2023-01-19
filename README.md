@@ -20,4 +20,4 @@ Currently only BCN formats are supported at this time since these are the format
 Helper functions for working with the files from the [image](https://crates.io/crates/image) and [ddsfile](https://crates.io/crates/ddsfile) crates are supported under feature flags and enabled by default.
 
 ## Building
-Build the projects using `cargo build --release` with a newer version of the Rust toolchain installed. Builds support Windows, Linux, and MacOS. MacOS arm64 builds currently don't work due to configuration settings in intel-tex-rs-2.
+Build the projects using `cargo build --release` with a newer version of the Rust toolchain installed. Builds support Windows, Linux, and MacOS. Some targets may not build properly due to a lack of precompiled ISP kernels in intel-tex-rs-2.

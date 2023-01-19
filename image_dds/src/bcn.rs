@@ -1,8 +1,31 @@
-use crate::{CompressionFormat, Quality};
+use thiserror::Error;
+
+use crate::{div_round_up, CompressionFormat, Quality};
 
 // Not all compressed formats use 4x4 blocks.
 const BLOCK_WIDTH: usize = 4;
 const BLOCK_HEIGHT: usize = 4;
+
+#[derive(Debug, Error)]
+pub enum CompressSurfaceError {
+    #[error("surface dimensions {width} x {height} are not valid.")]
+    InvalidDimensions { width: u32, height: u32 },
+
+    #[error("expected surface to have at least {expected} bytes but found {actual}.")]
+    NotEnoughData { expected: usize, actual: usize },
+
+    #[error("compressing data to format {format:?} is not supported.")]
+    UnsupportedFormat { format: CompressionFormat },
+}
+
+#[derive(Debug, Error)]
+pub enum DecompressSurfaceError {
+    #[error("surface dimensions {width} x {height} are not valid.")]
+    InvalidDimensions { width: u32, height: u32 },
+
+    #[error("expected surface to have at least {expected} bytes but found {actual}.")]
+    NotEnoughData { expected: usize, actual: usize },
+}
 
 // Quality modes are optimized for a balance of speed and quality.
 impl From<Quality> for intel_tex_2::bc6h::EncodeSettings {
@@ -35,7 +58,12 @@ trait Bcn {
     // Fixing the length should reduce the amount of bounds checking.
     fn decompress_block(block: &[u8]) -> [u8; Rgba::BYTES_PER_BLOCK];
 
-    fn compress_surface(width: u32, height: u32, rgba8_data: &[u8], quality: Quality) -> Vec<u8>;
+    fn compress_surface(
+        width: u32,
+        height: u32,
+        rgba8_data: &[u8],
+        quality: Quality,
+    ) -> Result<Vec<u8>, CompressSurfaceError>;
 }
 
 // TODO: Make a trait for this and make the functions generic?
@@ -63,7 +91,12 @@ impl Bcn for Bc1 {
         decompressed
     }
 
-    fn compress_surface(width: u32, height: u32, rgba8_data: &[u8], _: Quality) -> Vec<u8> {
+    fn compress_surface(
+        width: u32,
+        height: u32,
+        rgba8_data: &[u8],
+        _: Quality,
+    ) -> Result<Vec<u8>, CompressSurfaceError> {
         // RGBA with 4 bytes per pixel.
         let surface = intel_tex_2::RgbaSurface {
             width,
@@ -72,7 +105,7 @@ impl Bcn for Bc1 {
             data: rgba8_data,
         };
 
-        intel_tex_2::bc1::compress_blocks(&surface)
+        Ok(intel_tex_2::bc1::compress_blocks(&surface))
     }
 }
 
@@ -94,10 +127,16 @@ impl Bcn for Bc2 {
         decompressed
     }
 
-    fn compress_surface(width: u32, height: u32, rgba8_data: &[u8], quality: Quality) -> Vec<u8> {
+    fn compress_surface(
+        width: u32,
+        height: u32,
+        rgba8_data: &[u8],
+        quality: Quality,
+    ) -> Result<Vec<u8>, CompressSurfaceError> {
         // TODO: Find an implementation that supports this?
-        // TODO: this should be an error rather than a panic.
-        todo!()
+        Err(CompressSurfaceError::UnsupportedFormat {
+            format: CompressionFormat::Bc2,
+        })
     }
 }
 
@@ -119,7 +158,12 @@ impl Bcn for Bc3 {
         decompressed
     }
 
-    fn compress_surface(width: u32, height: u32, rgba8_data: &[u8], _: Quality) -> Vec<u8> {
+    fn compress_surface(
+        width: u32,
+        height: u32,
+        rgba8_data: &[u8],
+        _: Quality,
+    ) -> Result<Vec<u8>, CompressSurfaceError> {
         // RGBA with 4 bytes per pixel.
         let surface = intel_tex_2::RgbaSurface {
             width,
@@ -128,7 +172,7 @@ impl Bcn for Bc3 {
             data: rgba8_data,
         };
 
-        intel_tex_2::bc3::compress_blocks(&surface)
+        Ok(intel_tex_2::bc3::compress_blocks(&surface))
     }
 }
 
@@ -163,7 +207,12 @@ impl Bcn for Bc4 {
         decompressed
     }
 
-    fn compress_surface(width: u32, height: u32, rgba8_data: &[u8], _: Quality) -> Vec<u8> {
+    fn compress_surface(
+        width: u32,
+        height: u32,
+        rgba8_data: &[u8],
+        _: Quality,
+    ) -> Result<Vec<u8>, CompressSurfaceError> {
         // RGBA with 4 bytes per pixel.
         let surface = intel_tex_2::RgbaSurface {
             width,
@@ -172,7 +221,7 @@ impl Bcn for Bc4 {
             data: rgba8_data,
         };
 
-        intel_tex_2::bc4::compress_blocks(&surface)
+        Ok(intel_tex_2::bc4::compress_blocks(&surface))
     }
 }
 
@@ -194,7 +243,12 @@ impl Bcn for Bc5 {
         decompressed
     }
 
-    fn compress_surface(width: u32, height: u32, rgba8_data: &[u8], _: Quality) -> Vec<u8> {
+    fn compress_surface(
+        width: u32,
+        height: u32,
+        rgba8_data: &[u8],
+        _: Quality,
+    ) -> Result<Vec<u8>, CompressSurfaceError> {
         // RGBA with 4 bytes per pixel.
         let surface = intel_tex_2::RgbaSurface {
             width,
@@ -203,7 +257,7 @@ impl Bcn for Bc5 {
             data: rgba8_data,
         };
 
-        intel_tex_2::bc5::compress_blocks(&surface)
+        Ok(intel_tex_2::bc5::compress_blocks(&surface))
     }
 }
 
@@ -233,7 +287,12 @@ impl Bcn for Bc6 {
         decompressed
     }
 
-    fn compress_surface(width: u32, height: u32, rgba8_data: &[u8], quality: Quality) -> Vec<u8> {
+    fn compress_surface(
+        width: u32,
+        height: u32,
+        rgba8_data: &[u8],
+        quality: Quality,
+    ) -> Result<Vec<u8>, CompressSurfaceError> {
         // RGBA with 4 bytes per pixel.
         let surface = intel_tex_2::RgbaSurface {
             width,
@@ -243,7 +302,10 @@ impl Bcn for Bc6 {
         };
 
         // TODO: is this handled correctly for floating point data?
-        intel_tex_2::bc6h::compress_blocks(&quality.into(), &surface)
+        Ok(intel_tex_2::bc6h::compress_blocks(
+            &quality.into(),
+            &surface,
+        ))
     }
 }
 
@@ -265,7 +327,12 @@ impl Bcn for Bc7 {
         decompressed
     }
 
-    fn compress_surface(width: u32, height: u32, rgba8_data: &[u8], quality: Quality) -> Vec<u8> {
+    fn compress_surface(
+        width: u32,
+        height: u32,
+        rgba8_data: &[u8],
+        quality: Quality,
+    ) -> Result<Vec<u8>, CompressSurfaceError> {
         // RGBA with 4 bytes per pixel.
         let surface = intel_tex_2::RgbaSurface {
             width,
@@ -274,18 +341,20 @@ impl Bcn for Bc7 {
             data: rgba8_data,
         };
 
-        intel_tex_2::bc7::compress_blocks(&quality.into(), &surface)
+        Ok(intel_tex_2::bc7::compress_blocks(&quality.into(), &surface))
     }
 }
 
-pub fn rgba8_bytes_from_bcn(
+/// Decompress the bytes in `data` to the uncompressed RGBA8 format.
+pub fn rgba8_from_bcn(
     width: u32,
     height: u32,
     data: &[u8],
     format: CompressionFormat,
-) -> Vec<u8> {
+) -> Result<Vec<u8>, DecompressSurfaceError> {
     // TODO: Handle signed variants.
     // TODO: Handle 2 channel (BC5) and 1 channel (BC4)?
+    // TODO: How to handle the zero case?
     match format {
         CompressionFormat::Bc1 => rgba8_from_bcn_inner::<Bc1>(width, height, data),
         CompressionFormat::Bc2 => rgba8_from_bcn_inner::<Bc2>(width, height, data),
@@ -297,16 +366,34 @@ pub fn rgba8_bytes_from_bcn(
     }
 }
 
-fn rgba8_from_bcn_inner<T: Bcn>(width: u32, height: u32, data: &[u8]) -> Vec<u8> {
-    // TODO: How to loop over the blocks?
-    // TODO: Add a separate function that handles array layers and mipmaps.
+// TODO: Add a separate function that handles array layers and mipmaps.
+fn rgba8_from_bcn_inner<T: Bcn>(
+    width: u32,
+    height: u32,
+    data: &[u8],
+) -> Result<Vec<u8>, DecompressSurfaceError> {
+    // TODO: Should surface dimensions always be a multiple of the block dimensions?
+    // TODO: Add an option to parallelize this using rayon?
+    // Each block can be decoded independently.
 
-    // TODO: How to loop over the surface.
-    // TODO: How does BCN compression organize the blocks (row-major, col-major, etc)?
+    // Surface dimensions are not validated yet and may cause overflow.
+    let expected_size = div_round_up(width as usize, BLOCK_WIDTH)
+        .checked_mul(div_round_up(height as usize, BLOCK_HEIGHT))
+        .and_then(|v| v.checked_mul(T::BYTES_PER_BLOCK))
+        .ok_or(DecompressSurfaceError::InvalidDimensions { width, height })?;
+
+    if data.len() < expected_size {
+        return Err(DecompressSurfaceError::NotEnoughData {
+            expected: expected_size,
+            actual: data.len(),
+        });
+    }
+
     // TODO: What's the most efficient way to zero initialize the vec?
     let mut rgba = Vec::new();
     rgba.resize(width as usize * height as usize * Rgba::BYTES_PER_PIXEL, 0);
 
+    // BCN formats lay out blocks in row-major order.
     // TODO: calculate x and y using division and mod?
     let mut block_start = 0;
     for y in (0..height).step_by(BLOCK_HEIGHT) {
@@ -316,6 +403,7 @@ fn rgba8_from_bcn_inner<T: Bcn>(width: u32, height: u32, data: &[u8]) -> Vec<u8>
 
             let decompressed_block = T::decompress_block(block);
 
+            // Each block is 4x4, so we need to update multiple rows.
             put_rgba_block(
                 &mut rgba,
                 decompressed_block,
@@ -328,7 +416,7 @@ fn rgba8_from_bcn_inner<T: Bcn>(width: u32, height: u32, data: &[u8]) -> Vec<u8>
         }
     }
 
-    rgba
+    Ok(rgba)
 }
 
 fn put_rgba_block(
@@ -354,24 +442,53 @@ fn put_rgba_block(
     }
 }
 
+/// Compress the uncompressed RGBA8 bytes in `data` to the given `format`.
 pub fn bcn_from_rgba8(
     width: u32,
     height: u32,
     data: &[u8],
     format: CompressionFormat,
     quality: Quality,
-) -> Vec<u8> {
+) -> Result<Vec<u8>, CompressSurfaceError> {
     // TODO: Handle signed variants.
     // TODO: Handle 2 channel (BC5) and 1 channel (BC4)?
     match format {
-        CompressionFormat::Bc1 => Bc1::compress_surface(width, height, data, quality),
-        CompressionFormat::Bc2 => Bc2::compress_surface(width, height, data, quality),
-        CompressionFormat::Bc3 => Bc3::compress_surface(width, height, data, quality),
-        CompressionFormat::Bc4 => Bc4::compress_surface(width, height, data, quality),
-        CompressionFormat::Bc5 => Bc5::compress_surface(width, height, data, quality),
-        CompressionFormat::Bc6 => Bc6::compress_surface(width, height, data, quality),
-        CompressionFormat::Bc7 => Bc7::compress_surface(width, height, data, quality),
+        CompressionFormat::Bc1 => bcn_from_rgba8_inner::<Bc1>(width, height, data, quality),
+        CompressionFormat::Bc2 => bcn_from_rgba8_inner::<Bc2>(width, height, data, quality),
+        CompressionFormat::Bc3 => bcn_from_rgba8_inner::<Bc3>(width, height, data, quality),
+        CompressionFormat::Bc4 => bcn_from_rgba8_inner::<Bc4>(width, height, data, quality),
+        CompressionFormat::Bc5 => bcn_from_rgba8_inner::<Bc5>(width, height, data, quality),
+        CompressionFormat::Bc6 => bcn_from_rgba8_inner::<Bc6>(width, height, data, quality),
+        CompressionFormat::Bc7 => bcn_from_rgba8_inner::<Bc7>(width, height, data, quality),
     }
+}
+
+fn bcn_from_rgba8_inner<T: Bcn>(
+    width: u32,
+    height: u32,
+    data: &[u8],
+    quality: Quality,
+) -> Result<Vec<u8>, CompressSurfaceError> {
+    // TODO: Should surface dimensions always be a multiple of the block dimensions?
+    // TODO: How to handle the zero case?
+    if width == 0 || height == 0 {
+        return Err(CompressSurfaceError::InvalidDimensions { width, height });
+    }
+
+    // Surface dimensions are not validated yet and may cause overflow.
+    let expected_size = div_round_up(width as usize, BLOCK_WIDTH)
+        .checked_mul(div_round_up(height as usize, BLOCK_HEIGHT))
+        .and_then(|v| v.checked_mul(Rgba::BYTES_PER_BLOCK))
+        .ok_or(CompressSurfaceError::InvalidDimensions { width, height })?;
+
+    if data.len() < expected_size {
+        return Err(CompressSurfaceError::NotEnoughData {
+            expected: expected_size,
+            actual: data.len(),
+        });
+    }
+
+    T::compress_surface(width, height, data, quality)
 }
 
 #[cfg(test)]
@@ -386,15 +503,15 @@ mod tests {
 
     fn check_decompress_compressed_bcn<T: Bcn>(quality: Quality) {
         // Compress the data once to introduce some errors.
-        //
-        let rgba = vec![64u8; BLOCK_WIDTH * BLOCK_HEIGHT * Rgba::BYTES_PER_PIXEL];
-        let compressed_block = T::compress_surface(4, 4, &rgba, quality);
-        let decompressed_block = rgba8_from_bcn_inner::<T>(4, 4, &compressed_block);
+        let rgba = vec![64u8; 4 * 4 * Rgba::BYTES_PER_BLOCK];
+        let compressed_block = bcn_from_rgba8_inner::<T>(4, 4, &rgba, quality).unwrap();
+        let decompressed_block = rgba8_from_bcn_inner::<T>(4, 4, &compressed_block).unwrap();
 
         // Compressing and decompressing should give back the same data.
         // TODO: Is this guaranteed in general?
-        let compressed_block2 = T::compress_surface(4, 4, &decompressed_block, quality);
-        let decompressed_block2 = rgba8_from_bcn_inner::<T>(4, 4, &compressed_block2);
+        let compressed_block2 =
+            bcn_from_rgba8_inner::<T>(4, 4, &decompressed_block, quality).unwrap();
+        let decompressed_block2 = rgba8_from_bcn_inner::<T>(4, 4, &compressed_block2).unwrap();
 
         assert_eq!(decompressed_block2, decompressed_block);
     }

@@ -4,9 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-intel_tex_2 = "0.2.0"
+intel_tex_2 = { git = "https://github.com/ScanMountGoat/intel-tex-rs-2" }
 image = { version = "0.24.5" }
 ddsfile = { version = "0.5.1" }
 bcndecode-sys = { path = "../bcndecode-sys" }
+thiserror = "1.0.38"
+arbitrary = { version = "1.2.2", features = ["derive"], optional = true }
 
 [features]

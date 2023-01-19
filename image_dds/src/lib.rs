@@ -22,6 +22,8 @@ pub enum Quality {
 
 // TODO: Move this into the BCN module instead?
 // TODO: Document that not all DDS formats are supported.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum CompressionFormat {
     Bc1,
     Bc2,
@@ -51,3 +53,7 @@ impl TryFrom<DxgiFormat> for CompressionFormat {
 }
 
 // TODO: Add helper functions for working with image and ddsfile objects.
+
+fn div_round_up(x: usize, d: usize) -> usize {
+    (x + d - 1) / d
+}
