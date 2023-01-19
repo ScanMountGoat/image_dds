@@ -1,3 +1,4 @@
+use bcn::{CompressSurfaceError, DecompressSurfaceError};
 use ddsfile::DxgiFormat;
 
 // TODO: Module level documentation explaining limitations and showing basic usage.
@@ -68,7 +69,51 @@ impl From<CompressionFormat> for DxgiFormat {
     }
 }
 
-// TODO: Add helper functions for working with image and ddsfile objects.
+pub fn dds_from_image(
+    image: &image::RgbaImage,
+    format: CompressionFormat,
+    quality: Quality,
+) -> Result<ddsfile::Dds, CompressSurfaceError> {
+    // TODO: Mipmaps, depth, and array layers?
+    let mut dds = ddsfile::Dds::new_dxgi(ddsfile::NewDxgiParams {
+        height: image.height(),
+        width: image.width(),
+        depth: None,
+        format: format.into(),
+        mipmap_levels: None,
+        array_layers: None,
+        caps2: None,
+        is_cubemap: false,
+        resource_dimension: ddsfile::D3D10ResourceDimension::Texture2D,
+        alpha_mode: ddsfile::AlphaMode::Straight, // TODO: Does this matter?
+    })
+    .unwrap();
+
+    dds.data = bcn::bcn_from_rgba8(
+        image.width(),
+        image.height(),
+        image.as_raw(),
+        format,
+        quality,
+    )?;
+
+    Ok(dds)
+}
+
+pub fn image_from_dds(dds: &ddsfile::Dds) -> Result<image::RgbaImage, DecompressSurfaceError> {
+    // TODO: Mipmaps, depth, and array layers?
+    let rgba = bcn::rgba8_from_bcn(
+        dds.get_width(),
+        dds.get_height(),
+        &dds.data,
+        dds.get_dxgi_format().unwrap().try_into().unwrap(),
+    )?;
+
+    // TODO: Avoid unwrap.
+    let image = image::RgbaImage::from_raw(dds.get_width(), dds.get_height(), rgba).unwrap();
+
+    Ok(image)
+}
 
 fn div_round_up(x: usize, d: usize) -> usize {
     (x + d - 1) / d

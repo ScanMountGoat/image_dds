@@ -128,10 +128,10 @@ impl Bcn for Bc2 {
     }
 
     fn compress_surface(
-        width: u32,
-        height: u32,
-        rgba8_data: &[u8],
-        quality: Quality,
+        _width: u32,
+        _height: u32,
+        _rgba8_data: &[u8],
+        _quality: Quality,
     ) -> Result<Vec<u8>, CompressSurfaceError> {
         // TODO: Find an implementation that supports this?
         Err(CompressSurfaceError::UnsupportedFormat {
