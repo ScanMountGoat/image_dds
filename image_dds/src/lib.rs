@@ -73,12 +73,10 @@ fn image_format_from_d3d(format: D3DFormat) -> Option<ImageFormat> {
     }
 }
 
-fn image_format_from_fourcc(fourcc: &FourCC) -> Option<ImageFormat> {
-    // TODO: How to use this in match patterns?
-    if fourcc.0 == u32::from_le_bytes(*b"BC5U") {
-        return Some(ImageFormat::BC5Unorm);
-    }
+const BC5U: u32 = u32::from_le_bytes(*b"BC5U");
+const ATI2: u32 = u32::from_le_bytes(*b"ATI2");
 
+fn image_format_from_fourcc(fourcc: &FourCC) -> Option<ImageFormat> {
     match fourcc.0 {
         FourCC::DXT1 => Some(ImageFormat::BC1Unorm),
         FourCC::DXT2 => Some(ImageFormat::BC2Unorm),
@@ -87,7 +85,7 @@ fn image_format_from_fourcc(fourcc: &FourCC) -> Option<ImageFormat> {
         FourCC::DXT5 => Some(ImageFormat::BC3Unorm),
         FourCC::BC4_UNORM => Some(ImageFormat::BC4Unorm),
         FourCC::BC4_SNORM => Some(ImageFormat::BC4Snorm),
-        FourCC::BC5_UNORM => Some(ImageFormat::BC5Unorm), // ATI2
+        ATI2 | BC5U => Some(ImageFormat::BC5Unorm),
         FourCC::BC5_SNORM => Some(ImageFormat::BC5Snorm),
         _ => None,
     }

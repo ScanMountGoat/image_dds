@@ -254,7 +254,7 @@ impl Bcn for Bc4 {
 
         // Pad to RGBA with alpha set to white.
         let mut decompressed = [0u8; BLOCK_WIDTH * BLOCK_HEIGHT * Rgba::BYTES_PER_PIXEL];
-        for i in 0..decompressed_r.len() {
+        for i in 0..(BLOCK_WIDTH * BLOCK_HEIGHT) {
             // It's a convention in some programs display BC4 in the red channel.
             // Use grayscale instead to avoid confusing it with colored data.
             // TODO: Match how channels handled when compressing RGBA data to BC4?
@@ -287,18 +287,29 @@ impl Bcn for Bc4 {
 
 struct Bc5;
 impl Bcn for Bc5 {
-    type CompressedBlock = Block8;
-    const BYTES_PER_BLOCK: usize = 8;
+    type CompressedBlock = Block16;
+    const BYTES_PER_BLOCK: usize = 16;
 
-    fn decompress_block(block: &Block8) -> [u8; Rgba::BYTES_PER_BLOCK] {
-        let mut decompressed = [0u8; BLOCK_WIDTH * BLOCK_HEIGHT * Rgba::BYTES_PER_PIXEL];
+    fn decompress_block(block: &Block16) -> [u8; Rgba::BYTES_PER_BLOCK] {
+        // BC5 stores RG data, so each decompressed pixel is 2 bytes.
+        let mut decompressed_rg = [0u8; BLOCK_WIDTH * BLOCK_HEIGHT * 2];
 
         unsafe {
             bcndecode_sys::bcdec_bc5(
                 block.0.as_ptr(),
-                decompressed.as_mut_ptr(),
-                (BLOCK_WIDTH * Rgba::BYTES_PER_PIXEL) as i32,
+                decompressed_rg.as_mut_ptr(),
+                (BLOCK_WIDTH * 2) as i32,
             );
+        }
+
+        // Pad to RGBA with alpha set to white.
+        let mut decompressed = [0u8; BLOCK_WIDTH * BLOCK_HEIGHT * Rgba::BYTES_PER_PIXEL];
+        for i in 0..(BLOCK_WIDTH * BLOCK_HEIGHT) {
+            // It's convention to zero the blue channel when decompressing BC5.
+            decompressed[i * Rgba::BYTES_PER_PIXEL] = decompressed_rg[i * 2];
+            decompressed[i * Rgba::BYTES_PER_PIXEL + 1] = decompressed_rg[i * 2 + 1];
+            decompressed[i * Rgba::BYTES_PER_PIXEL + 2] = 0u8;
+            decompressed[i * Rgba::BYTES_PER_PIXEL + 3] = 255u8;
         }
 
         decompressed
