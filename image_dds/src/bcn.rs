@@ -1,30 +1,60 @@
 use thiserror::Error;
 
-use crate::{div_round_up, CompressionFormat, Quality};
+use crate::{div_round_up, ImageFormat, Quality};
 
 // Not all compressed formats use 4x4 blocks.
 const BLOCK_WIDTH: usize = 4;
 const BLOCK_HEIGHT: usize = 4;
 
+// These has fewer variants since srgb, snorm, etc don't impact compression.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum BcnFormat {
+    BC1,
+    BC2,
+    BC3,
+    BC4,
+    BC5,
+    BC6,
+    BC7,
+}
+
+// TODO: Should all variants of ImageFormat be supported by Bcn?
+impl From<ImageFormat> for BcnFormat {
+    fn from(value: ImageFormat) -> Self {
+        match value {
+            ImageFormat::BC1Unorm | ImageFormat::BC1Srgb => Self::BC1,
+            ImageFormat::BC2Unorm | ImageFormat::BC2Srgb => Self::BC2,
+            ImageFormat::BC3Unorm | ImageFormat::BC3Srgb => Self::BC3,
+            ImageFormat::BC4Unorm | ImageFormat::BC4Snorm => Self::BC4,
+            ImageFormat::BC5Unorm | ImageFormat::BC5Snorm => Self::BC5,
+            ImageFormat::BC6Ufloat | ImageFormat::BC6Sfloat => Self::BC6,
+            ImageFormat::BC7Unorm | ImageFormat::BC7Srgb => Self::BC7,
+        }
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum CompressSurfaceError {
-    #[error("surface dimensions {width} x {height} are not valid.")]
+    #[error("surface dimensions {width} x {height} are not valid")]
     InvalidDimensions { width: u32, height: u32 },
 
-    #[error("expected surface to have at least {expected} bytes but found {actual}.")]
+    #[error("expected surface to have at least {expected} bytes but found {actual}")]
     NotEnoughData { expected: usize, actual: usize },
 
-    #[error("compressing data to format {format:?} is not supported.")]
-    UnsupportedFormat { format: CompressionFormat },
+    #[error("compressing data to format {format:?} is not supported")]
+    UnsupportedFormat { format: BcnFormat },
 }
 
 #[derive(Debug, Error)]
 pub enum DecompressSurfaceError {
-    #[error("surface dimensions {width} x {height} are not valid.")]
+    #[error("surface dimensions {width} x {height} are not valid")]
     InvalidDimensions { width: u32, height: u32 },
 
-    #[error("expected surface to have at least {expected} bytes but found {actual}.")]
+    #[error("expected surface to have at least {expected} bytes but found {actual}")]
     NotEnoughData { expected: usize, actual: usize },
+
+    #[error("the image format of the surface can not be determined")]
+    UnrecognizedFormat,
 }
 
 // Quality modes are optimized for a balance of speed and quality.
@@ -163,7 +193,7 @@ impl Bcn for Bc2 {
     ) -> Result<Vec<u8>, CompressSurfaceError> {
         // TODO: Find an implementation that supports this?
         Err(CompressSurfaceError::UnsupportedFormat {
-            format: CompressionFormat::Bc2,
+            format: BcnFormat::BC2,
         })
     }
 }
@@ -383,19 +413,19 @@ pub fn rgba8_from_bcn(
     width: u32,
     height: u32,
     data: &[u8],
-    format: CompressionFormat,
+    format: BcnFormat,
 ) -> Result<Vec<u8>, DecompressSurfaceError> {
     // TODO: Handle signed variants.
     // TODO: Handle 2 channel (BC5) and 1 channel (BC4)?
     // TODO: How to handle the zero case?
     match format {
-        CompressionFormat::Bc1 => rgba8_from_bcn_inner::<Bc1>(width, height, data),
-        CompressionFormat::Bc2 => rgba8_from_bcn_inner::<Bc2>(width, height, data),
-        CompressionFormat::Bc3 => rgba8_from_bcn_inner::<Bc3>(width, height, data),
-        CompressionFormat::Bc4 => rgba8_from_bcn_inner::<Bc4>(width, height, data),
-        CompressionFormat::Bc5 => rgba8_from_bcn_inner::<Bc5>(width, height, data),
-        CompressionFormat::Bc6 => rgba8_from_bcn_inner::<Bc6>(width, height, data),
-        CompressionFormat::Bc7 => rgba8_from_bcn_inner::<Bc7>(width, height, data),
+        BcnFormat::BC1 => rgba8_from_bcn_inner::<Bc1>(width, height, data),
+        BcnFormat::BC2 => rgba8_from_bcn_inner::<Bc2>(width, height, data),
+        BcnFormat::BC3 => rgba8_from_bcn_inner::<Bc3>(width, height, data),
+        BcnFormat::BC4 => rgba8_from_bcn_inner::<Bc4>(width, height, data),
+        BcnFormat::BC5 => rgba8_from_bcn_inner::<Bc5>(width, height, data),
+        BcnFormat::BC6 => rgba8_from_bcn_inner::<Bc6>(width, height, data),
+        BcnFormat::BC7 => rgba8_from_bcn_inner::<Bc7>(width, height, data),
     }
 }
 
@@ -476,24 +506,25 @@ fn put_rgba_block(
     }
 }
 
+// TODO: Should this take the ImageFormat instead and handle signed vs unsigned?
 /// Compress the uncompressed RGBA8 bytes in `data` to the given `format`.
 pub fn bcn_from_rgba8(
     width: u32,
     height: u32,
     data: &[u8],
-    format: CompressionFormat,
+    format: BcnFormat,
     quality: Quality,
 ) -> Result<Vec<u8>, CompressSurfaceError> {
     // TODO: Handle signed variants.
     // TODO: Handle 2 channel (BC5) and 1 channel (BC4)?
     match format {
-        CompressionFormat::Bc1 => bcn_from_rgba8_inner::<Bc1>(width, height, data, quality),
-        CompressionFormat::Bc2 => bcn_from_rgba8_inner::<Bc2>(width, height, data, quality),
-        CompressionFormat::Bc3 => bcn_from_rgba8_inner::<Bc3>(width, height, data, quality),
-        CompressionFormat::Bc4 => bcn_from_rgba8_inner::<Bc4>(width, height, data, quality),
-        CompressionFormat::Bc5 => bcn_from_rgba8_inner::<Bc5>(width, height, data, quality),
-        CompressionFormat::Bc6 => bcn_from_rgba8_inner::<Bc6>(width, height, data, quality),
-        CompressionFormat::Bc7 => bcn_from_rgba8_inner::<Bc7>(width, height, data, quality),
+        BcnFormat::BC1 => bcn_from_rgba8_inner::<Bc1>(width, height, data, quality),
+        BcnFormat::BC2 => bcn_from_rgba8_inner::<Bc2>(width, height, data, quality),
+        BcnFormat::BC3 => bcn_from_rgba8_inner::<Bc3>(width, height, data, quality),
+        BcnFormat::BC4 => bcn_from_rgba8_inner::<Bc4>(width, height, data, quality),
+        BcnFormat::BC5 => bcn_from_rgba8_inner::<Bc5>(width, height, data, quality),
+        BcnFormat::BC6 => bcn_from_rgba8_inner::<Bc6>(width, height, data, quality),
+        BcnFormat::BC7 => bcn_from_rgba8_inner::<Bc7>(width, height, data, quality),
     }
 }
 
