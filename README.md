@@ -1,8 +1,6 @@
 # image_dds
 A library for converting uncompressed image data to and from compressed formats.
 
-This facilitates creating tooling for working with compressed GPU textures. Compressed BC1 or BC3 textures can be converted to uncompressed RGBA8 data to work with devices or contexts that do not support compressed textures like the browser. Uncompressed RGBA8 image data can be compressed to create DDS files or save space for GPU textures on supported hardware.
-
 ## Examples
 The provided example projects demonstrate basic usage of the conversion functions. 
 The library also provides functions for working directly with the raw bytes of a surface instead of a dds or image file.
