@@ -9,6 +9,7 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
+arbitrary = "1.0"
 
 [dependencies.image_dds]
 path = ".."
@@ -30,5 +31,17 @@ doc = false
 [[bin]]
 name = "bcn_from_rgba8"
 path = "fuzz_targets/bcn_from_rgba8.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "bcn_from_rgba8_valid"
+path = "fuzz_targets/bcn_from_rgba8_valid.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "rgba8_from_bcn_single_block"
+path = "fuzz_targets/rgba8_from_bcn_single_block.rs"
 test = false
 doc = false
