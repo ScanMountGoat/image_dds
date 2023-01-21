@@ -10,5 +10,7 @@ ddsfile = { version = "0.5.1" }
 bcndecode-sys = { path = "../bcndecode-sys" }
 thiserror = "1.0.38"
 arbitrary = { version = "1.2.2", features = ["derive"], optional = true }
+half = { version = "2.2.1", features = ["bytemuck"] }
+bytemuck = "1.13.0"
 
 [features]

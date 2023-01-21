@@ -1,3 +1,4 @@
+use half::f16;
 use thiserror::Error;
 
 use crate::{div_round_up, ImageFormat, Quality};
@@ -380,15 +381,20 @@ impl Bcn for Bc6 {
         rgba8_data: &[u8],
         quality: Quality,
     ) -> Result<Vec<u8>, CompressSurfaceError> {
-        // RGBA with 4 bytes per pixel.
+        // The BC6H encoder expects the data to be in half precision floating point.
+        // This differs from the other formats that expect [u8; 4] for each pixel.
+        let f16_data: Vec<f16> = rgba8_data
+            .iter()
+            .map(|v| half::f16::from_f32(*v as f32 / 255.0))
+            .collect();
+
         let surface = intel_tex_2::RgbaSurface {
             width,
             height,
-            stride: width * Rgba::BYTES_PER_PIXEL as u32,
-            data: rgba8_data,
+            stride: width * 4 * std::mem::size_of::<f16>() as u32,
+            data: bytemuck::cast_slice(&f16_data),
         };
 
-        // TODO: is this handled correctly for floating point data?
         Ok(intel_tex_2::bc6h::compress_blocks(
             &quality.into(),
             &surface,
