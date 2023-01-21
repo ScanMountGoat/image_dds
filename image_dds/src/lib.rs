@@ -154,11 +154,12 @@ pub fn dds_from_image(
     .unwrap();
 
     // TODO: Avoid initial clone by starting from 1?
-    let mut mip_image = image.clone();
+    let mut mip_image = image.as_raw().clone();
 
     let mut surface_data = Vec::new();
 
     // TODO: make this a function that works on raw buffers without the image crate.
+    // TODO: Test odd sizes with and without mipmaps.
     // TODO: make this generic to also handle half precision data for BC6?
     // TODO: Initial width/height should be a multiple of 4.
     // TODO How do applications handle this?
@@ -166,30 +167,23 @@ pub fn dds_from_image(
         let mip_width = (width >> i).max(1);
         let mip_height = (height >> i).max(1);
 
-        // TODO: Is there a faster way to write this by hand?
-        // Downsample and blur using linear interpolation.
-        // Nearest causes aliasing and defeats the benefits of mipmapping.
-        let filter = image::imageops::FilterType::Triangle;
-
         // The physical size must be at least 4x4 to have enough data for a full block.
         // Applications or the GPU will use the smaller virtual size and ignore padding.
         // https://learn.microsoft.com/en-us/windows/win32/direct3d10/d3d10-graphics-programming-guide-resources-block-compression
-        mip_image =
-            image::imageops::resize(&mip_image, mip_width.max(4), mip_height.max(4), filter);
-
-        // TODO: How to handle padding for mips smaller than 1x1?
-        // TODO: should width/height be a multiple of the block dimensions?
-        // TODO: Avoid clone?
-        let rgba_data = mip_image.as_raw();
-
         let mip_data = bcn::bcn_from_rgba8(
             mip_width.max(4),
             mip_height.max(4),
-            rgba_data,
+            &mip_image,
             format.into(),
             quality,
         )?;
         surface_data.extend_from_slice(&mip_data);
+
+        // Halve the width and height for the next mipmap.
+        // TODO: Find a better way to pad the size.
+        if mip_width > 4 && mip_height > 4 {
+            mip_image = downsample_rgba8(mip_width, mip_height, &mip_image);
+        }
     }
 
     dds.data = surface_data;
@@ -214,9 +208,43 @@ pub fn image_from_dds(dds: &ddsfile::Dds) -> Result<image::RgbaImage, Decompress
     Ok(image)
 }
 
+fn downsample_rgba8(width: u32, height: u32, data: &[u8]) -> Vec<u8> {
+    // Halve the width and height by averaging pixels.
+    // This is faster than resizing using the image crate.
+    // TODO: Handle the case where the dimensions aren't even.
+    let width = width as usize;
+    let height = height as usize;
+
+    let new_width = width as usize / 2;
+    let new_height = height as usize / 2;
+
+    let mut new_data = vec![0u8; new_width * new_height * 4];
+    for x in 0..new_width {
+        for y in 0..new_height {
+            let new_index = y * new_width + x;
+
+            // Average a 4x4 pixel region from data.
+            let top_left = y * 2 * width + x * 2;
+            let top_right = y * 2 * width + ((x * 2) + 1);
+            let bottom_left = ((y * 2) + 1) * width + x * 2;
+            let bottom_right = ((y * 2) + 1) * width + (x * 2) + 1;
+
+            for c in 0..4 {
+                let average = (data[top_left * 4 + c] as f32
+                    + data[top_right * 4 + c] as f32
+                    + data[bottom_left * 4 + c] as f32
+                    + data[bottom_right * 4 + c] as f32)
+                    / 4.0;
+                new_data[new_index * 4 + c] = average as u8;
+            }
+        }
+    }
+    new_data
+}
+
 // TODO: Result?
 fn dds_image_format(dds: &ddsfile::Dds) -> Option<ImageFormat> {
-    // TODO: dxgi -> d3d -> fourcc -> error
+    // The format can be DXGI, D3D, or specified in the FOURCC.
     dds.get_dxgi_format()
         .and_then(image_format_from_dxgi)
         .or_else(|| dds.get_d3d_format().and_then(image_format_from_d3d))
@@ -250,5 +278,32 @@ mod tests {
     #[test]
     fn max_mipmap_count_4() {
         assert_eq!(4, max_mipmap_count(12));
+    }
+
+    #[test]
+    fn downsample_rgba8_4x4() {
+        // Test that a checkerboard is averaged.
+        let original: Vec<_> = std::iter::repeat([0u8, 0u8, 0u8, 0u8, 255u8, 255u8, 255u8, 255u8])
+            .take(4 * 4 / 2)
+            .flatten()
+            .collect();
+        assert_eq!(vec![127u8; 2 * 2 * 4], downsample_rgba8(4, 4, &original));
+    }
+
+    #[test]
+    fn downsample_rgba8_3x3() {
+        // Test that a checkerboard is averaged.
+        let original: Vec<_> = std::iter::repeat([
+            0u8, 0u8, 0u8, 0u8, 255u8, 255u8, 255u8, 255u8, 0u8, 0u8, 0u8, 0u8,
+        ])
+        .take(3 * 3 / 3)
+        .flatten()
+        .collect();
+        assert_eq!(vec![127u8; 1 * 1 * 4], downsample_rgba8(3, 3, &original));
+    }
+
+    #[test]
+    fn downsample_rgba8_0x0() {
+        assert!(downsample_rgba8(0, 0, &[]).is_empty());
     }
 }
