@@ -335,26 +335,40 @@ impl Bcn for Bc5 {
 
 struct Bc6;
 impl Bcn for Bc6 {
-    type CompressedBlock = Block8;
-    const BYTES_PER_BLOCK: usize = 8;
+    type CompressedBlock = Block16;
+    const BYTES_PER_BLOCK: usize = 16;
 
-    fn decompress_block(block: &Block8) -> [u8; Rgba::BYTES_PER_BLOCK] {
+    fn decompress_block(block: &Block16) -> [u8; Rgba::BYTES_PER_BLOCK] {
         // TODO: signed vs unsigned?
-        // TODO: Float vs half?
-        // TODO: Should these be allowed to be converted to rgba8?
-        // TODO: This doesn't return rgba8 bytes?
-        // TODO: Perform a naive conversion to rgba8?
         // TODO: Also support exr or radiance hdr under feature flags?
         // exr or radiance only make sense for bc6
-        let mut decompressed = [0u8; BLOCK_WIDTH * BLOCK_HEIGHT * Rgba::BYTES_PER_PIXEL];
+
+        // BC6H uses half precision floating point data.
+        // Convert to single precision since f32 is better supported on CPUs.
+        let mut decompressed_rgb = [0f32; BLOCK_WIDTH * BLOCK_HEIGHT * 3];
 
         unsafe {
-            bcndecode_sys::bcdec_bc6h_half(
+            // Cast the pointer to a less strictly aligned type.
+            // The pitch is in terms of floats rather than bytes.
+            bcndecode_sys::bcdec_bc6h_float(
                 block.0.as_ptr(),
-                decompressed.as_mut_ptr(),
-                (BLOCK_WIDTH * Rgba::BYTES_PER_PIXEL) as i32,
+                decompressed_rgb.as_mut_ptr() as *mut u8,
+                (BLOCK_WIDTH * 3) as i32,
                 0,
             );
+        }
+
+        // Truncate to clamp to 0 to 255.
+        // TODO: Add a separate function that returns floats?
+        let float_to_u8 = |x: f32| (x * 255.0) as u8;
+
+        // Pad to RGBA with alpha set to white.
+        let mut decompressed = [0u8; BLOCK_WIDTH * BLOCK_HEIGHT * Rgba::BYTES_PER_PIXEL];
+        for i in 0..(BLOCK_WIDTH * BLOCK_HEIGHT) {
+            decompressed[i * Rgba::BYTES_PER_PIXEL] = float_to_u8(decompressed_rgb[i * 3]);
+            decompressed[i * Rgba::BYTES_PER_PIXEL + 1] = float_to_u8(decompressed_rgb[i * 3 + 1]);
+            decompressed[i * Rgba::BYTES_PER_PIXEL + 2] = float_to_u8(decompressed_rgb[i * 3 + 2]);
+            decompressed[i * Rgba::BYTES_PER_PIXEL + 3] = 255u8;
         }
 
         decompressed
@@ -465,9 +479,7 @@ where
         });
     }
 
-    // TODO: What's the most efficient way to zero initialize the vec?
-    let mut rgba = Vec::new();
-    rgba.resize(width as usize * height as usize * Rgba::BYTES_PER_PIXEL, 0);
+    let mut rgba = vec![0u8; width as usize * height as usize * Rgba::BYTES_PER_PIXEL];
 
     // BCN formats lay out blocks in row-major order.
     // TODO: calculate x and y using division and mod?
@@ -625,7 +637,6 @@ mod tests {
 
     #[test]
     fn bc5_decompress_compressed() {
-        // TODO: Account for BC5 only using the RG channels.
         check_decompress_compressed_bcn::<Bc5>(Quality::Fast);
         check_decompress_compressed_bcn::<Bc5>(Quality::Normal);
         check_decompress_compressed_bcn::<Bc5>(Quality::Slow);
@@ -633,7 +644,6 @@ mod tests {
 
     #[test]
     fn bc6_decompress_compressed() {
-        // TODO: Account for BC6h using f16 data.
         check_decompress_compressed_bcn::<Bc6>(Quality::Fast);
         check_decompress_compressed_bcn::<Bc6>(Quality::Normal);
         check_decompress_compressed_bcn::<Bc6>(Quality::Slow);
