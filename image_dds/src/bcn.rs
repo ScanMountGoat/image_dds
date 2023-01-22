@@ -460,6 +460,7 @@ pub fn rgba8_from_bcn(
     }
 }
 
+// TODO: Make this generic over the pixel type (f32 or u8).
 fn rgba8_from_bcn_inner<T: Bcn>(
     width: u32,
     height: u32,
@@ -493,9 +494,11 @@ where
     for y in (0..height).step_by(BLOCK_HEIGHT) {
         for x in (0..width).step_by(BLOCK_WIDTH) {
             // Use a special type to enforce alignment.
-            let block = T::CompressedBlock::read_block(&data, block_start);
+            let block = T::CompressedBlock::read_block(data, block_start);
+            // TODO: Add rgba8 and rgbaf32 variants for decompress block.
             let decompressed_block = T::decompress_block(&block);
 
+            // TODO: This can be generic over the pixel type to also support float.
             // Each block is 4x4, so we need to update multiple rows.
             put_rgba_block(
                 &mut rgba,

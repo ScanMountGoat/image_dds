@@ -1,5 +1,6 @@
 use bcn::{CompressSurfaceError, DecompressSurfaceError};
 use ddsfile::{D3DFormat, DxgiFormat, FourCC};
+use thiserror::Error;
 
 // TODO: Module level documentation explaining limitations and showing basic usage.
 
@@ -21,6 +22,9 @@ pub enum Quality {
     Slow,
 }
 
+// TODO: Add "decoders" for uncompressed formats as well in an uncompressed module.
+// Each format should have conversions to and from rgba8 and rgbaf32 for convenience.
+// Document the channels and bit depths for each format (i.e bc6 is half precision float, bc7 is rgba8, etc).
 // TODO: Document that not all DDS formats are supported.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -42,7 +46,10 @@ pub enum ImageFormat {
 }
 
 // TODO: Put dds behind a feature flag.
+// TODO: Support all formats supported by paint.net?
+// Some formats are obscure and rarely used.
 fn image_format_from_dxgi(format: DxgiFormat) -> Option<ImageFormat> {
+    // TODO: Support uncompressed formats.
     match format {
         DxgiFormat::BC1_UNorm => Some(ImageFormat::BC1Unorm),
         DxgiFormat::BC1_UNorm_sRGB => Some(ImageFormat::BC1Srgb),
@@ -63,6 +70,7 @@ fn image_format_from_dxgi(format: DxgiFormat) -> Option<ImageFormat> {
 }
 
 fn image_format_from_d3d(format: D3DFormat) -> Option<ImageFormat> {
+    // TODO: Support uncompressed formats.
     match format {
         D3DFormat::DXT1 => Some(ImageFormat::BC1Unorm),
         D3DFormat::DXT2 => Some(ImageFormat::BC2Unorm),
@@ -114,6 +122,28 @@ impl From<ImageFormat> for DxgiFormat {
     }
 }
 
+#[derive(Debug, Error)]
+pub enum CreateImageError {
+    #[error("data length {data_length} is not valid for a {width}x{height} image")]
+    InvalidSurfaceDimensions {
+        width: u32,
+        height: u32,
+        data_length: usize,
+    },
+
+    #[error("error decompressing surface")]
+    DecompressSurface(#[from] DecompressSurfaceError),
+}
+
+#[derive(Debug, Error)]
+pub enum CreateDdsError {
+    #[error("error creating DDS")]
+    Dds(#[from] ddsfile::Error),
+
+    #[error("error compressing surface")]
+    CompressSurface(#[from] CompressSurfaceError),
+}
+
 fn max_mipmap_count(max_dimension: u32) -> u32 {
     // log2(x) + 1
     u32::BITS - max_dimension.leading_zeros()
@@ -124,8 +154,7 @@ pub fn dds_from_image(
     format: ImageFormat,
     quality: Quality,
     generate_mipmaps: bool,
-) -> Result<ddsfile::Dds, CompressSurfaceError> {
-    // TODO: Depth and array layers?
+) -> Result<ddsfile::Dds, CreateDdsError> {
     let width = image.width();
     let height = image.height();
 
@@ -134,6 +163,15 @@ pub fn dds_from_image(
     } else {
         1
     };
+
+    let surface_data = create_surface_generated_mipmaps(
+        width,
+        height,
+        num_mipmaps,
+        image.as_raw(),
+        format,
+        quality,
+    )?;
 
     let mut dds = ddsfile::Dds::new_dxgi(ddsfile::NewDxgiParams {
         height,
@@ -150,19 +188,25 @@ pub fn dds_from_image(
         is_cubemap: false,
         resource_dimension: ddsfile::D3D10ResourceDimension::Texture2D,
         alpha_mode: ddsfile::AlphaMode::Straight, // TODO: Does this matter?
-    })
-    .unwrap();
+    })?;
 
-    // TODO: Avoid initial clone by starting from 1?
-    let mut mip_image = image.as_raw().clone();
+    dds.data = surface_data;
 
+    Ok(dds)
+}
+
+fn create_surface_generated_mipmaps(
+    width: u32,
+    height: u32,
+    num_mipmaps: u32,
+    data: &[u8],
+    format: ImageFormat,
+    quality: Quality,
+) -> Result<Vec<u8>, CompressSurfaceError> {
     let mut surface_data = Vec::new();
 
-    // TODO: make this a function that works on raw buffers without the image crate.
-    // TODO: Test odd sizes with and without mipmaps.
-    // TODO: make this generic to also handle half precision data for BC6?
-    // TODO: Initial width/height should be a multiple of 4.
-    // TODO How do applications handle this?
+    let mut mip_image = data.to_vec();
+
     for i in 0..num_mipmaps {
         let mip_width = (width >> i).max(1);
         let mip_height = (height >> i).max(1);
@@ -186,24 +230,26 @@ pub fn dds_from_image(
         }
     }
 
-    dds.data = surface_data;
-
-    Ok(dds)
+    Ok(surface_data)
 }
 
-pub fn image_from_dds(dds: &ddsfile::Dds) -> Result<image::RgbaImage, DecompressSurfaceError> {
+pub fn image_from_dds(dds: &ddsfile::Dds) -> Result<image::RgbaImage, CreateImageError> {
     // TODO: Mipmaps, depth, and array layers?
     let image_format = dds_image_format(dds).ok_or(DecompressSurfaceError::UnrecognizedFormat)?;
 
-    let rgba = bcn::rgba8_from_bcn(
-        dds.get_width(),
-        dds.get_height(),
-        &dds.data,
-        image_format.into(),
-    )?;
+    let width = dds.get_width();
+    let height = dds.get_height();
 
-    // TODO: Avoid unwrap.
-    let image = image::RgbaImage::from_raw(dds.get_width(), dds.get_height(), rgba).unwrap();
+    let rgba8_data = bcn::rgba8_from_bcn(width, height, &dds.data, image_format.into())?;
+    let data_length = rgba8_data.len();
+
+    let image = image::RgbaImage::from_raw(width, height, rgba8_data).ok_or(
+        CreateImageError::InvalidSurfaceDimensions {
+            width,
+            height,
+            data_length,
+        },
+    )?;
 
     Ok(image)
 }
@@ -215,8 +261,8 @@ fn downsample_rgba8(width: u32, height: u32, data: &[u8]) -> Vec<u8> {
     let width = width as usize;
     let height = height as usize;
 
-    let new_width = width as usize / 2;
-    let new_height = height as usize / 2;
+    let new_width = width / 2;
+    let new_height = height / 2;
 
     let mut new_data = vec![0u8; new_width * new_height * 4];
     for x in 0..new_width {
