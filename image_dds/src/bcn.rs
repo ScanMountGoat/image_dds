@@ -36,8 +36,17 @@ impl From<ImageFormat> for BcnFormat {
 
 #[derive(Debug, Error)]
 pub enum CompressSurfaceError {
-    #[error("surface dimensions {width} x {height} are not valid")]
+    // TODO: Split this into two error types
+    #[error("surface dimensions {width} x {height} are zero sized or would overflow")]
     InvalidDimensions { width: u32, height: u32 },
+
+    #[error("surface dimensions {width} x {height} are not divisibly by the block dimensions {block_width} x {block_height}")]
+    NonIntegralDimensionsInBlocks {
+        width: u32,
+        height: u32,
+        block_width: u32,
+        block_height: u32,
+    },
 
     #[error("expected surface to have at least {expected} bytes but found {actual}")]
     NotEnoughData { expected: usize, actual: usize },
@@ -448,7 +457,7 @@ pub fn rgba8_from_bcn(
 ) -> Result<Vec<u8>, DecompressSurfaceError> {
     // TODO: Handle signed variants.
     // TODO: Handle 2 channel (BC5) and 1 channel (BC4)?
-    // TODO: How to handle the zero case?
+    // TODO: How to handle the zero sized surfaces?
     match format {
         BcnFormat::BC1 => rgba8_from_bcn_inner::<Bc1>(width, height, data),
         BcnFormat::BC2 => rgba8_from_bcn_inner::<Bc2>(width, height, data),
@@ -469,7 +478,6 @@ fn rgba8_from_bcn_inner<T: Bcn>(
 where
     T::CompressedBlock: ReadBlock,
 {
-    // TODO: Should surface dimensions always be a multiple of the block dimensions?
     // TODO: Add an option to parallelize this using rayon?
     // Each block can be decoded independently.
 
@@ -479,6 +487,9 @@ where
         .and_then(|v| v.checked_mul(T::BYTES_PER_BLOCK))
         .ok_or(DecompressSurfaceError::InvalidDimensions { width, height })?;
 
+    // Mipmap dimensions do not need to be multiples of the block dimensions.
+    // A mipmap of size 1x1 pixels can still be decoded.
+    // Simply checking the data length is sufficient.
     if data.len() < expected_size {
         return Err(DecompressSurfaceError::NotEnoughData {
             expected: expected_size,
@@ -566,7 +577,6 @@ fn bcn_from_rgba8_inner<T: Bcn>(
     data: &[u8],
     quality: Quality,
 ) -> Result<Vec<u8>, CompressSurfaceError> {
-    // TODO: Should surface dimensions always be a multiple of the block dimensions?
     // TODO: How to handle the zero case?
     if width == 0 || height == 0 {
         return Err(CompressSurfaceError::InvalidDimensions { width, height });

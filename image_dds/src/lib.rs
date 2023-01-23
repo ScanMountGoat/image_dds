@@ -45,6 +45,47 @@ pub enum ImageFormat {
     BC7Srgb,
 }
 
+impl ImageFormat {
+    // TODO: Is it worth making these public?
+    fn block_width(&self) -> u32 {
+        match self {
+            ImageFormat::BC1Unorm => 4,
+            ImageFormat::BC1Srgb => 4,
+            ImageFormat::BC2Unorm => 4,
+            ImageFormat::BC2Srgb => 4,
+            ImageFormat::BC3Unorm => 4,
+            ImageFormat::BC3Srgb => 4,
+            ImageFormat::BC4Unorm => 4,
+            ImageFormat::BC4Snorm => 4,
+            ImageFormat::BC5Unorm => 4,
+            ImageFormat::BC5Snorm => 4,
+            ImageFormat::BC6Ufloat => 4,
+            ImageFormat::BC6Sfloat => 4,
+            ImageFormat::BC7Unorm => 4,
+            ImageFormat::BC7Srgb => 4,
+        }
+    }
+
+    fn block_height(&self) -> u32 {
+        match self {
+            ImageFormat::BC1Unorm => 4,
+            ImageFormat::BC1Srgb => 4,
+            ImageFormat::BC2Unorm => 4,
+            ImageFormat::BC2Srgb => 4,
+            ImageFormat::BC3Unorm => 4,
+            ImageFormat::BC3Srgb => 4,
+            ImageFormat::BC4Unorm => 4,
+            ImageFormat::BC4Snorm => 4,
+            ImageFormat::BC5Unorm => 4,
+            ImageFormat::BC5Snorm => 4,
+            ImageFormat::BC6Ufloat => 4,
+            ImageFormat::BC6Sfloat => 4,
+            ImageFormat::BC7Unorm => 4,
+            ImageFormat::BC7Srgb => 4,
+        }
+    }
+}
+
 // TODO: Put dds behind a feature flag.
 // TODO: Support all formats supported by paint.net?
 // Some formats are obscure and rarely used.
@@ -203,9 +244,24 @@ fn create_surface_generated_mipmaps(
     format: ImageFormat,
     quality: Quality,
 ) -> Result<Vec<u8>, CompressSurfaceError> {
+    // The width and height must be a multiple of the block dimensions.
+    // This only applies to the base level.
+    let block_width = format.block_width();
+    let block_height = format.block_height();
+    if width % block_width != 0 || height % block_height != 0 {
+        return Err(CompressSurfaceError::NonIntegralDimensionsInBlocks {
+            width,
+            height,
+            block_width,
+            block_height,
+        });
+    }
+
     let mut surface_data = Vec::new();
 
     let mut mip_image = data.to_vec();
+
+    let compression_format = format.into();
 
     for i in 0..num_mipmaps {
         let mip_width = (width >> i).max(1);
@@ -218,7 +274,7 @@ fn create_surface_generated_mipmaps(
             mip_width.max(4),
             mip_height.max(4),
             &mip_image,
-            format.into(),
+            compression_format,
             quality,
         )?;
         surface_data.extend_from_slice(&mip_data);
@@ -351,5 +407,41 @@ mod tests {
     #[test]
     fn downsample_rgba8_0x0() {
         assert!(downsample_rgba8(0, 0, &[]).is_empty());
+    }
+
+    #[test]
+    fn create_surface_integral_dimensions() {
+        // It's ok for mipmaps to not be divisible by the block width.
+        let result = create_surface_generated_mipmaps(
+            4,
+            4,
+            3,
+            &[0u8; 64],
+            ImageFormat::BC7Srgb,
+            Quality::Fast,
+        );
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn create_surface_non_integral_dimensions() {
+        // This should still fail even though there is enough data.
+        let result = create_surface_generated_mipmaps(
+            3,
+            5,
+            2,
+            &[0u8; 128],
+            ImageFormat::BC7Srgb,
+            Quality::Fast,
+        );
+        assert!(matches!(
+            result,
+            Err(CompressSurfaceError::NonIntegralDimensionsInBlocks {
+                width: 3,
+                height: 5,
+                block_width: 4,
+                block_height: 4
+            })
+        ));
     }
 }
