@@ -2,9 +2,8 @@ use ddsfile::{D3DFormat, DxgiFormat, FourCC};
 use thiserror::Error;
 
 use crate::{
-    bcn::{CompressSurfaceError, DecompressSurfaceError},
-    decode_surface_rgba8, encode_surface_rgba8_generated_mipmaps, max_mipmap_count, ImageFormat,
-    Quality,
+    decode_surface_rgba8, encode_surface_rgba8_generated_mipmaps, max_mipmap_count,
+    CompressSurfaceError, DecompressSurfaceError, ImageFormat, Quality,
 };
 
 #[derive(Debug, Error)]
@@ -133,6 +132,12 @@ fn dds_image_format(dds: &ddsfile::Dds) -> Option<ImageFormat> {
 fn image_format_from_dxgi(format: DxgiFormat) -> Option<ImageFormat> {
     // TODO: Support uncompressed formats.
     match format {
+        DxgiFormat::R8_UNorm => Some(ImageFormat::R8Unorm),
+        DxgiFormat::R8G8B8A8_UNorm => Some(ImageFormat::R8G8B8A8Unorm),
+        DxgiFormat::R8G8B8A8_UNorm_sRGB => Some(ImageFormat::R8G8B8A8Srgb),
+        DxgiFormat::R32G32B32A32_Float => Some(ImageFormat::R32G32B32A32Float),
+        DxgiFormat::B8G8R8A8_UNorm => Some(ImageFormat::B8G8R8A8Unorm),
+        DxgiFormat::B8G8R8A8_UNorm_sRGB => Some(ImageFormat::B8G8R8A8Srgb),
         DxgiFormat::BC1_UNorm => Some(ImageFormat::BC1Unorm),
         DxgiFormat::BC1_UNorm_sRGB => Some(ImageFormat::BC1Srgb),
         DxgiFormat::BC2_UNorm => Some(ImageFormat::BC2Unorm),
@@ -183,8 +188,6 @@ fn image_format_from_fourcc(fourcc: &FourCC) -> Option<ImageFormat> {
 
 impl From<ImageFormat> for DxgiFormat {
     fn from(value: ImageFormat) -> Self {
-        // TODO: Differentiate between unorm and srgb.
-        // TODO: Differentiate between signed and unsigned.
         match value {
             ImageFormat::BC1Unorm => Self::BC1_UNorm,
             ImageFormat::BC1Srgb => Self::BC1_UNorm_sRGB,
@@ -200,6 +203,12 @@ impl From<ImageFormat> for DxgiFormat {
             ImageFormat::BC6Sfloat => Self::BC6H_SF16,
             ImageFormat::BC7Unorm => Self::BC7_UNorm,
             ImageFormat::BC7Srgb => Self::BC7_UNorm_sRGB,
+            ImageFormat::R8Unorm => Self::R8_UNorm,
+            ImageFormat::R8G8B8A8Unorm => Self::R8G8B8A8_UNorm,
+            ImageFormat::R8G8B8A8Srgb => Self::R8G8B8A8_UNorm_sRGB,
+            ImageFormat::R32G32B32A32Float => Self::R32G32B32A32_Float,
+            ImageFormat::B8G8R8A8Unorm => Self::B8G8R8A8_UNorm,
+            ImageFormat::B8G8R8A8Srgb => Self::B8G8R8A8_UNorm_sRGB,
         }
     }
 }

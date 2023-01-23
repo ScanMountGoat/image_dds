@@ -1,11 +1,26 @@
-use bcn::{CompressSurfaceError, DecompressSurfaceError};
+//! # Introduction
+//! DDS can store the vast majority of both compressed and uncompressed GPU texture data.
+//! Uncompressed formats like [ImageFormat::R8G8B8A8Unorm] are supported for better compatibility.
+//! Libraries and applications for working with custom GPU texture file formats often support DDS.
+//! This makes DDS a good interchange format for texture conversion workflows.
+//!
+//! Formats like DDS have more limited application support compared to TIFF or PNG.
+//! GPU compression formats tend to be lossy, which introduces additional errors on each save.
+//! For this reason, it's often more convenient to work with texture data in an uncompressed format.
+//! A conversion pipeline may look like GPU Texture <-> DDS <-> image with the
+//! conversions to and from image and DDS provided by image_dds.
+//!
+//! # Features
+//! Despite the name, neither the `ddsfile` nor `image` crates are required
+//! and can be disabled in the Cargo.toml by setting `default-features = false` and enabled individually.
+//! Surface data can be encoded and decoded using lower level functions like
+//! [decode_surface_rgba8] or [encode_surface_rgba8_generated_mipmaps].
+use bcn::*;
 use thiserror::Error;
 
 // TODO: Module level documentation explaining limitations and showing basic usage.
 
-// TODO: pub use some of the functions?
-pub mod bcn;
-
+mod bcn;
 // TODO: Don't export all the functions at the crate root?
 // TODO: Document that this is only available on certain features?
 #[cfg(feature = "ddsfile")]
@@ -29,14 +44,24 @@ pub enum Quality {
 }
 
 // TODO: Nested enums to handle uncompressed and compressed?
-
+// TODO: Move part of this to the main module documentation.
 // TODO: Add "decoders" for uncompressed formats as well in an uncompressed module.
 // Each format should have conversions to and from rgba8 and rgbaf32 for convenience.
 // Document the channels and bit depths for each format (i.e bc6 is half precision float, bc7 is rgba8, etc).
 // TODO: Document that not all DDS formats are supported.
+/// Supported image formats for encoding and decoding.
+///
+/// Not all DDS formats are supported,
+/// but all current variants for [ImageFormat] are supported by some version of DDS.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ImageFormat {
+    R8Unorm,
+    R8G8B8A8Unorm,
+    R8G8B8A8Srgb,
+    R32G32B32A32Float,
+    B8G8R8A8Unorm,
+    B8G8R8A8Srgb,
     BC1Unorm,
     BC1Srgb,
     BC2Unorm,
@@ -71,6 +96,12 @@ impl ImageFormat {
             ImageFormat::BC6Sfloat => 4,
             ImageFormat::BC7Unorm => 4,
             ImageFormat::BC7Srgb => 4,
+            ImageFormat::R8Unorm => 1,
+            ImageFormat::R8G8B8A8Unorm => 1,
+            ImageFormat::R8G8B8A8Srgb => 1,
+            ImageFormat::R32G32B32A32Float => 1,
+            ImageFormat::B8G8R8A8Unorm => 1,
+            ImageFormat::B8G8R8A8Srgb => 1,
         }
     }
 
@@ -90,10 +121,17 @@ impl ImageFormat {
             ImageFormat::BC6Sfloat => 4,
             ImageFormat::BC7Unorm => 4,
             ImageFormat::BC7Srgb => 4,
+            ImageFormat::R8Unorm => 1,
+            ImageFormat::R8G8B8A8Unorm => 1,
+            ImageFormat::R8G8B8A8Srgb => 1,
+            ImageFormat::R32G32B32A32Float => 1,
+            ImageFormat::B8G8R8A8Unorm => 1,
+            ImageFormat::B8G8R8A8Srgb => 1,
         }
     }
 }
 
+// TODO: error module?
 #[derive(Debug, Error)]
 pub enum CreateImageError {
     #[error("data length {data_length} is not valid for a {width}x{height} image")]
@@ -105,6 +143,39 @@ pub enum CreateImageError {
 
     #[error("error decompressing surface")]
     DecompressSurface(#[from] DecompressSurfaceError),
+}
+
+#[derive(Debug, Error)]
+pub enum CompressSurfaceError {
+    // TODO: Split this into two error types
+    #[error("surface dimensions {width} x {height} are zero sized or would overflow")]
+    InvalidDimensions { width: u32, height: u32 },
+
+    #[error("surface dimensions {width} x {height} are not divisibly by the block dimensions {block_width} x {block_height}")]
+    NonIntegralDimensionsInBlocks {
+        width: u32,
+        height: u32,
+        block_width: u32,
+        block_height: u32,
+    },
+
+    #[error("expected surface to have at least {expected} bytes but found {actual}")]
+    NotEnoughData { expected: usize, actual: usize },
+
+    #[error("compressing data to format {format:?} is not supported")]
+    UnsupportedFormat { format: ImageFormat },
+}
+
+#[derive(Debug, Error)]
+pub enum DecompressSurfaceError {
+    #[error("surface dimensions {width} x {height} are not valid")]
+    InvalidDimensions { width: u32, height: u32 },
+
+    #[error("expected surface to have at least {expected} bytes but found {actual}")]
+    NotEnoughData { expected: usize, actual: usize },
+
+    #[error("the image format of the surface can not be determined")]
+    UnrecognizedFormat,
 }
 
 fn max_mipmap_count(max_dimension: u32) -> u32 {
@@ -119,10 +190,24 @@ pub fn decode_surface_rgba8(
     data: &[u8],
     format: ImageFormat,
 ) -> Result<Vec<u8>, DecompressSurfaceError> {
-    // TODO: This won't always be BCN?
-    // TODO: Move the match on format into this function?
     // TODO: Make it possible to decode/encode a format known at compile time?
-    crate::bcn::rgba8_from_bcn(width, height, data, format.into())
+    use ImageFormat as F;
+    match format {
+        F::BC1Unorm | F::BC1Srgb => rgba8_from_bcn::<Bc1>(width, height, data),
+        F::BC2Unorm | F::BC2Srgb => rgba8_from_bcn::<Bc2>(width, height, data),
+        F::BC3Unorm | F::BC3Srgb => rgba8_from_bcn::<Bc3>(width, height, data),
+        F::BC4Unorm | F::BC4Snorm => rgba8_from_bcn::<Bc4>(width, height, data),
+        F::BC5Unorm | F::BC5Snorm => rgba8_from_bcn::<Bc5>(width, height, data),
+        F::BC6Ufloat | F::BC6Sfloat => rgba8_from_bcn::<Bc6>(width, height, data),
+        F::BC7Unorm | F::BC7Srgb => rgba8_from_bcn::<Bc7>(width, height, data),
+        // TODO: Test uncompressed "decoding"
+        F::R8Unorm => todo!(),
+        F::R8G8B8A8Unorm => todo!(),
+        F::R8G8B8A8Srgb => todo!(),
+        F::R32G32B32A32Float => todo!(),
+        F::B8G8R8A8Unorm => todo!(),
+        F::B8G8R8A8Srgb => todo!(),
+    }
 }
 
 // TODO: Use an enum for mipmaps that could use tightly packed mipmaps.
@@ -163,21 +248,19 @@ pub fn encode_surface_rgba8_generated_mipmaps(
 
     let mut mip_image = rgba8_data.to_vec();
 
-    let compression_format = format.into();
-
     for i in 0..num_mipmaps {
         let mip_width = (width >> i).max(1);
         let mip_height = (height >> i).max(1);
 
-        // TODO: This function should depend on the format.
+        // TODO: Find a cleaner way of handling padding of smaller surfaces.
         // The physical size must be at least 4x4 to have enough data for a full block.
         // Applications or the GPU will use the smaller virtual size and ignore padding.
         // https://learn.microsoft.com/en-us/windows/win32/direct3d10/d3d10-graphics-programming-guide-resources-block-compression
-        let mip_data = bcn::bcn_from_rgba8(
+        let mip_data = encode_rgba8(
             mip_width.max(4),
             mip_height.max(4),
             &mip_image,
-            compression_format,
+            format,
             quality,
         )?;
         surface_data.extend_from_slice(&mip_data);
@@ -190,6 +273,32 @@ pub fn encode_surface_rgba8_generated_mipmaps(
     }
 
     Ok(surface_data)
+}
+
+fn encode_rgba8(
+    width: u32,
+    height: u32,
+    data: &[u8],
+    format: ImageFormat,
+    quality: Quality,
+) -> Result<Vec<u8>, CompressSurfaceError> {
+    use ImageFormat as F;
+    match format {
+        F::BC1Unorm | F::BC1Srgb => bcn_from_rgba8::<Bc1>(width, height, data, quality),
+        F::BC2Unorm | F::BC2Srgb => bcn_from_rgba8::<Bc2>(width, height, data, quality),
+        F::BC3Unorm | F::BC3Srgb => bcn_from_rgba8::<Bc3>(width, height, data, quality),
+        F::BC4Unorm | F::BC4Snorm => bcn_from_rgba8::<Bc4>(width, height, data, quality),
+        F::BC5Unorm | F::BC5Snorm => bcn_from_rgba8::<Bc5>(width, height, data, quality),
+        F::BC6Ufloat | F::BC6Sfloat => bcn_from_rgba8::<Bc6>(width, height, data, quality),
+        F::BC7Unorm | F::BC7Srgb => bcn_from_rgba8::<Bc7>(width, height, data, quality),
+        // TODO: Test uncompressed "encoding"
+        F::R8Unorm => todo!(),
+        F::R8G8B8A8Unorm => todo!(),
+        F::R8G8B8A8Srgb => todo!(),
+        F::R32G32B32A32Float => todo!(),
+        F::B8G8R8A8Unorm => todo!(),
+        F::B8G8R8A8Srgb => todo!(),
+    }
 }
 
 fn downsample_rgba8(width: u32, height: u32, data: &[u8]) -> Vec<u8> {

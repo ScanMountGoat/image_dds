@@ -1,72 +1,9 @@
+use crate::{div_round_up, CompressSurfaceError, DecompressSurfaceError, ImageFormat, Quality};
 use half::f16;
-use thiserror::Error;
-
-use crate::{div_round_up, ImageFormat, Quality};
 
 // Not all compressed formats use 4x4 blocks.
 const BLOCK_WIDTH: usize = 4;
 const BLOCK_HEIGHT: usize = 4;
-
-// These has fewer variants since srgb, snorm, etc don't impact compression.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum BcnFormat {
-    BC1,
-    BC2,
-    BC3,
-    BC4,
-    BC5,
-    BC6,
-    BC7,
-}
-
-// TODO: Should all variants of ImageFormat be supported by Bcn?
-impl From<ImageFormat> for BcnFormat {
-    fn from(value: ImageFormat) -> Self {
-        match value {
-            ImageFormat::BC1Unorm | ImageFormat::BC1Srgb => Self::BC1,
-            ImageFormat::BC2Unorm | ImageFormat::BC2Srgb => Self::BC2,
-            ImageFormat::BC3Unorm | ImageFormat::BC3Srgb => Self::BC3,
-            ImageFormat::BC4Unorm | ImageFormat::BC4Snorm => Self::BC4,
-            ImageFormat::BC5Unorm | ImageFormat::BC5Snorm => Self::BC5,
-            ImageFormat::BC6Ufloat | ImageFormat::BC6Sfloat => Self::BC6,
-            ImageFormat::BC7Unorm | ImageFormat::BC7Srgb => Self::BC7,
-        }
-    }
-}
-
-// TODO: move this to lib.rs?
-#[derive(Debug, Error)]
-pub enum CompressSurfaceError {
-    // TODO: Split this into two error types
-    #[error("surface dimensions {width} x {height} are zero sized or would overflow")]
-    InvalidDimensions { width: u32, height: u32 },
-
-    #[error("surface dimensions {width} x {height} are not divisibly by the block dimensions {block_width} x {block_height}")]
-    NonIntegralDimensionsInBlocks {
-        width: u32,
-        height: u32,
-        block_width: u32,
-        block_height: u32,
-    },
-
-    #[error("expected surface to have at least {expected} bytes but found {actual}")]
-    NotEnoughData { expected: usize, actual: usize },
-
-    #[error("compressing data to format {format:?} is not supported")]
-    UnsupportedFormat { format: BcnFormat },
-}
-
-#[derive(Debug, Error)]
-pub enum DecompressSurfaceError {
-    #[error("surface dimensions {width} x {height} are not valid")]
-    InvalidDimensions { width: u32, height: u32 },
-
-    #[error("expected surface to have at least {expected} bytes but found {actual}")]
-    NotEnoughData { expected: usize, actual: usize },
-
-    #[error("the image format of the surface can not be determined")]
-    UnrecognizedFormat,
-}
 
 // Quality modes are optimized for a balance of speed and quality.
 impl From<Quality> for intel_tex_2::bc6h::EncodeSettings {
@@ -92,7 +29,9 @@ impl From<Quality> for intel_tex_2::bc7::EncodeSettings {
     }
 }
 
-trait Bcn {
+// TODO: Make this generic over the pixel type.
+// This can then be implemented for each type for f32 and u8.
+pub trait Bcn {
     type CompressedBlock;
 
     const BYTES_PER_BLOCK: usize;
@@ -109,14 +48,15 @@ trait Bcn {
     ) -> Result<Vec<u8>, CompressSurfaceError>;
 }
 
-trait ReadBlock {
+// Allows block types to read and copy buffer data to enforce alignment.
+pub trait ReadBlock {
     fn read_block(data: &[u8], offset: usize) -> Self;
 }
 
 // The underlying C/C++ code may cast the array pointer.
 // Use a generous alignment to avoid alignment issues.
 #[repr(align(8))]
-struct Block8([u8; 8]);
+pub struct Block8([u8; 8]);
 
 impl ReadBlock for Block8 {
     fn read_block(data: &[u8], offset: usize) -> Self {
@@ -125,7 +65,7 @@ impl ReadBlock for Block8 {
 }
 
 #[repr(align(16))]
-struct Block16([u8; 16]);
+pub struct Block16([u8; 16]);
 
 impl ReadBlock for Block16 {
     fn read_block(data: &[u8], offset: usize) -> Self {
@@ -140,7 +80,7 @@ impl Rgba {
     const BYTES_PER_BLOCK: usize = 64;
 }
 
-struct Bc1;
+pub struct Bc1;
 impl Bcn for Bc1 {
     type CompressedBlock = Block8;
     const BYTES_PER_BLOCK: usize = 8;
@@ -177,7 +117,7 @@ impl Bcn for Bc1 {
     }
 }
 
-struct Bc2;
+pub struct Bc2;
 impl Bcn for Bc2 {
     type CompressedBlock = Block16;
     const BYTES_PER_BLOCK: usize = 16;
@@ -204,12 +144,12 @@ impl Bcn for Bc2 {
     ) -> Result<Vec<u8>, CompressSurfaceError> {
         // TODO: Find an implementation that supports this?
         Err(CompressSurfaceError::UnsupportedFormat {
-            format: BcnFormat::BC2,
+            format: ImageFormat::BC2Unorm,
         })
     }
 }
 
-struct Bc3;
+pub struct Bc3;
 impl Bcn for Bc3 {
     type CompressedBlock = Block16;
     const BYTES_PER_BLOCK: usize = 16;
@@ -246,7 +186,7 @@ impl Bcn for Bc3 {
     }
 }
 
-struct Bc4;
+pub struct Bc4;
 impl Bcn for Bc4 {
     type CompressedBlock = Block8;
     const BYTES_PER_BLOCK: usize = 8;
@@ -296,7 +236,7 @@ impl Bcn for Bc4 {
     }
 }
 
-struct Bc5;
+pub struct Bc5;
 impl Bcn for Bc5 {
     type CompressedBlock = Block16;
     const BYTES_PER_BLOCK: usize = 16;
@@ -344,7 +284,7 @@ impl Bcn for Bc5 {
     }
 }
 
-struct Bc6;
+pub struct Bc6;
 impl Bcn for Bc6 {
     type CompressedBlock = Block16;
     const BYTES_PER_BLOCK: usize = 16;
@@ -412,7 +352,7 @@ impl Bcn for Bc6 {
     }
 }
 
-struct Bc7;
+pub struct Bc7;
 impl Bcn for Bc7 {
     type CompressedBlock = Block16;
     const BYTES_PER_BLOCK: usize = 16;
@@ -449,29 +389,9 @@ impl Bcn for Bc7 {
     }
 }
 
-/// Decompress the bytes in `data` to the uncompressed RGBA8 format.
-pub fn rgba8_from_bcn(
-    width: u32,
-    height: u32,
-    data: &[u8],
-    format: BcnFormat,
-) -> Result<Vec<u8>, DecompressSurfaceError> {
-    // TODO: Handle signed variants.
-    // TODO: Handle 2 channel (BC5) and 1 channel (BC4)?
-    // TODO: How to handle the zero sized surfaces?
-    match format {
-        BcnFormat::BC1 => rgba8_from_bcn_inner::<Bc1>(width, height, data),
-        BcnFormat::BC2 => rgba8_from_bcn_inner::<Bc2>(width, height, data),
-        BcnFormat::BC3 => rgba8_from_bcn_inner::<Bc3>(width, height, data),
-        BcnFormat::BC4 => rgba8_from_bcn_inner::<Bc4>(width, height, data),
-        BcnFormat::BC5 => rgba8_from_bcn_inner::<Bc5>(width, height, data),
-        BcnFormat::BC6 => rgba8_from_bcn_inner::<Bc6>(width, height, data),
-        BcnFormat::BC7 => rgba8_from_bcn_inner::<Bc7>(width, height, data),
-    }
-}
-
 // TODO: Make this generic over the pixel type (f32 or u8).
-fn rgba8_from_bcn_inner<T: Bcn>(
+/// Decompress the bytes in `data` to the uncompressed RGBA8 format.
+pub fn rgba8_from_bcn<T: Bcn>(
     width: u32,
     height: u32,
     data: &[u8],
@@ -550,29 +470,8 @@ fn put_rgba_block(
     }
 }
 
-// TODO: Should this take the ImageFormat instead and handle signed vs unsigned?
-/// Compress the uncompressed RGBA8 bytes in `data` to the given `format`.
-pub fn bcn_from_rgba8(
-    width: u32,
-    height: u32,
-    data: &[u8],
-    format: BcnFormat,
-    quality: Quality,
-) -> Result<Vec<u8>, CompressSurfaceError> {
-    // TODO: Handle signed variants.
-    // TODO: Handle 2 channel (BC5) and 1 channel (BC4)?
-    match format {
-        BcnFormat::BC1 => bcn_from_rgba8_inner::<Bc1>(width, height, data, quality),
-        BcnFormat::BC2 => bcn_from_rgba8_inner::<Bc2>(width, height, data, quality),
-        BcnFormat::BC3 => bcn_from_rgba8_inner::<Bc3>(width, height, data, quality),
-        BcnFormat::BC4 => bcn_from_rgba8_inner::<Bc4>(width, height, data, quality),
-        BcnFormat::BC5 => bcn_from_rgba8_inner::<Bc5>(width, height, data, quality),
-        BcnFormat::BC6 => bcn_from_rgba8_inner::<Bc6>(width, height, data, quality),
-        BcnFormat::BC7 => bcn_from_rgba8_inner::<Bc7>(width, height, data, quality),
-    }
-}
-
-fn bcn_from_rgba8_inner<T: Bcn>(
+/// Compress the uncompressed RGBA8 bytes in `data` to the given format `T`.
+pub fn bcn_from_rgba8<T: Bcn>(
     width: u32,
     height: u32,
     data: &[u8],
@@ -615,14 +514,13 @@ mod tests {
     {
         // Compress the data once to introduce some errors.
         let rgba = vec![64u8; 4 * 4 * Rgba::BYTES_PER_BLOCK];
-        let compressed_block = bcn_from_rgba8_inner::<T>(4, 4, &rgba, quality).unwrap();
-        let decompressed_block = rgba8_from_bcn_inner::<T>(4, 4, &compressed_block).unwrap();
+        let compressed_block = bcn_from_rgba8::<T>(4, 4, &rgba, quality).unwrap();
+        let decompressed_block = rgba8_from_bcn::<T>(4, 4, &compressed_block).unwrap();
 
         // Compressing and decompressing should give back the same data.
         // TODO: Is this guaranteed in general?
-        let compressed_block2 =
-            bcn_from_rgba8_inner::<T>(4, 4, &decompressed_block, quality).unwrap();
-        let decompressed_block2 = rgba8_from_bcn_inner::<T>(4, 4, &compressed_block2).unwrap();
+        let compressed_block2 = bcn_from_rgba8::<T>(4, 4, &decompressed_block, quality).unwrap();
+        let decompressed_block2 = rgba8_from_bcn::<T>(4, 4, &compressed_block2).unwrap();
 
         assert_eq!(decompressed_block2, decompressed_block);
     }
