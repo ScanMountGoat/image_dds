@@ -34,6 +34,7 @@ impl From<ImageFormat> for BcnFormat {
     }
 }
 
+// TODO: move this to lib.rs?
 #[derive(Debug, Error)]
 pub enum CompressSurfaceError {
     // TODO: Split this into two error types

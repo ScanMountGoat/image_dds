@@ -3,7 +3,8 @@ use thiserror::Error;
 
 use crate::{
     bcn::{CompressSurfaceError, DecompressSurfaceError},
-    encode_surface_rgba8_generated_mipmaps, max_mipmap_count, ImageFormat, Quality, decode_surface_rgba8,
+    decode_surface_rgba8, encode_surface_rgba8_generated_mipmaps, max_mipmap_count, ImageFormat,
+    Quality,
 };
 
 #[derive(Debug, Error)]
@@ -15,23 +16,44 @@ pub enum CreateDdsError {
     CompressSurface(#[from] CompressSurfaceError),
 }
 
-// TODO: Add variants that don't require the image crate.
+/// Encode `image` to a DDS file with the given `format`.
+///
+/// Mipmaps are automatically generated when `generate_mipmaps` is `true`.
+#[cfg(feature = "image")]
 pub fn dds_from_image(
     image: &image::RgbaImage,
     format: ImageFormat,
     quality: Quality,
     generate_mipmaps: bool,
 ) -> Result<ddsfile::Dds, CreateDdsError> {
-    let width = image.width();
-    let height = image.height();
+    dds_from_surface_rgba8(
+        image.width(),
+        image.height(),
+        image.as_raw(),
+        format,
+        quality,
+        generate_mipmaps,
+    )
+}
 
+/// Encode a `width` x `height`  RGBA8 surface to a DDS file with the given `format`.
+///
+/// Mipmaps are automatically generated when `generate_mipmaps` is `true`.
+pub fn dds_from_surface_rgba8(
+    width: u32,
+    height: u32,
+    rgba8_data: &[u8],
+    format: ImageFormat,
+    quality: Quality,
+    generate_mipmaps: bool,
+) -> Result<ddsfile::Dds, CreateDdsError> {
     // TODO: This is also calculated in the function below.
     let num_mipmaps = max_mipmap_count(width.max(height));
 
     let surface_data = encode_surface_rgba8_generated_mipmaps(
         width,
         height,
-        image.as_raw(),
+        rgba8_data,
         format,
         quality,
         generate_mipmaps,
@@ -59,15 +81,27 @@ pub fn dds_from_image(
     Ok(dds)
 }
 
-pub fn image_from_dds(dds: &ddsfile::Dds) -> Result<image::RgbaImage, crate::CreateImageError> {
-    // TODO: Mipmaps, depth, and array layers?
-    let image_format = dds_image_format(dds).ok_or(DecompressSurfaceError::UnrecognizedFormat)?;
-
+// TODO: Add an option to access other layers and mipmaps.
+/// Decode the first array layer and mip level from `dds` to an RGBA8 surface.
+pub fn decode_surface_rgba8_from_dds(
+    dds: &ddsfile::Dds,
+) -> Result<Vec<u8>, DecompressSurfaceError> {
     let width = dds.get_width();
     let height = dds.get_height();
 
-    // TODO: Create a function decode_rgba8?
-    let rgba8_data = decode_surface_rgba8(width, height, &dds.data, image_format.into())?;
+    let image_format = dds_image_format(dds).ok_or(DecompressSurfaceError::UnrecognizedFormat)?;
+    let rgba8_data = decode_surface_rgba8(width, height, &dds.data, image_format)?;
+
+    Ok(rgba8_data)
+}
+
+#[cfg(feature = "image")]
+/// Decode the first array layer and mip level from `dds` to an RGBA8 image.
+pub fn image_from_dds(dds: &ddsfile::Dds) -> Result<image::RgbaImage, crate::CreateImageError> {
+    let width = dds.get_width();
+    let height = dds.get_height();
+
+    let rgba8_data = decode_surface_rgba8_from_dds(dds)?;
     let data_length = rgba8_data.len();
 
     let image = image::RgbaImage::from_raw(width, height, rgba8_data).ok_or(

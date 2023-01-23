@@ -6,6 +6,7 @@ use thiserror::Error;
 // TODO: pub use some of the functions?
 pub mod bcn;
 
+// TODO: Don't export all the functions at the crate root?
 // TODO: Document that this is only available on certain features?
 #[cfg(feature = "ddsfile")]
 mod dds;
@@ -111,8 +112,13 @@ fn max_mipmap_count(max_dimension: u32) -> u32 {
     u32::BITS - max_dimension.leading_zeros()
 }
 
-/// Decodes a surface of dimensions `width` x `height` with the given `format` to RGBA8.
-pub fn decode_surface_rgba8(width: u32, height: u32, data: &[u8], format: ImageFormat) -> Result<Vec<u8>, DecompressSurfaceError> {
+/// Decode a `width` x `height` surface with the given `format` to RGBA8.
+pub fn decode_surface_rgba8(
+    width: u32,
+    height: u32,
+    data: &[u8],
+    format: ImageFormat,
+) -> Result<Vec<u8>, DecompressSurfaceError> {
     // TODO: This won't always be BCN?
     // TODO: Move the match on format into this function?
     // TODO: Make it possible to decode/encode a format known at compile time?
@@ -122,7 +128,7 @@ pub fn decode_surface_rgba8(width: u32, height: u32, data: &[u8], format: ImageF
 // TODO: Use an enum for mipmaps that could use tightly packed mipmaps.
 // TODO: Add an option for depth or array layers.
 // TODO: Add documentation showing how to use this.
-/// Encodes an RGBA8 surface of dimensions `width` x `height` to the given `format`.
+/// Encode a `width` x `height` RGBA8 surface to the given `format`.
 ///
 /// Mipmaps are automatically generated when `generate_mipmaps` is `true`.
 /// The `rgba8_data` only needs to contain enough data for the base mip level of `width` x `height` pixels.
