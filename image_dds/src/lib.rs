@@ -201,12 +201,24 @@ pub fn decode_surface_rgba8(
         F::BC6Ufloat | F::BC6Sfloat => rgba8_from_bcn::<Bc6>(width, height, data),
         F::BC7Unorm | F::BC7Srgb => rgba8_from_bcn::<Bc7>(width, height, data),
         // TODO: Test uncompressed "decoding"
-        F::R8Unorm => todo!(),
-        F::R8G8B8A8Unorm => todo!(),
-        F::R8G8B8A8Srgb => todo!(),
-        F::R32G32B32A32Float => todo!(),
-        F::B8G8R8A8Unorm => todo!(),
-        F::B8G8R8A8Srgb => todo!(),
+        // TODO: validate the length
+        F::R8Unorm => Ok(data.into_iter().flat_map(|r| [*r, *r, *r, 255u8]).collect()),
+        F::R8G8B8A8Unorm => Ok(data.to_vec()),
+        F::R8G8B8A8Srgb => Ok(data.to_vec()),
+        F::R32G32B32A32Float => {
+            let rgba_f32: &[f32] = bytemuck::cast_slice(data);
+            Ok(rgba_f32.into_iter().map(|f| (f * 255.0) as u8).collect())
+        }
+        F::B8G8R8A8Unorm => {
+            let mut bgra = data.to_vec();
+            swap_red_blue(width, height, &mut bgra);
+            Ok(bgra)
+        }
+        F::B8G8R8A8Srgb => {
+            let mut bgra = data.to_vec();
+            swap_red_blue(width, height, &mut bgra);
+            Ok(bgra)
+        }
     }
 }
 
@@ -282,6 +294,8 @@ fn encode_rgba8(
     format: ImageFormat,
     quality: Quality,
 ) -> Result<Vec<u8>, CompressSurfaceError> {
+    // TODO: Handle unorm vs srgb for uncompressed or leave the data as is?
+
     use ImageFormat as F;
     match format {
         F::BC1Unorm | F::BC1Srgb => bcn_from_rgba8::<Bc1>(width, height, data, quality),
@@ -292,12 +306,32 @@ fn encode_rgba8(
         F::BC6Ufloat | F::BC6Sfloat => bcn_from_rgba8::<Bc6>(width, height, data, quality),
         F::BC7Unorm | F::BC7Srgb => bcn_from_rgba8::<Bc7>(width, height, data, quality),
         // TODO: Test uncompressed "encoding"
-        F::R8Unorm => todo!(),
-        F::R8G8B8A8Unorm => todo!(),
-        F::R8G8B8A8Srgb => todo!(),
-        F::R32G32B32A32Float => todo!(),
-        F::B8G8R8A8Unorm => todo!(),
-        F::B8G8R8A8Srgb => todo!(),
+        // TODO: Validate lengths?
+        // TODO: Create a dedicated module and tests for these.
+        F::R8Unorm => Ok(data.into_iter().copied().step_by(4).collect()),
+        F::R8G8B8A8Unorm => Ok(data.to_vec()),
+        F::R8G8B8A8Srgb => Ok(data.to_vec()),
+        F::R32G32B32A32Float => {
+            let rgba_f32: Vec<_> = data.into_iter().map(|u| *u as f32 / 255.0).collect();
+            Ok(bytemuck::cast_slice(&rgba_f32).to_vec())
+        }
+        F::B8G8R8A8Unorm => {
+            let mut bgra = data.to_vec();
+            swap_red_blue(width, height, &mut bgra);
+            Ok(bgra)
+        }
+        F::B8G8R8A8Srgb => {
+            let mut bgra = data.to_vec();
+            swap_red_blue(width, height, &mut bgra);
+            Ok(bgra)
+        }
+    }
+}
+
+fn swap_red_blue(width: u32, height: u32, rgba: &mut Vec<u8>) {
+    for i in 0..(width as usize * height as usize) {
+        // RGBA -> BGRA.
+        rgba.swap(i * 4, i * 4 + 2);
     }
 }
 

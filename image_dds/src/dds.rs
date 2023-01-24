@@ -117,16 +117,13 @@ pub fn image_from_dds(dds: &ddsfile::Dds) -> Result<image::RgbaImage, crate::Cre
 // TODO: Result?
 fn dds_image_format(dds: &ddsfile::Dds) -> Option<ImageFormat> {
     // The format can be DXGI, D3D, or specified in the FOURCC.
-    dds.get_dxgi_format()
-        .and_then(image_format_from_dxgi)
-        .or_else(|| dds.get_d3d_format().and_then(image_format_from_d3d))
-        .or_else(|| {
-            dds.header
-                .spf
-                .fourcc
-                .as_ref()
-                .and_then(image_format_from_fourcc)
-        })
+    let dxgi = dds.get_dxgi_format();
+    let d3d = dds.get_d3d_format();
+    let fourcc = dds.header.spf.fourcc.as_ref();
+
+    dxgi.and_then(image_format_from_dxgi)
+        .or_else(|| d3d.and_then(image_format_from_d3d))
+        .or_else(|| fourcc.and_then(image_format_from_fourcc))
 }
 
 fn image_format_from_dxgi(format: DxgiFormat) -> Option<ImageFormat> {
