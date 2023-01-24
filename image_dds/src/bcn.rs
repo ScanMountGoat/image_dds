@@ -508,12 +508,11 @@ mod tests {
     // TODO: Add tests for validating the input length.
     // TODO: Will compression fail for certain pixel values (test with fuzz tests?)
 
-    fn check_decompress_compressed_bcn<T: Bcn>(quality: Quality)
+    fn check_decompress_compressed_bcn<T: Bcn>(rgba: &[u8], quality: Quality)
     where
         T::CompressedBlock: ReadBlock,
     {
         // Compress the data once to introduce some errors.
-        let rgba = vec![64u8; 4 * 4 * Rgba::BYTES_PER_BLOCK];
         let compressed_block = bcn_from_rgba8::<T>(4, 4, &rgba, quality).unwrap();
         let decompressed_block = rgba8_from_bcn::<T>(4, 4, &compressed_block).unwrap();
 
@@ -527,50 +526,60 @@ mod tests {
 
     #[test]
     fn bc1_decompress_compressed() {
-        check_decompress_compressed_bcn::<Bc1>(Quality::Fast);
-        check_decompress_compressed_bcn::<Bc1>(Quality::Normal);
-        check_decompress_compressed_bcn::<Bc1>(Quality::Slow);
+        let rgba = vec![64u8; 4 * 4 * Rgba::BYTES_PER_BLOCK];
+        check_decompress_compressed_bcn::<Bc1>(&rgba, Quality::Fast);
+        check_decompress_compressed_bcn::<Bc1>(&rgba, Quality::Normal);
+        check_decompress_compressed_bcn::<Bc1>(&rgba, Quality::Slow);
     }
 
     #[test]
     fn bc2_decompress_compressed() {
-        check_decompress_compressed_bcn::<Bc2>(Quality::Fast);
-        check_decompress_compressed_bcn::<Bc2>(Quality::Normal);
-        check_decompress_compressed_bcn::<Bc2>(Quality::Slow);
+        // TODO: Revise this test to check each direction separately.
+        // TODO: BC2 compression should return an error.
+        let rgba = vec![64u8; 4 * 4 * Rgba::BYTES_PER_BLOCK];
+        check_decompress_compressed_bcn::<Bc2>(&rgba, Quality::Fast);
+        check_decompress_compressed_bcn::<Bc2>(&rgba, Quality::Normal);
+        check_decompress_compressed_bcn::<Bc2>(&rgba, Quality::Slow);
     }
 
     #[test]
     fn bc3_decompress_compressed() {
-        check_decompress_compressed_bcn::<Bc3>(Quality::Fast);
-        check_decompress_compressed_bcn::<Bc3>(Quality::Normal);
-        check_decompress_compressed_bcn::<Bc3>(Quality::Slow);
+        let rgba = vec![64u8; 4 * 4 * Rgba::BYTES_PER_BLOCK];
+        check_decompress_compressed_bcn::<Bc3>(&rgba, Quality::Fast);
+        check_decompress_compressed_bcn::<Bc3>(&rgba, Quality::Normal);
+        check_decompress_compressed_bcn::<Bc3>(&rgba, Quality::Slow);
     }
 
     #[test]
     fn bc4_decompress_compressed() {
-        check_decompress_compressed_bcn::<Bc4>(Quality::Fast);
-        check_decompress_compressed_bcn::<Bc4>(Quality::Normal);
-        check_decompress_compressed_bcn::<Bc4>(Quality::Slow);
+        let rgba = vec![64u8; 4 * 4 * Rgba::BYTES_PER_BLOCK];
+        check_decompress_compressed_bcn::<Bc4>(&rgba, Quality::Fast);
+        check_decompress_compressed_bcn::<Bc4>(&rgba, Quality::Normal);
+        check_decompress_compressed_bcn::<Bc4>(&rgba, Quality::Slow);
     }
 
     #[test]
     fn bc5_decompress_compressed() {
-        check_decompress_compressed_bcn::<Bc5>(Quality::Fast);
-        check_decompress_compressed_bcn::<Bc5>(Quality::Normal);
-        check_decompress_compressed_bcn::<Bc5>(Quality::Slow);
+        let rgba = vec![64u8; 4 * 4 * Rgba::BYTES_PER_BLOCK];
+        check_decompress_compressed_bcn::<Bc5>(&rgba, Quality::Fast);
+        check_decompress_compressed_bcn::<Bc5>(&rgba, Quality::Normal);
+        check_decompress_compressed_bcn::<Bc5>(&rgba, Quality::Slow);
     }
 
     #[test]
     fn bc6_decompress_compressed() {
-        check_decompress_compressed_bcn::<Bc6>(Quality::Fast);
-        check_decompress_compressed_bcn::<Bc6>(Quality::Normal);
-        check_decompress_compressed_bcn::<Bc6>(Quality::Slow);
+        // TODO: Revise this test to check each direction separately.
+        let rgba = vec![64u8; 4 * 4 * Rgba::BYTES_PER_BLOCK];
+        check_decompress_compressed_bcn::<Bc6>(&rgba, Quality::Fast);
+        check_decompress_compressed_bcn::<Bc6>(&rgba, Quality::Normal);
+        check_decompress_compressed_bcn::<Bc6>(&rgba, Quality::Slow);
     }
 
     #[test]
     fn bc7_decompress_compressed() {
-        check_decompress_compressed_bcn::<Bc7>(Quality::Fast);
-        check_decompress_compressed_bcn::<Bc7>(Quality::Normal);
-        check_decompress_compressed_bcn::<Bc7>(Quality::Slow);
+        let rgba = vec![64u8; 4 * 4 * Rgba::BYTES_PER_BLOCK];
+        check_decompress_compressed_bcn::<Bc7>(&rgba, Quality::Fast);
+        check_decompress_compressed_bcn::<Bc7>(&rgba, Quality::Normal);
+        check_decompress_compressed_bcn::<Bc7>(&rgba, Quality::Slow);
     }
 }

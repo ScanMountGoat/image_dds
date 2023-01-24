@@ -16,11 +16,14 @@
 //! Surface data can be encoded and decoded using lower level functions like
 //! [decode_surface_rgba8] or [encode_surface_rgba8_generated_mipmaps].
 use bcn::*;
+use rgba::*;
+
 use thiserror::Error;
 
 // TODO: Module level documentation explaining limitations and showing basic usage.
 
 mod bcn;
+mod rgba;
 // TODO: Don't export all the functions at the crate root?
 // TODO: Document that this is only available on certain features?
 #[cfg(feature = "ddsfile")]
@@ -43,12 +46,8 @@ pub enum Quality {
     Slow,
 }
 
-// TODO: Nested enums to handle uncompressed and compressed?
-// TODO: Move part of this to the main module documentation.
-// TODO: Add "decoders" for uncompressed formats as well in an uncompressed module.
 // Each format should have conversions to and from rgba8 and rgbaf32 for convenience.
 // Document the channels and bit depths for each format (i.e bc6 is half precision float, bc7 is rgba8, etc).
-// TODO: Document that not all DDS formats are supported.
 /// Supported image formats for encoding and decoding.
 ///
 /// Not all DDS formats are supported,
@@ -200,25 +199,12 @@ pub fn decode_surface_rgba8(
         F::BC5Unorm | F::BC5Snorm => rgba8_from_bcn::<Bc5>(width, height, data),
         F::BC6Ufloat | F::BC6Sfloat => rgba8_from_bcn::<Bc6>(width, height, data),
         F::BC7Unorm | F::BC7Srgb => rgba8_from_bcn::<Bc7>(width, height, data),
-        // TODO: Test uncompressed "decoding"
-        // TODO: validate the length
-        F::R8Unorm => Ok(data.into_iter().flat_map(|r| [*r, *r, *r, 255u8]).collect()),
-        F::R8G8B8A8Unorm => Ok(data.to_vec()),
-        F::R8G8B8A8Srgb => Ok(data.to_vec()),
-        F::R32G32B32A32Float => {
-            let rgba_f32: &[f32] = bytemuck::cast_slice(data);
-            Ok(rgba_f32.into_iter().map(|f| (f * 255.0) as u8).collect())
-        }
-        F::B8G8R8A8Unorm => {
-            let mut bgra = data.to_vec();
-            swap_red_blue(width, height, &mut bgra);
-            Ok(bgra)
-        }
-        F::B8G8R8A8Srgb => {
-            let mut bgra = data.to_vec();
-            swap_red_blue(width, height, &mut bgra);
-            Ok(bgra)
-        }
+        F::R8Unorm => rgba8_from_r8(width, height, data),
+        F::R8G8B8A8Unorm => decode_rgba8_from_rgba8(width, height, data),
+        F::R8G8B8A8Srgb => decode_rgba8_from_rgba8(width, height, data),
+        F::R32G32B32A32Float => rgba8_from_rgbaf32(width, height, data),
+        F::B8G8R8A8Unorm => rgba8_from_bgra8(width, height, data),
+        F::B8G8R8A8Srgb => rgba8_from_bgra8(width, height, data),
     }
 }
 
@@ -305,33 +291,12 @@ fn encode_rgba8(
         F::BC5Unorm | F::BC5Snorm => bcn_from_rgba8::<Bc5>(width, height, data, quality),
         F::BC6Ufloat | F::BC6Sfloat => bcn_from_rgba8::<Bc6>(width, height, data, quality),
         F::BC7Unorm | F::BC7Srgb => bcn_from_rgba8::<Bc7>(width, height, data, quality),
-        // TODO: Test uncompressed "encoding"
-        // TODO: Validate lengths?
-        // TODO: Create a dedicated module and tests for these.
-        F::R8Unorm => Ok(data.into_iter().copied().step_by(4).collect()),
-        F::R8G8B8A8Unorm => Ok(data.to_vec()),
-        F::R8G8B8A8Srgb => Ok(data.to_vec()),
-        F::R32G32B32A32Float => {
-            let rgba_f32: Vec<_> = data.into_iter().map(|u| *u as f32 / 255.0).collect();
-            Ok(bytemuck::cast_slice(&rgba_f32).to_vec())
-        }
-        F::B8G8R8A8Unorm => {
-            let mut bgra = data.to_vec();
-            swap_red_blue(width, height, &mut bgra);
-            Ok(bgra)
-        }
-        F::B8G8R8A8Srgb => {
-            let mut bgra = data.to_vec();
-            swap_red_blue(width, height, &mut bgra);
-            Ok(bgra)
-        }
-    }
-}
-
-fn swap_red_blue(width: u32, height: u32, rgba: &mut Vec<u8>) {
-    for i in 0..(width as usize * height as usize) {
-        // RGBA -> BGRA.
-        rgba.swap(i * 4, i * 4 + 2);
+        F::R8Unorm => r8_from_rgba8(width, height, data),
+        F::R8G8B8A8Unorm => encode_rgba8_from_rgba8(width, height, data),
+        F::R8G8B8A8Srgb => encode_rgba8_from_rgba8(width, height, data),
+        F::R32G32B32A32Float => rgbaf32_from_rgba8(width, height, data),
+        F::B8G8R8A8Unorm => bgra8_from_rgba8(width, height, data),
+        F::B8G8R8A8Srgb => bgra8_from_rgba8(width, height, data),
     }
 }
 
