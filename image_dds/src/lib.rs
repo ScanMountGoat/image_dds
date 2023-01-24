@@ -1,20 +1,44 @@
 //! # Introduction
 //! DDS can store the vast majority of both compressed and uncompressed GPU texture data.
-//! Uncompressed formats like [ImageFormat::R8G8B8A8Unorm] are supported for better compatibility.
+//! This includes uncompressed formats like [ImageFormat::R8G8B8A8Unorm].
 //! Libraries and applications for working with custom GPU texture file formats often support DDS.
 //! This makes DDS a good interchange format for texture conversion workflows.
 //!
-//! Formats like DDS have more limited application support compared to TIFF or PNG.
-//! GPU compression formats tend to be lossy, which introduces additional errors on each save.
+//! DDS has more limited application support compared to
+//! standard formats like TIFF or PNG especially on Linux and MacOS.
+//! GPU compression formats tend to be lossy, which makes it a poor choice for archival purposes.
 //! For this reason, it's often more convenient to work with texture data in an uncompressed format.
+//!
+//! image_dds enables safe and efficient compressed GPU texture conversion across platforms.
 //! A conversion pipeline may look like GPU Texture <-> DDS <-> image with the
 //! conversions to and from image and DDS provided by image_dds.
 //!
+//! Although widely supported by modern desktop and console hardware, not all contexts
+//! support compressed texture formats. DDS plugins for image editors often don't support newer
+//! compression formats like BC7. Rendering APIs may not support compressed formats or only make it available
+//! via an extension such as in the browser.
+//! image_dds supports decoding surfaces to RGBA8 for
+//! better compatibility at the cost of increased memory usage.
+//!
 //! # Features
 //! Despite the name, neither the `ddsfile` nor `image` crates are required
-//! and can be disabled in the Cargo.toml by setting `default-features = false` and enabled individually.
-//! Surface data can be encoded and decoded using lower level functions like
-//! [decode_surface_rgba8] or [encode_surface_rgba8_generated_mipmaps].
+//! and can be disabled in the Cargo.toml by setting `default-features = false`.
+//! The `"ddsfile"` and `"image"` features can then be enabled individually.
+//! Surface data can still be encoded and decoded using lower level functions like
+//! [decode_surface_rgba8] or [encode_surface_rgba8_generated_mipmaps]. These lower level functions are
+//! ideal for internal conversions in libraries or applications that want to skip intermediate formats like DDS.
+//! Texture conversion utilities will probably want to use the higher level functions like
+//! [image_from_dds] for convenience.
+//!
+//! # Limitations
+//! BC2 data can be decoded but not encoded due to limitations in intel-tex-rs-2.
+//! This format is very rarely used in practice.
+//! Not all targets will compile by default due to intel-tex-rs-2 using the Intel ISPC compiler.
+//! Precompiled kernels aren't available for all targets but can be compiled from source if needed.
+//! 3D textures as well as cube map and array layers are not supported but will be added in a future update.
+//! Creating DDS files with custom mipmaps or extracting mipmap data is not yet supported.
+//! Supporting for floating point data will also be added in a future update.
+//! This mostly impacts BC6H compression since it encodes half precision floating point data.
 use bcn::*;
 use rgba::*;
 
