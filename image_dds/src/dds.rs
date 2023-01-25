@@ -25,9 +25,11 @@ pub fn dds_from_image(
     quality: Quality,
     generate_mipmaps: bool,
 ) -> Result<ddsfile::Dds, CreateDdsError> {
+    // Assume all images are 2D for now.
     dds_from_surface_rgba8(
         image.width(),
         image.height(),
+        1,
         image.as_raw(),
         format,
         quality,
@@ -41,17 +43,19 @@ pub fn dds_from_image(
 pub fn dds_from_surface_rgba8(
     width: u32,
     height: u32,
+    depth: u32,
     rgba8_data: &[u8],
     format: ImageFormat,
     quality: Quality,
     generate_mipmaps: bool,
 ) -> Result<ddsfile::Dds, CreateDdsError> {
     // TODO: This is also calculated in the function below.
-    let num_mipmaps = max_mipmap_count(width.max(height));
+    let num_mipmaps = max_mipmap_count(width.max(height).max(depth));
 
     let surface_data = encode_surface_rgba8_generated_mipmaps(
         width,
         height,
+        depth,
         rgba8_data,
         format,
         quality,
@@ -61,7 +65,7 @@ pub fn dds_from_surface_rgba8(
     let mut dds = ddsfile::Dds::new_dxgi(ddsfile::NewDxgiParams {
         height,
         width,
-        depth: None,
+        depth: if depth > 1 { Some(depth) } else { None },
         format: format.into(),
         mipmap_levels: if generate_mipmaps {
             Some(num_mipmaps)
@@ -71,8 +75,12 @@ pub fn dds_from_surface_rgba8(
         array_layers: None,
         caps2: None,
         is_cubemap: false,
-        resource_dimension: ddsfile::D3D10ResourceDimension::Texture2D, // TODO: Support 3D
-        alpha_mode: ddsfile::AlphaMode::Straight,                       // TODO: Does this matter?
+        resource_dimension: if depth > 1 {
+            ddsfile::D3D10ResourceDimension::Texture3D
+        } else {
+            ddsfile::D3D10ResourceDimension::Texture2D
+        },
+        alpha_mode: ddsfile::AlphaMode::Straight, // TODO: Does this matter?
     })?;
 
     dds.data = surface_data;
@@ -87,9 +95,10 @@ pub fn decode_surface_rgba8_from_dds(
 ) -> Result<Vec<u8>, DecompressSurfaceError> {
     let width = dds.get_width();
     let height = dds.get_height();
+    let depth = dds.get_depth();
 
     let image_format = dds_image_format(dds).ok_or(DecompressSurfaceError::UnrecognizedFormat)?;
-    let rgba8_data = decode_surface_rgba8(width, height, &dds.data, image_format)?;
+    let rgba8_data = decode_surface_rgba8(width, height, depth, &dds.data, image_format)?;
 
     Ok(rgba8_data)
 }
@@ -97,7 +106,8 @@ pub fn decode_surface_rgba8_from_dds(
 #[cfg(feature = "image")]
 /// Decode the first array layer and mip level from `dds` to an RGBA8 image.
 pub fn image_from_dds(dds: &ddsfile::Dds) -> Result<image::RgbaImage, crate::CreateImageError> {
-    let width = dds.get_width();
+    // Arrange depth slices horizontally from left to right.
+    let width = dds.get_width() * dds.get_depth();
     let height = dds.get_height();
 
     let rgba8_data = decode_surface_rgba8_from_dds(dds)?;

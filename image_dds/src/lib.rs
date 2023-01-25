@@ -171,13 +171,14 @@ pub enum CreateImageError {
 #[derive(Debug, Error)]
 pub enum CompressSurfaceError {
     // TODO: Split this into two error types
-    #[error("surface dimensions {width} x {height} are zero sized or would overflow")]
-    InvalidDimensions { width: u32, height: u32 },
+    #[error("surface dimensions {width} x {height} x {depth} are zero sized or would overflow")]
+    InvalidDimensions { width: u32, height: u32, depth: u32 },
 
-    #[error("surface dimensions {width} x {height} are not divisibly by the block dimensions {block_width} x {block_height}")]
+    #[error("surface dimensions {width} x {height} x {depth} are not divisibly by the block dimensions {block_width} x {block_height}")]
     NonIntegralDimensionsInBlocks {
         width: u32,
         height: u32,
+        depth: u32,
         block_width: u32,
         block_height: u32,
     },
@@ -210,38 +211,43 @@ fn max_mipmap_count(max_dimension: u32) -> u32 {
 pub fn decode_surface_rgba8(
     width: u32,
     height: u32,
+    depth: u32,
     data: &[u8],
     format: ImageFormat,
 ) -> Result<Vec<u8>, DecompressSurfaceError> {
+    // TODO: Decode array layers.
+    // TODO: Decode mipmaps as well?
+    // TODO: Add tests for different combinations of layers, mipmaps, and depth.
     // TODO: Make it possible to decode/encode a format known at compile time?
     use ImageFormat as F;
     match format {
-        F::BC1Unorm | F::BC1Srgb => rgba8_from_bcn::<Bc1>(width, height, data),
-        F::BC2Unorm | F::BC2Srgb => rgba8_from_bcn::<Bc2>(width, height, data),
-        F::BC3Unorm | F::BC3Srgb => rgba8_from_bcn::<Bc3>(width, height, data),
-        F::BC4Unorm | F::BC4Snorm => rgba8_from_bcn::<Bc4>(width, height, data),
-        F::BC5Unorm | F::BC5Snorm => rgba8_from_bcn::<Bc5>(width, height, data),
-        F::BC6Ufloat | F::BC6Sfloat => rgba8_from_bcn::<Bc6>(width, height, data),
-        F::BC7Unorm | F::BC7Srgb => rgba8_from_bcn::<Bc7>(width, height, data),
-        F::R8Unorm => rgba8_from_r8(width, height, data),
-        F::R8G8B8A8Unorm => decode_rgba8_from_rgba8(width, height, data),
-        F::R8G8B8A8Srgb => decode_rgba8_from_rgba8(width, height, data),
-        F::R32G32B32A32Float => rgba8_from_rgbaf32(width, height, data),
-        F::B8G8R8A8Unorm => rgba8_from_bgra8(width, height, data),
-        F::B8G8R8A8Srgb => rgba8_from_bgra8(width, height, data),
+        F::BC1Unorm | F::BC1Srgb => rgba8_from_bcn::<Bc1>(width, height, depth, data),
+        F::BC2Unorm | F::BC2Srgb => rgba8_from_bcn::<Bc2>(width, height, depth, data),
+        F::BC3Unorm | F::BC3Srgb => rgba8_from_bcn::<Bc3>(width, height, depth, data),
+        F::BC4Unorm | F::BC4Snorm => rgba8_from_bcn::<Bc4>(width, height, depth, data),
+        F::BC5Unorm | F::BC5Snorm => rgba8_from_bcn::<Bc5>(width, height, depth, data),
+        F::BC6Ufloat | F::BC6Sfloat => rgba8_from_bcn::<Bc6>(width, height, depth, data),
+        F::BC7Unorm | F::BC7Srgb => rgba8_from_bcn::<Bc7>(width, height, depth, data),
+        F::R8Unorm => rgba8_from_r8(width, height, depth, data),
+        F::R8G8B8A8Unorm => decode_rgba8_from_rgba8(width, height, depth, data),
+        F::R8G8B8A8Srgb => decode_rgba8_from_rgba8(width, height, depth, data),
+        F::R32G32B32A32Float => rgba8_from_rgbaf32(width, height, depth, data),
+        F::B8G8R8A8Unorm => rgba8_from_bgra8(width, height, depth, data),
+        F::B8G8R8A8Srgb => rgba8_from_bgra8(width, height, depth, data),
     }
 }
 
 // TODO: Use an enum for mipmaps that could use tightly packed mipmaps.
 // TODO: Add an option for depth or array layers.
 // TODO: Add documentation showing how to use this.
-/// Encode a `width` x `height` RGBA8 surface to the given `format`.
+/// Encode a `width` x `height` x `depth` RGBA8 surface to the given `format`.
 ///
 /// Mipmaps are automatically generated when `generate_mipmaps` is `true`.
 /// The `rgba8_data` only needs to contain enough data for the base mip level of `width` x `height` pixels.
 pub fn encode_surface_rgba8_generated_mipmaps(
     width: u32,
     height: u32,
+    depth: u32,
     rgba8_data: &[u8],
     format: ImageFormat,
     quality: Quality,
@@ -255,13 +261,14 @@ pub fn encode_surface_rgba8_generated_mipmaps(
         return Err(CompressSurfaceError::NonIntegralDimensionsInBlocks {
             width,
             height,
+            depth,
             block_width,
             block_height,
         });
     }
 
     let num_mipmaps = if generate_mipmaps {
-        max_mipmap_count(width.max(height))
+        max_mipmap_count(width.max(height).max(depth))
     } else {
         1
     };
@@ -273,14 +280,16 @@ pub fn encode_surface_rgba8_generated_mipmaps(
     for i in 0..num_mipmaps {
         let mip_width = (width >> i).max(1);
         let mip_height = (height >> i).max(1);
+        let mip_depth = (depth >> i).max(1);
 
         // TODO: Find a cleaner way of handling padding of smaller surfaces.
         // The physical size must be at least 4x4 to have enough data for a full block.
         // Applications or the GPU will use the smaller virtual size and ignore padding.
         // https://learn.microsoft.com/en-us/windows/win32/direct3d10/d3d10-graphics-programming-guide-resources-block-compression
         let mip_data = encode_rgba8(
-            mip_width.max(4),
-            mip_height.max(4),
+            mip_width.max(block_width),
+            mip_height.max(block_height),
+            mip_depth,
             &mip_image,
             format,
             quality,
@@ -289,8 +298,14 @@ pub fn encode_surface_rgba8_generated_mipmaps(
 
         // Halve the width and height for the next mipmap.
         // TODO: Find a better way to pad the size.
-        if mip_width > 4 && mip_height > 4 {
-            mip_image = downsample_rgba8(mip_width, mip_height, &mip_image);
+        // TODO: Block depth for completeness?
+        if mip_width > block_width && mip_height > block_height {
+            mip_image = downsample_rgba8(
+                mip_width as usize,
+                mip_height as usize,
+                mip_depth as usize,
+                &mip_image,
+            );
         }
     }
 
@@ -300,6 +315,7 @@ pub fn encode_surface_rgba8_generated_mipmaps(
 fn encode_rgba8(
     width: u32,
     height: u32,
+    depth: u32,
     data: &[u8],
     format: ImageFormat,
     quality: Quality,
@@ -308,53 +324,68 @@ fn encode_rgba8(
 
     use ImageFormat as F;
     match format {
-        F::BC1Unorm | F::BC1Srgb => bcn_from_rgba8::<Bc1>(width, height, data, quality),
-        F::BC2Unorm | F::BC2Srgb => bcn_from_rgba8::<Bc2>(width, height, data, quality),
-        F::BC3Unorm | F::BC3Srgb => bcn_from_rgba8::<Bc3>(width, height, data, quality),
-        F::BC4Unorm | F::BC4Snorm => bcn_from_rgba8::<Bc4>(width, height, data, quality),
-        F::BC5Unorm | F::BC5Snorm => bcn_from_rgba8::<Bc5>(width, height, data, quality),
-        F::BC6Ufloat | F::BC6Sfloat => bcn_from_rgba8::<Bc6>(width, height, data, quality),
-        F::BC7Unorm | F::BC7Srgb => bcn_from_rgba8::<Bc7>(width, height, data, quality),
-        F::R8Unorm => r8_from_rgba8(width, height, data),
-        F::R8G8B8A8Unorm => encode_rgba8_from_rgba8(width, height, data),
-        F::R8G8B8A8Srgb => encode_rgba8_from_rgba8(width, height, data),
-        F::R32G32B32A32Float => rgbaf32_from_rgba8(width, height, data),
-        F::B8G8R8A8Unorm => bgra8_from_rgba8(width, height, data),
-        F::B8G8R8A8Srgb => bgra8_from_rgba8(width, height, data),
+        F::BC1Unorm | F::BC1Srgb => bcn_from_rgba8::<Bc1>(width, height, depth, data, quality),
+        F::BC2Unorm | F::BC2Srgb => bcn_from_rgba8::<Bc2>(width, height, depth, data, quality),
+        F::BC3Unorm | F::BC3Srgb => bcn_from_rgba8::<Bc3>(width, height, depth, data, quality),
+        F::BC4Unorm | F::BC4Snorm => bcn_from_rgba8::<Bc4>(width, height, depth, data, quality),
+        F::BC5Unorm | F::BC5Snorm => bcn_from_rgba8::<Bc5>(width, height, depth, data, quality),
+        F::BC6Ufloat | F::BC6Sfloat => bcn_from_rgba8::<Bc6>(width, height, depth, data, quality),
+        F::BC7Unorm | F::BC7Srgb => bcn_from_rgba8::<Bc7>(width, height, depth, data, quality),
+        F::R8Unorm => r8_from_rgba8(width, height, depth, data),
+        F::R8G8B8A8Unorm => encode_rgba8_from_rgba8(width, height, depth, data),
+        F::R8G8B8A8Srgb => encode_rgba8_from_rgba8(width, height, depth, data),
+        F::R32G32B32A32Float => rgbaf32_from_rgba8(width, height, depth, data),
+        F::B8G8R8A8Unorm => bgra8_from_rgba8(width, height, depth, data),
+        F::B8G8R8A8Srgb => bgra8_from_rgba8(width, height, depth, data),
     }
 }
 
-fn downsample_rgba8(width: u32, height: u32, data: &[u8]) -> Vec<u8> {
+fn downsample_rgba8(width: usize, height: usize, depth: usize, data: &[u8]) -> Vec<u8> {
     // Halve the width and height by averaging pixels.
     // This is faster than resizing using the image crate.
-    // TODO: Handle the case where the dimensions aren't even.
-    let width = width as usize;
-    let height = height as usize;
+    // TODO: How to handle the case where any of the dimensions is zero?
+    let new_width = (width / 2).max(1);
+    let new_height = (height / 2).max(1);
+    let new_depth = (depth / 2).max(1);
 
-    let new_width = width / 2;
-    let new_height = height / 2;
+    let mut new_data = vec![0u8; new_width * new_height * new_depth * 4];
+    for z in 0..new_depth {
+        for x in 0..new_width {
+            for y in 0..new_height {
+                let new_index = (z * new_width * new_height) + y * new_width + x;
 
-    let mut new_data = vec![0u8; new_width * new_height * 4];
-    for x in 0..new_width {
-        for y in 0..new_height {
-            let new_index = y * new_width + x;
+                // Average a 2x2x2 pixel region from data into a 1x1x1 pixel region.
+                // This is equivalent to a 3D convolution or pooling operation over the pixels.
+                for c in 0..4 {
+                    let mut sum = 0;
+                    let mut count = 0;
+                    for z2 in 0..2 {
+                        let sampled_z = (z * 2) + z2;
+                        if sampled_z < depth {
+                            for y2 in 0..2 {
+                                let sampled_y = (y * 2) + y2;
+                                if sampled_y < height {
+                                    for x2 in 0..2 {
+                                        let sampled_x = (x * 2) + x2;
+                                        if sampled_x < width {
+                                            let index = (sampled_z * width * height)
+                                                + (sampled_y * width)
+                                                + sampled_x;
+                                            sum += data[index * 4 + c] as usize;
+                                            count += 1;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
 
-            // Average a 4x4 pixel region from data.
-            let top_left = y * 2 * width + x * 2;
-            let top_right = y * 2 * width + ((x * 2) + 1);
-            let bottom_left = ((y * 2) + 1) * width + x * 2;
-            let bottom_right = ((y * 2) + 1) * width + (x * 2) + 1;
-
-            for c in 0..4 {
-                let average = (data[top_left * 4 + c] as f32
-                    + data[top_right * 4 + c] as f32
-                    + data[bottom_left * 4 + c] as f32
-                    + data[bottom_right * 4 + c] as f32)
-                    / 4.0;
-                new_data[new_index * 4 + c] = average as u8;
+                    new_data[new_index * 4 + c] = (sum as f64 / count as f64) as u8;
+                }
             }
         }
     }
+
     new_data
 }
 
@@ -388,7 +419,10 @@ mod tests {
             .take(4 * 4 / 2)
             .flatten()
             .collect();
-        assert_eq!(vec![127u8; 2 * 2 * 4], downsample_rgba8(4, 4, &original));
+        assert_eq!(
+            vec![127u8; 2 * 2 * 1 * 4],
+            downsample_rgba8(4, 4, 1, &original)
+        );
     }
 
     #[test]
@@ -400,12 +434,26 @@ mod tests {
         .take(3 * 3 / 3)
         .flatten()
         .collect();
-        assert_eq!(vec![127u8; 1 * 1 * 4], downsample_rgba8(3, 3, &original));
+        assert_eq!(vec![127u8; 1 * 1 * 4], downsample_rgba8(3, 3, 1, &original));
+    }
+
+    #[test]
+    fn downsample_rgba8_2x2x2() {
+        // Test that two slices of 2x2 pixels are averaged.
+        let original = vec![
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255,
+            255, 255, 255, 255, 255, 255, 255, 255,
+        ];
+        assert_eq!(
+            vec![127u8; 1 * 1 * 1 * 4],
+            downsample_rgba8(2, 2, 2, &original)
+        );
     }
 
     #[test]
     fn downsample_rgba8_0x0() {
-        assert!(downsample_rgba8(0, 0, &[]).is_empty());
+        // TODO: Should this be empty?
+        assert_eq!(vec![0u8; 4], downsample_rgba8(0, 0, 1, &[]));
     }
 
     #[test]
@@ -414,6 +462,7 @@ mod tests {
         let result = encode_surface_rgba8_generated_mipmaps(
             4,
             4,
+            1,
             &[0u8; 64],
             ImageFormat::BC7Srgb,
             Quality::Fast,
@@ -428,6 +477,7 @@ mod tests {
         let result = encode_surface_rgba8_generated_mipmaps(
             3,
             5,
+            2,
             &[0u8; 256],
             ImageFormat::BC7Srgb,
             Quality::Fast,
@@ -438,6 +488,7 @@ mod tests {
             Err(CompressSurfaceError::NonIntegralDimensionsInBlocks {
                 width: 3,
                 height: 5,
+                depth: 2,
                 block_width: 4,
                 block_height: 4
             })

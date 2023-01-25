@@ -37,6 +37,7 @@ pub trait Bcn<Pixel> {
     fn decompress_block(block: &Self::CompressedBlock) -> [[Pixel; BLOCK_WIDTH]; BLOCK_HEIGHT];
 
     // TODO: Should this take &[Pixel] instead of &[u8]?
+    // TODO: How to handle depth with intel-tex-rs-2?
     fn compress_surface(
         width: u32,
         height: u32,
@@ -391,6 +392,7 @@ impl Bcn<[u8; 4]> for Bc7 {
 pub fn rgba8_from_bcn<T: Bcn<[u8; 4]>>(
     width: u32,
     height: u32,
+    depth: u32,
     data: &[u8],
 ) -> Result<Vec<u8>, DecompressSurfaceError>
 where
@@ -419,25 +421,30 @@ where
 
     // BCN formats lay out blocks in row-major order.
     // TODO: calculate x and y using division and mod?
+    // TODO: Add an outer loop for depth?
     let mut block_start = 0;
-    for y in (0..height).step_by(BLOCK_HEIGHT) {
-        for x in (0..width).step_by(BLOCK_WIDTH) {
-            // Use a special type to enforce alignment.
-            let block = T::CompressedBlock::read_block(data, block_start);
-            // TODO: Add rgba8 and rgbaf32 variants for decompress block.
-            let decompressed_block = T::decompress_block(&block);
+    for z in 0..depth {
+        for y in (0..height).step_by(BLOCK_HEIGHT) {
+            for x in (0..width).step_by(BLOCK_WIDTH) {
+                // Use a special type to enforce alignment.
+                let block = T::CompressedBlock::read_block(data, block_start);
+                // TODO: Add rgba8 and rgbaf32 variants for decompress block.
+                let decompressed_block = T::decompress_block(&block);
 
-            // TODO: This can be generic over the pixel type to also support float.
-            // Each block is 4x4, so we need to update multiple rows.
-            put_rgba_block(
-                &mut rgba,
-                decompressed_block,
-                x as usize,
-                y as usize,
-                width as usize,
-            );
+                // TODO: This can be generic over the pixel type to also support float.
+                // Each block is 4x4, so we need to update multiple rows.
+                put_rgba_block(
+                    &mut rgba,
+                    decompressed_block,
+                    x as usize,
+                    y as usize,
+                    z as usize,
+                    width as usize,
+                    height as usize,
+                );
 
-            block_start += T::CompressedBlock::SIZE_IN_BYTES;
+                block_start += T::CompressedBlock::SIZE_IN_BYTES;
+            }
         }
     }
 
@@ -449,7 +456,9 @@ fn put_rgba_block(
     pixels: [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT],
     x: usize,
     y: usize,
+    z: usize,
     width: usize,
+    height: usize,
 ) {
     // Place the compressed block into the decompressed surface.
     // The data from each block will update 4 rows of the RGBA surface.
@@ -458,7 +467,7 @@ fn put_rgba_block(
 
     for (row, row_pixels) in pixels.iter().enumerate() {
         // Convert pixel coordinates to byte coordinates.
-        let surface_index = ((y + row) * width + x) * Rgba::BYTES_PER_PIXEL;
+        let surface_index = ((z * width * height) + (y + row) * width + x) * Rgba::BYTES_PER_PIXEL;
         // The row is already known to have the correct number of bytes.
         surface[surface_index..surface_index + bytes_per_row]
             .copy_from_slice(bytemuck::cast_slice(row_pixels));
@@ -469,19 +478,30 @@ fn put_rgba_block(
 pub fn bcn_from_rgba8<T: Bcn<[u8; 4]>>(
     width: u32,
     height: u32,
+    depth: u32,
     data: &[u8],
     quality: Quality,
 ) -> Result<Vec<u8>, CompressSurfaceError> {
     // TODO: How to handle the zero case?
-    if width == 0 || height == 0 {
-        return Err(CompressSurfaceError::InvalidDimensions { width, height });
+    if width == 0 || height == 0 || depth == 0 {
+        return Err(CompressSurfaceError::InvalidDimensions {
+            width,
+            height,
+            depth,
+        });
     }
 
     // Surface dimensions are not validated yet and may cause overflow.
+    // The block depth is assumed to be 1 for BCN.
     let expected_size = div_round_up(width as usize, BLOCK_WIDTH)
         .checked_mul(div_round_up(height as usize, BLOCK_HEIGHT))
+        .and_then(|v| v.checked_mul(depth as usize))
         .and_then(|v| v.checked_mul(Rgba::BYTES_PER_BLOCK))
-        .ok_or(CompressSurfaceError::InvalidDimensions { width, height })?;
+        .ok_or(CompressSurfaceError::InvalidDimensions {
+            width,
+            height,
+            depth,
+        })?;
 
     if data.len() < expected_size {
         return Err(CompressSurfaceError::NotEnoughData {
@@ -508,13 +528,13 @@ mod tests {
         T::CompressedBlock: ReadBlock,
     {
         // Compress the data once to introduce some errors.
-        let compressed_block = bcn_from_rgba8::<T>(4, 4, &rgba, quality).unwrap();
-        let decompressed_block = rgba8_from_bcn::<T>(4, 4, &compressed_block).unwrap();
+        let compressed_block = bcn_from_rgba8::<T>(4, 4, 1, &rgba, quality).unwrap();
+        let decompressed_block = rgba8_from_bcn::<T>(4, 4, 1, &compressed_block).unwrap();
 
         // Compressing and decompressing should give back the same data.
         // TODO: Is this guaranteed in general?
-        let compressed_block2 = bcn_from_rgba8::<T>(4, 4, &decompressed_block, quality).unwrap();
-        let decompressed_block2 = rgba8_from_bcn::<T>(4, 4, &compressed_block2).unwrap();
+        let compressed_block2 = bcn_from_rgba8::<T>(4, 4, 1, &decompressed_block, quality).unwrap();
+        let decompressed_block2 = rgba8_from_bcn::<T>(4, 4, 1, &compressed_block2).unwrap();
 
         assert_eq!(decompressed_block2, decompressed_block);
     }
