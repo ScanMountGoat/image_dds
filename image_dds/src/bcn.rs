@@ -37,7 +37,8 @@ pub trait Bcn {
     // TODO: change this to -> [P; 16] to support both u8 and f32?
     // Expect all formats to pad to RGBA even if they have fewer channels.
     // Fixing the length should reduce the amount of bounds checking.
-    fn decompress_block(block: &Self::CompressedBlock) -> [u8; Rgba::BYTES_PER_BLOCK];
+    // The decoded 4x4 pixel blocks are in row-major ordering.
+    fn decompress_block(block: &Self::CompressedBlock) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT];
 
     // TODO: Require the ability to convert &[u8] -> &[P]?
     // Users won't want to convert the data themselves.
@@ -93,13 +94,13 @@ pub struct Bc1;
 impl Bcn for Bc1 {
     type CompressedBlock = Block8;
 
-    fn decompress_block(block: &Block8) -> [u8; Rgba::BYTES_PER_BLOCK] {
-        let mut decompressed = [0u8; BLOCK_WIDTH * BLOCK_HEIGHT * Rgba::BYTES_PER_PIXEL];
+    fn decompress_block(block: &Block8) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
+        let mut decompressed = [[[0u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT];
 
         unsafe {
             bcndecode_sys::bcdec_bc1(
                 block.0.as_ptr(),
-                decompressed.as_mut_ptr(),
+                decompressed.as_mut_ptr() as _,
                 (BLOCK_WIDTH * Rgba::BYTES_PER_PIXEL) as i32,
             );
         }
@@ -129,13 +130,13 @@ pub struct Bc2;
 impl Bcn for Bc2 {
     type CompressedBlock = Block16;
 
-    fn decompress_block(block: &Block16) -> [u8; Rgba::BYTES_PER_BLOCK] {
-        let mut decompressed = [0u8; BLOCK_WIDTH * BLOCK_HEIGHT * Rgba::BYTES_PER_PIXEL];
+    fn decompress_block(block: &Block16) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
+        let mut decompressed = [[[0u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT];
 
         unsafe {
             bcndecode_sys::bcdec_bc2(
                 block.0.as_ptr(),
-                decompressed.as_mut_ptr(),
+                decompressed.as_mut_ptr() as _,
                 (BLOCK_WIDTH * Rgba::BYTES_PER_PIXEL) as i32,
             );
         }
@@ -160,13 +161,13 @@ pub struct Bc3;
 impl Bcn for Bc3 {
     type CompressedBlock = Block16;
 
-    fn decompress_block(block: &Block16) -> [u8; Rgba::BYTES_PER_BLOCK] {
-        let mut decompressed = [0u8; BLOCK_WIDTH * BLOCK_HEIGHT * Rgba::BYTES_PER_PIXEL];
+    fn decompress_block(block: &Block16) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
+        let mut decompressed = [[[0u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT];
 
         unsafe {
             bcndecode_sys::bcdec_bc3(
                 block.0.as_ptr(),
-                decompressed.as_mut_ptr(),
+                decompressed.as_mut_ptr() as _,
                 (BLOCK_WIDTH * Rgba::BYTES_PER_PIXEL) as i32,
             );
         }
@@ -196,28 +197,28 @@ pub struct Bc4;
 impl Bcn for Bc4 {
     type CompressedBlock = Block8;
 
-    fn decompress_block(block: &Block8) -> [u8; Rgba::BYTES_PER_BLOCK] {
+    fn decompress_block(block: &Block8) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
         // BC4 stores grayscale data, so each decompressed pixel is 1 byte.
-        let mut decompressed_r = [0u8; BLOCK_WIDTH * BLOCK_HEIGHT];
+        let mut decompressed_r = [[0u8; BLOCK_WIDTH]; BLOCK_HEIGHT];
 
         unsafe {
             bcndecode_sys::bcdec_bc4(
                 block.0.as_ptr(),
-                decompressed_r.as_mut_ptr(),
+                decompressed_r.as_mut_ptr() as _,
                 (BLOCK_WIDTH) as i32,
             );
         }
 
         // Pad to RGBA with alpha set to white.
-        let mut decompressed = [0u8; BLOCK_WIDTH * BLOCK_HEIGHT * Rgba::BYTES_PER_PIXEL];
-        for i in 0..(BLOCK_WIDTH * BLOCK_HEIGHT) {
-            // It's a convention in some programs display BC4 in the red channel.
-            // Use grayscale instead to avoid confusing it with colored data.
-            // TODO: Match how channels handled when compressing RGBA data to BC4?
-            decompressed[i * Rgba::BYTES_PER_PIXEL] = decompressed_r[i];
-            decompressed[i * Rgba::BYTES_PER_PIXEL + 1] = decompressed_r[i];
-            decompressed[i * Rgba::BYTES_PER_PIXEL + 2] = decompressed_r[i];
-            decompressed[i * Rgba::BYTES_PER_PIXEL + 3] = 255u8;
+        let mut decompressed = [[[0u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT];
+        for y in 0..BLOCK_HEIGHT {
+            for x in 0..BLOCK_WIDTH {
+                // It's a convention in some programs display BC4 in the red channel.
+                // Use grayscale instead to avoid confusing it with colored data.
+                // TODO: Match how channels handled when compressing RGBA data to BC4?
+                let r = decompressed_r[y][x];
+                decompressed[y][x] = [r, r, r, 255u8];
+            }
         }
 
         decompressed
@@ -245,26 +246,26 @@ pub struct Bc5;
 impl Bcn for Bc5 {
     type CompressedBlock = Block16;
 
-    fn decompress_block(block: &Block16) -> [u8; Rgba::BYTES_PER_BLOCK] {
+    fn decompress_block(block: &Block16) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
         // BC5 stores RG data, so each decompressed pixel is 2 bytes.
-        let mut decompressed_rg = [0u8; BLOCK_WIDTH * BLOCK_HEIGHT * 2];
+        let mut decompressed_rg = [[[0u8; 2]; BLOCK_WIDTH]; BLOCK_HEIGHT];
 
         unsafe {
             bcndecode_sys::bcdec_bc5(
                 block.0.as_ptr(),
-                decompressed_rg.as_mut_ptr(),
+                decompressed_rg.as_mut_ptr() as _,
                 (BLOCK_WIDTH * 2) as i32,
             );
         }
 
         // Pad to RGBA with alpha set to white.
-        let mut decompressed = [0u8; BLOCK_WIDTH * BLOCK_HEIGHT * Rgba::BYTES_PER_PIXEL];
-        for i in 0..(BLOCK_WIDTH * BLOCK_HEIGHT) {
-            // It's convention to zero the blue channel when decompressing BC5.
-            decompressed[i * Rgba::BYTES_PER_PIXEL] = decompressed_rg[i * 2];
-            decompressed[i * Rgba::BYTES_PER_PIXEL + 1] = decompressed_rg[i * 2 + 1];
-            decompressed[i * Rgba::BYTES_PER_PIXEL + 2] = 0u8;
-            decompressed[i * Rgba::BYTES_PER_PIXEL + 3] = 255u8;
+        let mut decompressed = [[[0u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT];
+        for y in 0..BLOCK_HEIGHT {
+            for x in 0..BLOCK_HEIGHT {
+                // It's convention to zero the blue channel when decompressing BC5.
+                let [r, g] = decompressed_rg[y][x];
+                decompressed[y][x] = [r, g, 0u8, 255u8];
+            }
         }
 
         decompressed
@@ -292,21 +293,21 @@ pub struct Bc6;
 impl Bcn for Bc6 {
     type CompressedBlock = Block16;
 
-    fn decompress_block(block: &Block16) -> [u8; Rgba::BYTES_PER_BLOCK] {
+    fn decompress_block(block: &Block16) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
         // TODO: signed vs unsigned?
         // TODO: Also support exr or radiance hdr under feature flags?
         // exr or radiance only make sense for bc6
 
         // BC6H uses half precision floating point data.
         // Convert to single precision since f32 is better supported on CPUs.
-        let mut decompressed_rgb = [0f32; BLOCK_WIDTH * BLOCK_HEIGHT * 3];
+        let mut decompressed_rgb = [[[0f32; 3]; BLOCK_WIDTH]; BLOCK_HEIGHT];
 
         unsafe {
             // Cast the pointer to a less strictly aligned type.
             // The pitch is in terms of floats rather than bytes.
             bcndecode_sys::bcdec_bc6h_float(
                 block.0.as_ptr(),
-                decompressed_rgb.as_mut_ptr() as *mut u8,
+                decompressed_rgb.as_mut_ptr() as _,
                 (BLOCK_WIDTH * 3) as i32,
                 0,
             );
@@ -317,12 +318,13 @@ impl Bcn for Bc6 {
         let float_to_u8 = |x: f32| (x * 255.0) as u8;
 
         // Pad to RGBA with alpha set to white.
-        let mut decompressed = [0u8; BLOCK_WIDTH * BLOCK_HEIGHT * Rgba::BYTES_PER_PIXEL];
-        for i in 0..(BLOCK_WIDTH * BLOCK_HEIGHT) {
-            decompressed[i * Rgba::BYTES_PER_PIXEL] = float_to_u8(decompressed_rgb[i * 3]);
-            decompressed[i * Rgba::BYTES_PER_PIXEL + 1] = float_to_u8(decompressed_rgb[i * 3 + 1]);
-            decompressed[i * Rgba::BYTES_PER_PIXEL + 2] = float_to_u8(decompressed_rgb[i * 3 + 2]);
-            decompressed[i * Rgba::BYTES_PER_PIXEL + 3] = 255u8;
+        let mut decompressed = [[[0u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT];
+        for y in 0..BLOCK_HEIGHT {
+            for x in 0..BLOCK_HEIGHT {
+                // It's convention to zero the blue channel when decompressing BC5.
+                let [r, g, b] = decompressed_rgb[y][x];
+                decompressed[y][x] = [float_to_u8(r), float_to_u8(g), float_to_u8(b), 255u8];
+            }
         }
 
         decompressed
@@ -359,13 +361,13 @@ pub struct Bc7;
 impl Bcn for Bc7 {
     type CompressedBlock = Block16;
 
-    fn decompress_block(block: &Block16) -> [u8; Rgba::BYTES_PER_BLOCK] {
-        let mut decompressed = [0u8; BLOCK_WIDTH * BLOCK_HEIGHT * Rgba::BYTES_PER_PIXEL];
+    fn decompress_block(block: &Block16) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
+        let mut decompressed = [[[0u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT];
 
         unsafe {
             bcndecode_sys::bcdec_bc7(
                 block.0.as_ptr(),
-                decompressed.as_mut_ptr(),
+                decompressed.as_mut_ptr() as _,
                 (BLOCK_WIDTH * Rgba::BYTES_PER_PIXEL) as i32,
             );
         }
@@ -451,24 +453,22 @@ where
 
 fn put_rgba_block(
     surface: &mut [u8],
-    pixels: [u8; Rgba::BYTES_PER_BLOCK],
+    pixels: [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT],
     x: usize,
     y: usize,
     width: usize,
 ) {
     // Place the compressed block into the decompressed surface.
-    // For most formats this will be contiguous 4x4 pixel blocks.
     // The data from each block will update 4 rows of the RGBA surface.
     // TODO: Examine the assembly for this.
-    // TODO: How to handle grayscale formats like BC4?
-    // This should have tunable parameters for Rgba::bytes_per_pixel.
-    let bytes_per_row = BLOCK_WIDTH * Rgba::BYTES_PER_PIXEL;
+    let bytes_per_row = std::mem::size_of::<[[u8; 4]; BLOCK_WIDTH]>();
 
     for row in 0..BLOCK_HEIGHT {
+        // Convert pixel coordinates to byte coordinates.
         let surface_index = ((y + row) * width + x) * Rgba::BYTES_PER_PIXEL;
-        let pixel_index = row * BLOCK_WIDTH * Rgba::BYTES_PER_PIXEL;
+        // The row is already known to have the correct number of bytes.
         surface[surface_index..surface_index + bytes_per_row]
-            .copy_from_slice(&pixels[pixel_index..pixel_index + bytes_per_row]);
+            .copy_from_slice(bytemuck::cast_slice(&pixels[row]));
     }
 }
 
