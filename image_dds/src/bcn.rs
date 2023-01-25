@@ -29,21 +29,14 @@ impl From<Quality> for intel_tex_2::bc7::EncodeSettings {
     }
 }
 
-// TODO: Make this generic over the pixel type P.
-// This can then be implemented for each type for f32 and u8.
-pub trait Bcn {
+pub trait Bcn<Pixel> {
     type CompressedBlock;
 
-    // TODO: change this to -> [P; 16] to support both u8 and f32?
-    // Expect all formats to pad to RGBA even if they have fewer channels.
-    // Fixing the length should reduce the amount of bounds checking.
     // The decoded 4x4 pixel blocks are in row-major ordering.
-    fn decompress_block(block: &Self::CompressedBlock) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT];
+    // Fixing the length should reduce the amount of bounds checking.
+    fn decompress_block(block: &Self::CompressedBlock) -> [[Pixel; BLOCK_WIDTH]; BLOCK_HEIGHT];
 
-    // TODO: Require the ability to convert &[u8] -> &[P]?
-    // Users won't want to convert the data themselves.
-    // This trait isn't usable by users, so we can stick to types that work like [u8;4] or [f32;4]
-    // TODO: Should the pixel type include the channels like [u8;1] vs [u8;4]?
+    // TODO: Should this take &[Pixel] instead of &[u8]?
     fn compress_surface(
         width: u32,
         height: u32,
@@ -91,7 +84,7 @@ impl Rgba {
 }
 
 pub struct Bc1;
-impl Bcn for Bc1 {
+impl Bcn<[u8; 4]> for Bc1 {
     type CompressedBlock = Block8;
 
     fn decompress_block(block: &Block8) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
@@ -127,7 +120,7 @@ impl Bcn for Bc1 {
 }
 
 pub struct Bc2;
-impl Bcn for Bc2 {
+impl Bcn<[u8; 4]> for Bc2 {
     type CompressedBlock = Block16;
 
     fn decompress_block(block: &Block16) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
@@ -158,7 +151,7 @@ impl Bcn for Bc2 {
 }
 
 pub struct Bc3;
-impl Bcn for Bc3 {
+impl Bcn<[u8; 4]> for Bc3 {
     type CompressedBlock = Block16;
 
     fn decompress_block(block: &Block16) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
@@ -194,7 +187,7 @@ impl Bcn for Bc3 {
 }
 
 pub struct Bc4;
-impl Bcn for Bc4 {
+impl Bcn<[u8; 4]> for Bc4 {
     type CompressedBlock = Block8;
 
     fn decompress_block(block: &Block8) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
@@ -243,7 +236,7 @@ impl Bcn for Bc4 {
 }
 
 pub struct Bc5;
-impl Bcn for Bc5 {
+impl Bcn<[u8; 4]> for Bc5 {
     type CompressedBlock = Block16;
 
     fn decompress_block(block: &Block16) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
@@ -290,7 +283,7 @@ impl Bcn for Bc5 {
 }
 
 pub struct Bc6;
-impl Bcn for Bc6 {
+impl Bcn<[u8; 4]> for Bc6 {
     type CompressedBlock = Block16;
 
     fn decompress_block(block: &Block16) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
@@ -358,7 +351,7 @@ impl Bcn for Bc6 {
 }
 
 pub struct Bc7;
-impl Bcn for Bc7 {
+impl Bcn<[u8; 4]> for Bc7 {
     type CompressedBlock = Block16;
 
     fn decompress_block(block: &Block16) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
@@ -395,7 +388,7 @@ impl Bcn for Bc7 {
 
 // TODO: Make this generic over the pixel type (f32 or u8).
 /// Decompress the bytes in `data` to the uncompressed RGBA8 format.
-pub fn rgba8_from_bcn<T: Bcn>(
+pub fn rgba8_from_bcn<T: Bcn<[u8; 4]>>(
     width: u32,
     height: u32,
     data: &[u8],
@@ -463,17 +456,17 @@ fn put_rgba_block(
     // TODO: Examine the assembly for this.
     let bytes_per_row = std::mem::size_of::<[[u8; 4]; BLOCK_WIDTH]>();
 
-    for row in 0..BLOCK_HEIGHT {
+    for (row, row_pixels) in pixels.iter().enumerate() {
         // Convert pixel coordinates to byte coordinates.
         let surface_index = ((y + row) * width + x) * Rgba::BYTES_PER_PIXEL;
         // The row is already known to have the correct number of bytes.
         surface[surface_index..surface_index + bytes_per_row]
-            .copy_from_slice(bytemuck::cast_slice(&pixels[row]));
+            .copy_from_slice(bytemuck::cast_slice(row_pixels));
     }
 }
 
 /// Compress the uncompressed RGBA8 bytes in `data` to the given format `T`.
-pub fn bcn_from_rgba8<T: Bcn>(
+pub fn bcn_from_rgba8<T: Bcn<[u8; 4]>>(
     width: u32,
     height: u32,
     data: &[u8],
@@ -510,7 +503,7 @@ mod tests {
     // TODO: Add tests for validating the input length.
     // TODO: Will compression fail for certain pixel values (test with fuzz tests?)
 
-    fn check_decompress_compressed_bcn<T: Bcn>(rgba: &[u8], quality: Quality)
+    fn check_decompress_compressed_bcn<T: Bcn<[u8; 4]>>(rgba: &[u8], quality: Quality)
     where
         T::CompressedBlock: ReadBlock,
     {
