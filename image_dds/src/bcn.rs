@@ -1,7 +1,7 @@
 use crate::{div_round_up, CompressSurfaceError, DecompressSurfaceError, ImageFormat, Quality};
 use half::f16;
 
-// Not all compressed formats use 4x4 blocks.
+// All BCN formats use 4x4 pixel blocks.
 const BLOCK_WIDTH: usize = 4;
 const BLOCK_HEIGHT: usize = 4;
 
@@ -29,17 +29,20 @@ impl From<Quality> for intel_tex_2::bc7::EncodeSettings {
     }
 }
 
-// TODO: Make this generic over the pixel type.
+// TODO: Make this generic over the pixel type P.
 // This can then be implemented for each type for f32 and u8.
 pub trait Bcn {
     type CompressedBlock;
 
-    const BYTES_PER_BLOCK: usize;
-
+    // TODO: change this to -> [P; 16] to support both u8 and f32?
     // Expect all formats to pad to RGBA even if they have fewer channels.
     // Fixing the length should reduce the amount of bounds checking.
     fn decompress_block(block: &Self::CompressedBlock) -> [u8; Rgba::BYTES_PER_BLOCK];
 
+    // TODO: Require the ability to convert &[u8] -> &[P]?
+    // Users won't want to convert the data themselves.
+    // This trait isn't usable by users, so we can stick to types that work like [u8;4] or [f32;4]
+    // TODO: Should the pixel type include the channels like [u8;1] vs [u8;4]?
     fn compress_surface(
         width: u32,
         height: u32,
@@ -50,6 +53,8 @@ pub trait Bcn {
 
 // Allows block types to read and copy buffer data to enforce alignment.
 pub trait ReadBlock {
+    const SIZE_IN_BYTES: usize;
+
     fn read_block(data: &[u8], offset: usize) -> Self;
 }
 
@@ -59,6 +64,8 @@ pub trait ReadBlock {
 pub struct Block8([u8; 8]);
 
 impl ReadBlock for Block8 {
+    const SIZE_IN_BYTES: usize = 8;
+
     fn read_block(data: &[u8], offset: usize) -> Self {
         Self(data[offset..offset + 8].try_into().unwrap())
     }
@@ -68,6 +75,8 @@ impl ReadBlock for Block8 {
 pub struct Block16([u8; 16]);
 
 impl ReadBlock for Block16 {
+    const SIZE_IN_BYTES: usize = 16;
+
     fn read_block(data: &[u8], offset: usize) -> Self {
         Self(data[offset..offset + 16].try_into().unwrap())
     }
@@ -83,7 +92,6 @@ impl Rgba {
 pub struct Bc1;
 impl Bcn for Bc1 {
     type CompressedBlock = Block8;
-    const BYTES_PER_BLOCK: usize = 8;
 
     fn decompress_block(block: &Block8) -> [u8; Rgba::BYTES_PER_BLOCK] {
         let mut decompressed = [0u8; BLOCK_WIDTH * BLOCK_HEIGHT * Rgba::BYTES_PER_PIXEL];
@@ -120,7 +128,6 @@ impl Bcn for Bc1 {
 pub struct Bc2;
 impl Bcn for Bc2 {
     type CompressedBlock = Block16;
-    const BYTES_PER_BLOCK: usize = 16;
 
     fn decompress_block(block: &Block16) -> [u8; Rgba::BYTES_PER_BLOCK] {
         let mut decompressed = [0u8; BLOCK_WIDTH * BLOCK_HEIGHT * Rgba::BYTES_PER_PIXEL];
@@ -152,7 +159,6 @@ impl Bcn for Bc2 {
 pub struct Bc3;
 impl Bcn for Bc3 {
     type CompressedBlock = Block16;
-    const BYTES_PER_BLOCK: usize = 16;
 
     fn decompress_block(block: &Block16) -> [u8; Rgba::BYTES_PER_BLOCK] {
         let mut decompressed = [0u8; BLOCK_WIDTH * BLOCK_HEIGHT * Rgba::BYTES_PER_PIXEL];
@@ -189,7 +195,6 @@ impl Bcn for Bc3 {
 pub struct Bc4;
 impl Bcn for Bc4 {
     type CompressedBlock = Block8;
-    const BYTES_PER_BLOCK: usize = 8;
 
     fn decompress_block(block: &Block8) -> [u8; Rgba::BYTES_PER_BLOCK] {
         // BC4 stores grayscale data, so each decompressed pixel is 1 byte.
@@ -239,7 +244,6 @@ impl Bcn for Bc4 {
 pub struct Bc5;
 impl Bcn for Bc5 {
     type CompressedBlock = Block16;
-    const BYTES_PER_BLOCK: usize = 16;
 
     fn decompress_block(block: &Block16) -> [u8; Rgba::BYTES_PER_BLOCK] {
         // BC5 stores RG data, so each decompressed pixel is 2 bytes.
@@ -287,7 +291,6 @@ impl Bcn for Bc5 {
 pub struct Bc6;
 impl Bcn for Bc6 {
     type CompressedBlock = Block16;
-    const BYTES_PER_BLOCK: usize = 16;
 
     fn decompress_block(block: &Block16) -> [u8; Rgba::BYTES_PER_BLOCK] {
         // TODO: signed vs unsigned?
@@ -355,7 +358,6 @@ impl Bcn for Bc6 {
 pub struct Bc7;
 impl Bcn for Bc7 {
     type CompressedBlock = Block16;
-    const BYTES_PER_BLOCK: usize = 16;
 
     fn decompress_block(block: &Block16) -> [u8; Rgba::BYTES_PER_BLOCK] {
         let mut decompressed = [0u8; BLOCK_WIDTH * BLOCK_HEIGHT * Rgba::BYTES_PER_PIXEL];
@@ -405,7 +407,7 @@ where
     // Surface dimensions are not validated yet and may cause overflow.
     let expected_size = div_round_up(width as usize, BLOCK_WIDTH)
         .checked_mul(div_round_up(height as usize, BLOCK_HEIGHT))
-        .and_then(|v| v.checked_mul(T::BYTES_PER_BLOCK))
+        .and_then(|v| v.checked_mul(T::CompressedBlock::SIZE_IN_BYTES))
         .ok_or(DecompressSurfaceError::InvalidDimensions { width, height })?;
 
     // Mipmap dimensions do not need to be multiples of the block dimensions.
@@ -440,7 +442,7 @@ where
                 width as usize,
             );
 
-            block_start += T::BYTES_PER_BLOCK;
+            block_start += T::CompressedBlock::SIZE_IN_BYTES;
         }
     }
 
@@ -526,7 +528,7 @@ mod tests {
 
     #[test]
     fn bc1_decompress_compressed() {
-        let rgba = vec![64u8; 4 * 4 * Rgba::BYTES_PER_BLOCK];
+        let rgba = vec![64u8; Rgba::BYTES_PER_BLOCK];
         check_decompress_compressed_bcn::<Bc1>(&rgba, Quality::Fast);
         check_decompress_compressed_bcn::<Bc1>(&rgba, Quality::Normal);
         check_decompress_compressed_bcn::<Bc1>(&rgba, Quality::Slow);
@@ -536,7 +538,7 @@ mod tests {
     fn bc2_decompress_compressed() {
         // TODO: Revise this test to check each direction separately.
         // TODO: BC2 compression should return an error.
-        let rgba = vec![64u8; 4 * 4 * Rgba::BYTES_PER_BLOCK];
+        let rgba = vec![64u8; Rgba::BYTES_PER_BLOCK];
         check_decompress_compressed_bcn::<Bc2>(&rgba, Quality::Fast);
         check_decompress_compressed_bcn::<Bc2>(&rgba, Quality::Normal);
         check_decompress_compressed_bcn::<Bc2>(&rgba, Quality::Slow);
@@ -544,7 +546,7 @@ mod tests {
 
     #[test]
     fn bc3_decompress_compressed() {
-        let rgba = vec![64u8; 4 * 4 * Rgba::BYTES_PER_BLOCK];
+        let rgba = vec![64u8; Rgba::BYTES_PER_BLOCK];
         check_decompress_compressed_bcn::<Bc3>(&rgba, Quality::Fast);
         check_decompress_compressed_bcn::<Bc3>(&rgba, Quality::Normal);
         check_decompress_compressed_bcn::<Bc3>(&rgba, Quality::Slow);
@@ -552,7 +554,7 @@ mod tests {
 
     #[test]
     fn bc4_decompress_compressed() {
-        let rgba = vec![64u8; 4 * 4 * Rgba::BYTES_PER_BLOCK];
+        let rgba = vec![64u8; Rgba::BYTES_PER_BLOCK];
         check_decompress_compressed_bcn::<Bc4>(&rgba, Quality::Fast);
         check_decompress_compressed_bcn::<Bc4>(&rgba, Quality::Normal);
         check_decompress_compressed_bcn::<Bc4>(&rgba, Quality::Slow);
@@ -560,7 +562,7 @@ mod tests {
 
     #[test]
     fn bc5_decompress_compressed() {
-        let rgba = vec![64u8; 4 * 4 * Rgba::BYTES_PER_BLOCK];
+        let rgba = vec![64u8; Rgba::BYTES_PER_BLOCK];
         check_decompress_compressed_bcn::<Bc5>(&rgba, Quality::Fast);
         check_decompress_compressed_bcn::<Bc5>(&rgba, Quality::Normal);
         check_decompress_compressed_bcn::<Bc5>(&rgba, Quality::Slow);
@@ -569,7 +571,7 @@ mod tests {
     #[test]
     fn bc6_decompress_compressed() {
         // TODO: Revise this test to check each direction separately.
-        let rgba = vec![64u8; 4 * 4 * Rgba::BYTES_PER_BLOCK];
+        let rgba = vec![64u8; Rgba::BYTES_PER_BLOCK];
         check_decompress_compressed_bcn::<Bc6>(&rgba, Quality::Fast);
         check_decompress_compressed_bcn::<Bc6>(&rgba, Quality::Normal);
         check_decompress_compressed_bcn::<Bc6>(&rgba, Quality::Slow);
@@ -577,7 +579,7 @@ mod tests {
 
     #[test]
     fn bc7_decompress_compressed() {
-        let rgba = vec![64u8; 4 * 4 * Rgba::BYTES_PER_BLOCK];
+        let rgba = vec![64u8; Rgba::BYTES_PER_BLOCK];
         check_decompress_compressed_bcn::<Bc7>(&rgba, Quality::Fast);
         check_decompress_compressed_bcn::<Bc7>(&rgba, Quality::Normal);
         check_decompress_compressed_bcn::<Bc7>(&rgba, Quality::Slow);
