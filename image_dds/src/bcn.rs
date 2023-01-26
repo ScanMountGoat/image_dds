@@ -1,4 +1,6 @@
-use crate::{div_round_up, CompressSurfaceError, DecompressSurfaceError, ImageFormat, Quality};
+use crate::{
+    div_round_up, mip_size, CompressSurfaceError, DecompressSurfaceError, ImageFormat, Quality,
+};
 use half::f16;
 
 // All BCN formats use 4x4 pixel blocks.
@@ -402,10 +404,16 @@ where
     // Each block can be decoded independently.
 
     // Surface dimensions are not validated yet and may cause overflow.
-    let expected_size = div_round_up(width as usize, BLOCK_WIDTH)
-        .checked_mul(div_round_up(height as usize, BLOCK_HEIGHT))
-        .and_then(|v| v.checked_mul(T::CompressedBlock::SIZE_IN_BYTES))
-        .ok_or(DecompressSurfaceError::InvalidDimensions { width, height })?;
+    let expected_size = mip_size(
+        width as usize,
+        height as usize,
+        depth as usize,
+        BLOCK_WIDTH,
+        BLOCK_HEIGHT,
+        1,
+        T::CompressedBlock::SIZE_IN_BYTES,
+    )
+    .ok_or(DecompressSurfaceError::InvalidDimensions { width, height })?;
 
     // Mipmap dimensions do not need to be multiples of the block dimensions.
     // A mipmap of size 1x1 pixels can still be decoded.
@@ -492,16 +500,21 @@ pub fn bcn_from_rgba8<T: Bcn<[u8; 4]>>(
     }
 
     // Surface dimensions are not validated yet and may cause overflow.
-    // The block depth is assumed to be 1 for BCN.
-    let expected_size = div_round_up(width as usize, BLOCK_WIDTH)
-        .checked_mul(div_round_up(height as usize, BLOCK_HEIGHT))
-        .and_then(|v| v.checked_mul(depth as usize))
-        .and_then(|v| v.checked_mul(Rgba::BYTES_PER_BLOCK))
-        .ok_or(CompressSurfaceError::InvalidDimensions {
-            width,
-            height,
-            depth,
-        })?;
+    // TODO: Is checking 4x4 pixel blocks the right choice here?
+    let expected_size = mip_size(
+        width as usize,
+        height as usize,
+        depth as usize,
+        BLOCK_WIDTH,
+        BLOCK_HEIGHT,
+        1,
+        Rgba::BYTES_PER_BLOCK,
+    )
+    .ok_or(CompressSurfaceError::InvalidDimensions {
+        width,
+        height,
+        depth,
+    })?;
 
     if data.len() < expected_size {
         return Err(CompressSurfaceError::NotEnoughData {

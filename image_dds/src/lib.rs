@@ -76,6 +76,7 @@ pub enum Mipmaps {
     /// A single mipmap. This is equivalent to no mipmapping.
     One,
     /// A set number of mipmaps.
+    // TODO: Don't allow zero?
     Exact(u32),
     /// Generate mipmaps starting from the base level
     /// until dimensions can be reduced no further.
@@ -406,6 +407,72 @@ fn downsample_rgba8(width: usize, height: usize, depth: usize, data: &[u8]) -> V
 
 fn div_round_up(x: usize, d: usize) -> usize {
     (x + d - 1) / d
+}
+
+// TODO: Create code for calculating offsets for a specific layer and mipmap.
+// Repeatedly grow a buffer by slicing the data from the appropriate offset.
+// This requires knowing the total mipmap count.
+// TODO: Use usize internally for all dimensions?
+// surface[layer][mipmap][z][y][x] but not all mipmaps are the same size.
+fn calculate_offset(
+    layer_index: usize,
+    mipmap_index: usize,
+    width: usize,
+    height: usize,
+    depth: usize,
+    block_width: usize,
+    block_height: usize,
+    block_depth: usize,
+    block_size_in_bytes: usize,
+    total_mipmaps: usize,
+) -> usize {
+    // TODO: Check if mipmap_index is greater than total mipmaps.
+    // TODO: Create a module for calculating surface sizes to avoid duplicating this logic.
+    let mip_sizes: Vec<_> = (0..total_mipmaps)
+        .map(|i| {
+            let mip_width = (width >> i).max(1);
+            let mip_height = (height >> i).max(1);
+            let mip_depth = (depth >> i).max(1);
+
+            // TODO: Avoid unwrap.
+            mip_size(
+                mip_width,
+                mip_height,
+                mip_depth,
+                block_width,
+                block_height,
+                block_depth,
+                block_size_in_bytes,
+            )
+            .unwrap()
+        })
+        .collect();
+
+    // Assume mipmaps are tightly packed.
+    // This is the case for DDS surface data.
+    let layer_size: usize = mip_sizes.iter().sum();
+
+    // TODO: Is this calculation correct?
+    // TODO: Add test cases.
+    // Each layer should have the same number of mipmaps.
+    let layer_offset = layer_index * layer_size;
+    let mip_offset: usize = mip_sizes[0..mipmap_index].iter().sum();
+    layer_offset + mip_offset
+}
+
+fn mip_size(
+    width: usize,
+    height: usize,
+    depth: usize,
+    block_width: usize,
+    block_height: usize,
+    block_depth: usize,
+    block_size_in_bytes: usize,
+) -> Option<usize> {
+    div_round_up(width, block_width)
+        .checked_mul(div_round_up(height, block_height))
+        .and_then(|v| v.checked_mul(div_round_up(depth, block_depth)))
+        .and_then(|v| v.checked_mul(block_size_in_bytes))
 }
 
 #[cfg(test)]
