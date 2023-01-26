@@ -423,7 +423,8 @@ where
         });
     }
 
-    let mut rgba = vec![0u8; width as usize * height as usize * Rgba::BYTES_PER_PIXEL];
+    let mut rgba =
+        vec![0u8; width as usize * height as usize * depth as usize * Rgba::BYTES_PER_PIXEL];
 
     // BCN formats lay out blocks in row-major order.
     // TODO: calculate x and y using division and mod?
@@ -468,15 +469,16 @@ fn put_rgba_block(
 ) {
     // Place the compressed block into the decompressed surface.
     // The data from each block will update 4 rows of the RGBA surface.
+    // Avoid copying too much data if width or height are smaller than the block dimensions.
     // TODO: Examine the assembly for this.
-    let bytes_per_row = std::mem::size_of::<[[u8; 4]; BLOCK_WIDTH]>();
+    let bytes_per_row = std::mem::size_of::<[u8; 4]>() * BLOCK_WIDTH.min(width);
 
-    for (row, row_pixels) in pixels.iter().enumerate() {
+    for row in 0..BLOCK_HEIGHT.min(height) {
         // Convert pixel coordinates to byte coordinates.
         let surface_index = ((z * width * height) + (y + row) * width + x) * Rgba::BYTES_PER_PIXEL;
-        // The row is already known to have the correct number of bytes.
+        // The correct slice length is calculated above.
         surface[surface_index..surface_index + bytes_per_row]
-            .copy_from_slice(bytemuck::cast_slice(row_pixels));
+            .copy_from_slice(&bytemuck::cast_slice(&pixels[row])[..bytes_per_row]);
     }
 }
 
