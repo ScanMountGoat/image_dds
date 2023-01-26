@@ -2,8 +2,8 @@ use ddsfile::{D3DFormat, DxgiFormat, FourCC};
 use thiserror::Error;
 
 use crate::{
-    decode_surface_rgba8, encode_surface_rgba8_generated_mipmaps, max_mipmap_count,
-    CompressSurfaceError, DecompressSurfaceError, ImageFormat, Quality,
+    decode_surface_rgba8, encode_surface_rgba8_generated_mipmaps, mipmap_count,
+    CompressSurfaceError, DecompressSurfaceError, ImageFormat, Mipmaps, Quality,
 };
 
 #[derive(Debug, Error)]
@@ -17,13 +17,13 @@ pub enum CreateDdsError {
 
 /// Encode `image` to a DDS file with the given `format`.
 ///
-/// Mipmaps are automatically generated when `generate_mipmaps` is `true`.
+/// The number of mipmaps generated depends on the `mipmaps` parameter.
 #[cfg(feature = "image")]
 pub fn dds_from_image(
     image: &image::RgbaImage,
     format: ImageFormat,
     quality: Quality,
-    generate_mipmaps: bool,
+    mipmaps: Mipmaps,
 ) -> Result<ddsfile::Dds, CreateDdsError> {
     // Assume all images are 2D for now.
     dds_from_surface_rgba8(
@@ -33,13 +33,13 @@ pub fn dds_from_image(
         image.as_raw(),
         format,
         quality,
-        generate_mipmaps,
+        mipmaps,
     )
 }
 
 /// Encode a `width` x `height`  RGBA8 surface to a DDS file with the given `format`.
 ///
-/// Mipmaps are automatically generated when `generate_mipmaps` is `true`.
+/// The number of mipmaps generated depends on the `mipmaps` parameter.
 pub fn dds_from_surface_rgba8(
     width: u32,
     height: u32,
@@ -47,19 +47,13 @@ pub fn dds_from_surface_rgba8(
     rgba8_data: &[u8],
     format: ImageFormat,
     quality: Quality,
-    generate_mipmaps: bool,
+    mipmaps: Mipmaps,
 ) -> Result<ddsfile::Dds, CreateDdsError> {
     // TODO: This is also calculated in the function below.
-    let num_mipmaps = max_mipmap_count(width.max(height).max(depth));
+    let num_mipmaps = mipmap_count(width, height, depth, mipmaps);
 
     let surface_data = encode_surface_rgba8_generated_mipmaps(
-        width,
-        height,
-        depth,
-        rgba8_data,
-        format,
-        quality,
-        generate_mipmaps,
+        width, height, depth, rgba8_data, format, quality, mipmaps,
     )?;
 
     let mut dds = ddsfile::Dds::new_dxgi(ddsfile::NewDxgiParams {
@@ -67,7 +61,7 @@ pub fn dds_from_surface_rgba8(
         width,
         depth: if depth > 1 { Some(depth) } else { None },
         format: format.into(),
-        mipmap_levels: if generate_mipmaps {
+        mipmap_levels: if num_mipmaps > 1 {
             Some(num_mipmaps)
         } else {
             None
@@ -137,7 +131,6 @@ fn dds_image_format(dds: &ddsfile::Dds) -> Option<ImageFormat> {
 }
 
 fn image_format_from_dxgi(format: DxgiFormat) -> Option<ImageFormat> {
-    // TODO: Support uncompressed formats.
     match format {
         DxgiFormat::R8_UNorm => Some(ImageFormat::R8Unorm),
         DxgiFormat::R8G8B8A8_UNorm => Some(ImageFormat::R8G8B8A8Unorm),

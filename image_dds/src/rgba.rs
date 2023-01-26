@@ -41,7 +41,7 @@ pub fn rgba8_from_rgbaf32(
     depth: u32,
     data: &[u8],
 ) -> Result<Vec<u8>, DecompressSurfaceError> {
-    let expected = width as usize * height as usize * 16;
+    let expected = width as usize * height as usize * depth as usize * 16;
     if data.len() >= expected {
         let rgba_f32: &[f32] = bytemuck::cast_slice(data);
         Ok(rgba_f32.iter().map(|f| (f * 255.0) as u8).collect())
@@ -113,7 +113,7 @@ pub fn rgba8_from_r8(
     depth: u32,
     data: &[u8],
 ) -> Result<Vec<u8>, DecompressSurfaceError> {
-    let expected = width as usize * height as usize;
+    let expected = width as usize * height as usize * depth as usize;
     if data.len() >= expected {
         Ok(data.iter().flat_map(|r| [*r, *r, *r, 255u8]).collect())
     } else {

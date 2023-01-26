@@ -39,7 +39,13 @@ fn main() {
     };
 
     let start = std::time::Instant::now();
-    let dds = image_dds::dds_from_image(&image, format, image_dds::Quality::Fast, true).unwrap();
+    let dds = image_dds::dds_from_image(
+        &image,
+        format,
+        image_dds::Quality::Fast,
+        image_dds::Mipmaps::Generated,
+    )
+    .unwrap();
     println!("Compressed data in {:?}", start.elapsed());
 
     let mut writer = std::io::BufWriter::new(std::fs::File::create(&args[2]).unwrap());

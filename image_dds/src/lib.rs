@@ -70,6 +70,18 @@ pub enum Quality {
     Slow,
 }
 
+/// Options for how many mipmaps to generate.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Mipmaps {
+    /// A single mipmap. This is equivalent to no mipmapping.
+    One,
+    /// A set number of mipmaps.
+    Exact(u32),
+    /// Generate mipmaps starting from the base level
+    /// until dimensions can be reduced no further.
+    Generated,
+}
+
 // Each format should have conversions to and from rgba8 and rgbaf32 for convenience.
 // Document the channels and bit depths for each format (i.e bc6 is half precision float, bc7 is rgba8, etc).
 /// Supported image formats for encoding and decoding.
@@ -202,6 +214,14 @@ pub enum DecompressSurfaceError {
     UnrecognizedFormat,
 }
 
+fn mipmap_count(width: u32, height: u32, depth: u32, mipmaps: Mipmaps) -> u32 {
+    match mipmaps {
+        Mipmaps::One => 1,
+        Mipmaps::Exact(count) => count,
+        Mipmaps::Generated => max_mipmap_count(width.max(height).max(depth)),
+    }
+}
+
 fn max_mipmap_count(max_dimension: u32) -> u32 {
     // log2(x) + 1
     u32::BITS - max_dimension.leading_zeros()
@@ -237,12 +257,11 @@ pub fn decode_surface_rgba8(
     }
 }
 
-// TODO: Use an enum for mipmaps that could use tightly packed mipmaps.
 // TODO: Add an option for depth or array layers.
 // TODO: Add documentation showing how to use this.
 /// Encode a `width` x `height` x `depth` RGBA8 surface to the given `format`.
 ///
-/// Mipmaps are automatically generated when `generate_mipmaps` is `true`.
+/// The number of mipmaps generated depends on the `mipmaps` parameter.
 /// The `rgba8_data` only needs to contain enough data for the base mip level of `width` x `height` pixels.
 pub fn encode_surface_rgba8_generated_mipmaps(
     width: u32,
@@ -251,7 +270,7 @@ pub fn encode_surface_rgba8_generated_mipmaps(
     rgba8_data: &[u8],
     format: ImageFormat,
     quality: Quality,
-    generate_mipmaps: bool,
+    mipmaps: Mipmaps,
 ) -> Result<Vec<u8>, CompressSurfaceError> {
     // The width and height must be a multiple of the block dimensions.
     // This only applies to the base level.
@@ -267,11 +286,7 @@ pub fn encode_surface_rgba8_generated_mipmaps(
         });
     }
 
-    let num_mipmaps = if generate_mipmaps {
-        max_mipmap_count(width.max(height).max(depth))
-    } else {
-        1
-    };
+    let num_mipmaps = mipmap_count(width, height, depth, mipmaps);
 
     let mut surface_data = Vec::new();
 
@@ -398,6 +413,22 @@ mod tests {
     use super::*;
 
     #[test]
+    fn mipmap_count_one() {
+        assert_eq!(1, mipmap_count(32, 32, 32, Mipmaps::One));
+    }
+
+    #[test]
+    fn mipmap_count_exact() {
+        // TODO: Should this clamp to the max mipmaps or return an error in the functions?
+        assert_eq!(3, mipmap_count(32, 32, 32, Mipmaps::Exact(3)));
+    }
+
+    #[test]
+    fn mipmap_count_generated() {
+        assert_eq!(6, mipmap_count(32, 32, 32, Mipmaps::Generated));
+    }
+
+    #[test]
     fn max_mipmap_count_zero() {
         assert_eq!(0, max_mipmap_count(0));
     }
@@ -466,7 +497,7 @@ mod tests {
             &[0u8; 64],
             ImageFormat::BC7Srgb,
             Quality::Fast,
-            true,
+            Mipmaps::Generated,
         );
         assert!(result.is_ok());
     }
@@ -481,7 +512,7 @@ mod tests {
             &[0u8; 256],
             ImageFormat::BC7Srgb,
             Quality::Fast,
-            true,
+            Mipmaps::Generated,
         );
         assert!(matches!(
             result,
