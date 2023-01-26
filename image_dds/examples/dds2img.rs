@@ -1,11 +1,15 @@
 fn main() {
     let args: Vec<_> = std::env::args().collect();
 
+    // TODO: This panics when accessing mipmaps smaller than 4x4?
+    let layer = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(0);
+    let mipmap = args.get(4).and_then(|s| s.parse().ok()).unwrap_or(0);
+
     let mut reader = std::fs::File::open(&args[1]).unwrap();
     let dds = ddsfile::Dds::read(&mut reader).unwrap();
 
     let start = std::time::Instant::now();
-    let image = image_dds::image_from_dds(&dds).unwrap();
+    let image = image_dds::image_from_dds(&dds, layer, mipmap).unwrap();
     println!("Decompressed data in {:?}", start.elapsed());
 
     image.save(&args[2]).unwrap();

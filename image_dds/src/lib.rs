@@ -165,6 +165,31 @@ impl ImageFormat {
             ImageFormat::B8G8R8A8Srgb => 1,
         }
     }
+
+    fn block_size_in_bytes(&self) -> usize {
+        match self {
+            ImageFormat::R8Unorm => 1,
+            ImageFormat::R8G8B8A8Unorm => 4,
+            ImageFormat::R8G8B8A8Srgb => 4,
+            ImageFormat::R32G32B32A32Float => 16,
+            ImageFormat::B8G8R8A8Unorm => 4,
+            ImageFormat::B8G8R8A8Srgb => 4,
+            ImageFormat::BC1Unorm => 8,
+            ImageFormat::BC1Srgb => 8,
+            ImageFormat::BC2Unorm => 16,
+            ImageFormat::BC2Srgb => 16,
+            ImageFormat::BC3Unorm => 16,
+            ImageFormat::BC3Srgb => 16,
+            ImageFormat::BC4Unorm => 8,
+            ImageFormat::BC4Snorm => 8,
+            ImageFormat::BC5Unorm => 16,
+            ImageFormat::BC5Snorm => 16,
+            ImageFormat::BC6Ufloat => 16,
+            ImageFormat::BC6Sfloat => 16,
+            ImageFormat::BC7Unorm => 16,
+            ImageFormat::BC7Srgb => 16,
+        }
+    }
 }
 
 // TODO: error module?
@@ -228,6 +253,12 @@ fn max_mipmap_count(max_dimension: u32) -> u32 {
     u32::BITS - max_dimension.leading_zeros()
 }
 
+// TODO: Should functions take u32 or usize?
+fn mip_dimension(dim: u32, mipmap: u32) -> u32 {
+    // Halve for each mip level.
+    (dim >> mipmap).max(1)
+}
+
 /// Decode a `width` x `height` surface with the given `format` to RGBA8.
 pub fn decode_surface_rgba8(
     width: u32,
@@ -235,11 +266,36 @@ pub fn decode_surface_rgba8(
     depth: u32,
     data: &[u8],
     format: ImageFormat,
+    layer: u32,  // TODO: Also support ranges?
+    mipmap: u32, // TODO: Also support ranges?
+    total_mipmaps: u32,
 ) -> Result<Vec<u8>, DecompressSurfaceError> {
-    // TODO: Decode array layers.
-    // TODO: Decode mipmaps as well?
     // TODO: Add tests for different combinations of layers, mipmaps, and depth.
     // TODO: Make it possible to decode/encode a format known at compile time?
+    let block_width = format.block_width() as usize;
+    let block_height = format.block_height() as usize;
+    let block_size_in_bytes = format.block_size_in_bytes();
+    // TODO: avoid panics in this function.
+    let offset = calculate_offset(
+        layer as usize,
+        mipmap as usize,
+        width as usize,
+        height as usize,
+        depth as usize,
+        block_width,
+        block_height,
+        1,
+        block_size_in_bytes,
+        total_mipmaps as usize,
+    );
+    // TODO: Avoid panic here.
+    let data = &data[offset..];
+
+    // The mipmap index is already validated by the offset calculation.
+    let width = mip_dimension(width, mipmap as u32);
+    let height = mip_dimension(height, mipmap as u32);
+    let depth = mip_dimension(depth, mipmap as u32);
+
     use ImageFormat as F;
     match format {
         F::BC1Unorm | F::BC1Srgb => rgba8_from_bcn::<Bc1>(width, height, depth, data),
@@ -294,9 +350,9 @@ pub fn encode_surface_rgba8_generated_mipmaps(
     let mut mip_image = rgba8_data.to_vec();
 
     for i in 0..num_mipmaps {
-        let mip_width = (width >> i).max(1);
-        let mip_height = (height >> i).max(1);
-        let mip_depth = (depth >> i).max(1);
+        let mip_width = mip_dimension(width, i);
+        let mip_height = mip_dimension(height, i);
+        let mip_depth = mip_dimension(depth, i);
 
         // TODO: Find a cleaner way of handling padding of smaller surfaces.
         // The physical size must be at least 4x4 to have enough data for a full block.
@@ -409,14 +465,12 @@ fn div_round_up(x: usize, d: usize) -> usize {
     (x + d - 1) / d
 }
 
-// TODO: Create code for calculating offsets for a specific layer and mipmap.
-// Repeatedly grow a buffer by slicing the data from the appropriate offset.
-// This requires knowing the total mipmap count.
 // TODO: Use usize internally for all dimensions?
-// surface[layer][mipmap][z][y][x] but not all mipmaps are the same size.
+// Surfaces typically use a row-major memory layout like surface[layer][mipmap][z][y][x].
+// Not all mipmaps are the same size, so the offset calculation is slightly more complex.
 fn calculate_offset(
-    layer_index: usize,
-    mipmap_index: usize,
+    layer: usize,
+    mipmap: usize,
     width: usize,
     height: usize,
     depth: usize,
@@ -426,13 +480,12 @@ fn calculate_offset(
     block_size_in_bytes: usize,
     total_mipmaps: usize,
 ) -> usize {
-    // TODO: Check if mipmap_index is greater than total mipmaps.
-    // TODO: Create a module for calculating surface sizes to avoid duplicating this logic.
+    // TODO: Check if mipmap is greater than total mipmaps.
     let mip_sizes: Vec<_> = (0..total_mipmaps)
         .map(|i| {
-            let mip_width = (width >> i).max(1);
-            let mip_height = (height >> i).max(1);
-            let mip_depth = (depth >> i).max(1);
+            let mip_width = mip_dimension(width as u32, i as u32) as usize;
+            let mip_height = mip_dimension(height as u32, i as u32) as usize;
+            let mip_depth = mip_dimension(depth as u32, i as u32) as usize;
 
             // TODO: Avoid unwrap.
             mip_size(
@@ -452,11 +505,9 @@ fn calculate_offset(
     // This is the case for DDS surface data.
     let layer_size: usize = mip_sizes.iter().sum();
 
-    // TODO: Is this calculation correct?
-    // TODO: Add test cases.
     // Each layer should have the same number of mipmaps.
-    let layer_offset = layer_index * layer_size;
-    let mip_offset: usize = mip_sizes[0..mipmap_index].iter().sum();
+    let layer_offset = layer * layer_size;
+    let mip_offset: usize = mip_sizes[0..mipmap].iter().sum();
     layer_offset + mip_offset
 }
 
@@ -591,5 +642,36 @@ mod tests {
                 block_height: 4
             })
         ));
+    }
+
+    #[test]
+    fn calculate_offset_layer0_mip0() {
+        assert_eq!(0, calculate_offset(0, 0, 8, 8, 8, 4, 4, 4, 16, 4));
+    }
+
+    #[test]
+    fn calculate_offset_layer0_mip2() {
+        // The sum of the first 2 mipmaps.
+        assert_eq!(128 + 16, calculate_offset(0, 2, 8, 8, 8, 4, 4, 4, 16, 4));
+    }
+
+    #[test]
+    fn calculate_offset_layer2_mip0() {
+        // The sum of the first 2 array layers.
+        // Each mipmap must have at least a full block of data.
+        assert_eq!(
+            (128 + 16 + 16 + 16) * 2,
+            calculate_offset(2, 0, 8, 8, 8, 4, 4, 4, 16, 4)
+        );
+    }
+
+    #[test]
+    fn calculate_offset_layer2_mip2() {
+        // The sum of the first two layers and two more mipmaps.
+        // Each mipmap must have at least a full block of data.
+        assert_eq!(
+            (128 + 16 + 16 + 16) * 2 + 128 + 16,
+            calculate_offset(2, 2, 8, 8, 8, 4, 4, 4, 16, 4)
+        );
     }
 }

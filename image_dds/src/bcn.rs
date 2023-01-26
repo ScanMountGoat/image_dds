@@ -1,6 +1,4 @@
-use crate::{
-    div_round_up, mip_size, CompressSurfaceError, DecompressSurfaceError, ImageFormat, Quality,
-};
+use crate::{mip_size, CompressSurfaceError, DecompressSurfaceError, ImageFormat, Quality};
 use half::f16;
 
 // All BCN formats use 4x4 pixel blocks.

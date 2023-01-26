@@ -82,30 +82,46 @@ pub fn dds_from_surface_rgba8(
     Ok(dds)
 }
 
-// TODO: Add an option to access other layers and mipmaps.
-/// Decode the first array layer and mip level from `dds` to an RGBA8 surface.
+/// Decode the given `layer` and `mipmap` from `dds` to an RGBA8 surface.
 pub fn decode_surface_rgba8_from_dds(
     dds: &ddsfile::Dds,
+    layer: u32,
+    mipmap: u32,
 ) -> Result<Vec<u8>, DecompressSurfaceError> {
     let width = dds.get_width();
     let height = dds.get_height();
     let depth = dds.get_depth();
 
     let image_format = dds_image_format(dds).ok_or(DecompressSurfaceError::UnrecognizedFormat)?;
-    let rgba8_data = decode_surface_rgba8(width, height, depth, &dds.data, image_format)?;
+    let rgba8_data = decode_surface_rgba8(
+        width,
+        height,
+        depth,
+        &dds.data,
+        image_format,
+        layer,
+        mipmap,
+        dds.get_num_mipmap_levels(),
+    )?;
 
     Ok(rgba8_data)
 }
 
 #[cfg(feature = "image")]
 /// Decode the first array layer and mip level from `dds` to an RGBA8 image.
-pub fn image_from_dds(dds: &ddsfile::Dds) -> Result<image::RgbaImage, crate::CreateImageError> {
-    // Arrange depth slices horizontally from left to right.
-    let width = dds.get_width() * dds.get_depth();
-    let height = dds.get_height();
+pub fn image_from_dds(
+    dds: &ddsfile::Dds,
+    layer: u32,
+    mipmap: u32,
+) -> Result<image::RgbaImage, crate::CreateImageError> {
+    use crate::mip_dimension;
 
-    let rgba8_data = decode_surface_rgba8_from_dds(dds)?;
+    let rgba8_data = decode_surface_rgba8_from_dds(dds, layer, mipmap)?;
     let data_length = rgba8_data.len();
+
+    // Arrange depth slices horizontally from left to right.
+    let width = mip_dimension(dds.get_width(), mipmap) * mip_dimension(dds.get_depth(), mipmap);
+    let height = mip_dimension(dds.get_height(), mipmap);
 
     let image = image::RgbaImage::from_raw(width, height, rgba8_data).ok_or(
         crate::CreateImageError::InvalidSurfaceDimensions {
