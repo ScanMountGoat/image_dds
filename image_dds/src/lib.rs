@@ -70,6 +70,9 @@ pub enum Quality {
     Slow,
 }
 
+// TODO: Use a struct with count: Option<NonZeroU32> and generated fields?
+// None will automatically calculate the number of mipmaps?
+// Is it better to just create a constructor that fills in the mipmap count?
 /// Options for how many mipmaps to generate.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Mipmaps {
@@ -259,22 +262,39 @@ fn mip_dimension(dim: u32, mipmap: u32) -> u32 {
     (dim >> mipmap).max(1)
 }
 
-/// Decode a single `layer` and `mipmap` from a `width` x `height` x `depth`
-/// surface with the given `format` to RGBA8.
+pub struct Surface<'a> {
+    /// The width of the surface in pixels.
+    pub width: u32,
+    /// The height of the surface in pixels.
+    pub height: u32,
+    /// The depth of the surface in pixels.
+    pub depth: u32,
+    /// The image data.
+    pub data: &'a [u8],
+    /// The format of the bytes in [data](#structfield.data).
+    pub image_format: ImageFormat,
+}
+
+// This would simplify calculations when using smaller mipmaps.
+/// Decode a single `layer` and `mipmap` from `surface` to RGBA8.
 ///
 /// When accessing array layers beyond the first layer,
-/// `total_mipmaps` must be equal to the number of mipmaps in an array layer
-/// and must be the same for all array layers.
+/// `mipmaps_per_layer` must be equal to the number of mipmaps in an array layer.
+/// All array layers are assumed to have the same number of mipmaps.
 pub fn decode_surface_rgba8(
-    width: u32,
-    height: u32,
-    depth: u32,
-    data: &[u8],
-    format: ImageFormat,
+    surface: Surface,
     layer: u32,  // TODO: Also support ranges?
     mipmap: u32, // TODO: Also support ranges?
-    total_mipmaps: u32,
-) -> Result<Vec<u8>, DecompressSurfaceError> {
+    mipmaps_per_layer: u32,
+) -> Result<SurfaceRgba8<Vec<u8>>, DecompressSurfaceError> {
+    let Surface {
+        width,
+        height,
+        depth,
+        data,
+        image_format: format,
+    } = surface;
+
     // TODO: Add tests for different combinations of layers, mipmaps, and depth.
     // TODO: Make it possible to decode/encode a format known at compile time?
     let block_width = format.block_width() as usize;
@@ -287,7 +307,7 @@ pub fn decode_surface_rgba8(
         (width, height, depth),
         (block_width, block_height, 1),
         block_size_in_bytes,
-        total_mipmaps,
+        mipmaps_per_layer,
     );
     // TODO: Avoid panic here.
     let data = &data[offset..];
@@ -298,7 +318,7 @@ pub fn decode_surface_rgba8(
     let depth = mip_dimension(depth, mipmap);
 
     use ImageFormat as F;
-    match format {
+    let data = match format {
         F::BC1Unorm | F::BC1Srgb => rgba8_from_bcn::<Bc1>(width, height, depth, data),
         F::BC2Unorm | F::BC2Srgb => rgba8_from_bcn::<Bc2>(width, height, depth, data),
         F::BC3Unorm | F::BC3Srgb => rgba8_from_bcn::<Bc3>(width, height, depth, data),
@@ -312,24 +332,48 @@ pub fn decode_surface_rgba8(
         F::R32G32B32A32Float => rgba8_from_rgbaf32(width, height, depth, data),
         F::B8G8R8A8Unorm => rgba8_from_bgra8(width, height, depth, data),
         F::B8G8R8A8Srgb => rgba8_from_bgra8(width, height, depth, data),
-    }
+    }?;
+
+    Ok(SurfaceRgba8 {
+        width,
+        height,
+        depth,
+        data,
+    })
+}
+
+/// An uncompressed RGBA8 surface with 4 bytes per pixel.
+pub struct SurfaceRgba8<T> {
+    /// The width of the surface in pixels.
+    pub width: u32,
+    /// The height of the surface in pixels.
+    pub height: u32,
+    /// The depth of the surface in pixels.
+    pub depth: u32,
+    /// The image data for the surface.
+    pub data: T,
 }
 
 // TODO: Add an option for depth or array layers.
 // TODO: Add documentation showing how to use this.
-/// Encode a `width` x `height` x `depth` RGBA8 surface to the given `format`.
+/// Encode an RGBA8 surface to the given `format`.
 ///
 /// The number of mipmaps generated depends on the `mipmaps` parameter.
 /// The `rgba8_data` only needs to contain enough data for the base mip level of `width` x `height` pixels.
-pub fn encode_surface_rgba8(
-    width: u32,
-    height: u32,
-    depth: u32,
-    rgba8_data: &[u8],
+pub fn encode_surface_rgba8<T: AsRef<[u8]>>(
+    surface: SurfaceRgba8<T>,
     format: ImageFormat,
     quality: Quality,
+    layers: u32, // TODO: Should this be a property of the surface?
     mipmaps: Mipmaps,
 ) -> Result<Vec<u8>, CompressSurfaceError> {
+    let SurfaceRgba8 {
+        width,
+        height,
+        depth,
+        data,
+    } = surface;
+
     // The width and height must be a multiple of the block dimensions.
     // This only applies to the base level.
     let block_width = format.block_width();
@@ -344,11 +388,13 @@ pub fn encode_surface_rgba8(
         });
     }
 
+    // TODO: Encode the correct number of array layers.
     let num_mipmaps = mipmap_count(width, height, depth, mipmaps);
 
     let mut surface_data = Vec::new();
 
-    let mut mip_image = rgba8_data.to_vec();
+    // TODO: Avoid the initial copy.
+    let mut mip_image = data.as_ref().to_vec();
 
     for i in 0..num_mipmaps {
         let mip_width = mip_dimension(width, i);
@@ -474,13 +520,13 @@ fn calculate_offset(
     dimensions: (u32, u32, u32),
     block_dimensions: (usize, usize, usize),
     block_size_in_bytes: usize,
-    total_mipmaps: u32,
+    mipmaps_per_layer: u32,
 ) -> usize {
     let (width, height, depth) = dimensions;
     let (block_width, block_height, block_depth) = block_dimensions;
 
     // TODO: Check if mipmap is greater than total mipmaps.
-    let mip_sizes: Vec<_> = (0..total_mipmaps)
+    let mip_sizes: Vec<_> = (0..mipmaps_per_layer)
         .map(|i| {
             let mip_width = mip_dimension(width, i) as usize;
             let mip_height = mip_dimension(height, i) as usize;
@@ -608,12 +654,15 @@ mod tests {
     fn create_surface_integral_dimensions() {
         // It's ok for mipmaps to not be divisible by the block width.
         let result = encode_surface_rgba8(
-            4,
-            4,
-            1,
-            &[0u8; 64],
+            SurfaceRgba8 {
+                width: 4,
+                height: 4,
+                depth: 1,
+                data: &[0u8; 64],
+            },
             ImageFormat::BC7Srgb,
             Quality::Fast,
+            1,
             Mipmaps::Generated,
         );
         assert!(result.is_ok());
@@ -623,12 +672,15 @@ mod tests {
     fn create_surface_non_integral_dimensions() {
         // This should still fail even though there is enough data.
         let result = encode_surface_rgba8(
-            3,
-            5,
-            2,
-            &[0u8; 256],
+            SurfaceRgba8 {
+                width: 3,
+                height: 5,
+                depth: 2,
+                data: &[0u8; 256],
+            },
             ImageFormat::BC7Srgb,
             Quality::Fast,
+            1,
             Mipmaps::Generated,
         );
         assert!(matches!(
