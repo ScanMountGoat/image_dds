@@ -25,7 +25,7 @@
 //! and can be disabled in the Cargo.toml by setting `default-features = false`.
 //! The `"ddsfile"` and `"image"` features can then be enabled individually.
 //! Surface data can still be encoded and decoded using lower level functions like
-//! [decode_surface_rgba8] or [encode_surface_rgba8_generated_mipmaps]. These lower level functions are
+//! [decode_surface_rgba8] or [encode_surface_rgba8]. These lower level functions are
 //! ideal for internal conversions in libraries or applications that want to skip intermediate formats like DDS.
 //! Texture conversion utilities will probably want to use the higher level functions like
 //! [image_from_dds] for convenience.
@@ -73,8 +73,8 @@ pub enum Quality {
 /// Options for how many mipmaps to generate.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Mipmaps {
-    /// A single mipmap. This is equivalent to no mipmapping.
-    One,
+    /// No mipmapping. Only the base mip level will be used.
+    Disabled,
     /// A set number of mipmaps.
     // TODO: Don't allow zero?
     Exact(u32),
@@ -242,7 +242,7 @@ pub enum DecompressSurfaceError {
 
 fn mipmap_count(width: u32, height: u32, depth: u32, mipmaps: Mipmaps) -> u32 {
     match mipmaps {
-        Mipmaps::One => 1,
+        Mipmaps::Disabled => 1,
         Mipmaps::Exact(count) => count,
         Mipmaps::Generated => max_mipmap_count(width.max(height).max(depth)),
     }
@@ -259,7 +259,12 @@ fn mip_dimension(dim: u32, mipmap: u32) -> u32 {
     (dim >> mipmap).max(1)
 }
 
-/// Decode a `width` x `height` surface with the given `format` to RGBA8.
+/// Decode a single `layer` and `mipmap` from a `width` x `height` x `depth`
+/// surface with the given `format` to RGBA8.
+///
+/// When accessing array layers beyond the first layer,
+/// `total_mipmaps` must be equal to the number of mipmaps in an array layer
+/// and must be the same for all array layers.
 pub fn decode_surface_rgba8(
     width: u32,
     height: u32,
@@ -279,22 +284,18 @@ pub fn decode_surface_rgba8(
     let offset = calculate_offset(
         layer as usize,
         mipmap as usize,
-        width as usize,
-        height as usize,
-        depth as usize,
-        block_width,
-        block_height,
-        1,
+        (width, height, depth),
+        (block_width, block_height, 1),
         block_size_in_bytes,
-        total_mipmaps as usize,
+        total_mipmaps,
     );
     // TODO: Avoid panic here.
     let data = &data[offset..];
 
     // The mipmap index is already validated by the offset calculation.
-    let width = mip_dimension(width, mipmap as u32);
-    let height = mip_dimension(height, mipmap as u32);
-    let depth = mip_dimension(depth, mipmap as u32);
+    let width = mip_dimension(width, mipmap);
+    let height = mip_dimension(height, mipmap);
+    let depth = mip_dimension(depth, mipmap);
 
     use ImageFormat as F;
     match format {
@@ -320,7 +321,7 @@ pub fn decode_surface_rgba8(
 ///
 /// The number of mipmaps generated depends on the `mipmaps` parameter.
 /// The `rgba8_data` only needs to contain enough data for the base mip level of `width` x `height` pixels.
-pub fn encode_surface_rgba8_generated_mipmaps(
+pub fn encode_surface_rgba8(
     width: u32,
     height: u32,
     depth: u32,
@@ -465,27 +466,25 @@ fn div_round_up(x: usize, d: usize) -> usize {
     (x + d - 1) / d
 }
 
-// TODO: Use usize internally for all dimensions?
 // Surfaces typically use a row-major memory layout like surface[layer][mipmap][z][y][x].
 // Not all mipmaps are the same size, so the offset calculation is slightly more complex.
 fn calculate_offset(
     layer: usize,
     mipmap: usize,
-    width: usize,
-    height: usize,
-    depth: usize,
-    block_width: usize,
-    block_height: usize,
-    block_depth: usize,
+    dimensions: (u32, u32, u32),
+    block_dimensions: (usize, usize, usize),
     block_size_in_bytes: usize,
-    total_mipmaps: usize,
+    total_mipmaps: u32,
 ) -> usize {
+    let (width, height, depth) = dimensions;
+    let (block_width, block_height, block_depth) = block_dimensions;
+
     // TODO: Check if mipmap is greater than total mipmaps.
     let mip_sizes: Vec<_> = (0..total_mipmaps)
         .map(|i| {
-            let mip_width = mip_dimension(width as u32, i as u32) as usize;
-            let mip_height = mip_dimension(height as u32, i as u32) as usize;
-            let mip_depth = mip_dimension(depth as u32, i as u32) as usize;
+            let mip_width = mip_dimension(width, i) as usize;
+            let mip_height = mip_dimension(height, i) as usize;
+            let mip_depth = mip_dimension(depth, i) as usize;
 
             // TODO: Avoid unwrap.
             mip_size(
@@ -532,7 +531,7 @@ mod tests {
 
     #[test]
     fn mipmap_count_one() {
-        assert_eq!(1, mipmap_count(32, 32, 32, Mipmaps::One));
+        assert_eq!(1, mipmap_count(32, 32, 32, Mipmaps::Disabled));
     }
 
     #[test]
@@ -608,7 +607,7 @@ mod tests {
     #[test]
     fn create_surface_integral_dimensions() {
         // It's ok for mipmaps to not be divisible by the block width.
-        let result = encode_surface_rgba8_generated_mipmaps(
+        let result = encode_surface_rgba8(
             4,
             4,
             1,
@@ -623,7 +622,7 @@ mod tests {
     #[test]
     fn create_surface_non_integral_dimensions() {
         // This should still fail even though there is enough data.
-        let result = encode_surface_rgba8_generated_mipmaps(
+        let result = encode_surface_rgba8(
             3,
             5,
             2,
@@ -646,13 +645,16 @@ mod tests {
 
     #[test]
     fn calculate_offset_layer0_mip0() {
-        assert_eq!(0, calculate_offset(0, 0, 8, 8, 8, 4, 4, 4, 16, 4));
+        assert_eq!(0, calculate_offset(0, 0, (8, 8, 8), (4, 4, 4), 16, 4));
     }
 
     #[test]
     fn calculate_offset_layer0_mip2() {
         // The sum of the first 2 mipmaps.
-        assert_eq!(128 + 16, calculate_offset(0, 2, 8, 8, 8, 4, 4, 4, 16, 4));
+        assert_eq!(
+            128 + 16,
+            calculate_offset(0, 2, (8, 8, 8), (4, 4, 4), 16, 4)
+        );
     }
 
     #[test]
@@ -661,7 +663,7 @@ mod tests {
         // Each mipmap must have at least a full block of data.
         assert_eq!(
             (128 + 16 + 16 + 16) * 2,
-            calculate_offset(2, 0, 8, 8, 8, 4, 4, 4, 16, 4)
+            calculate_offset(2, 0, (8, 8, 8), (4, 4, 4), 16, 4)
         );
     }
 
@@ -671,7 +673,7 @@ mod tests {
         // Each mipmap must have at least a full block of data.
         assert_eq!(
             (128 + 16 + 16 + 16) * 2 + 128 + 16,
-            calculate_offset(2, 2, 8, 8, 8, 4, 4, 4, 16, 4)
+            calculate_offset(2, 2, (8, 8, 8), (4, 4, 4), 16, 4)
         );
     }
 }

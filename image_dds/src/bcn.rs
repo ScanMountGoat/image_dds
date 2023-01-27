@@ -473,12 +473,12 @@ fn put_rgba_block(
     // TODO: Examine the assembly for this.
     let bytes_per_row = std::mem::size_of::<[u8; 4]>() * BLOCK_WIDTH.min(width);
 
-    for row in 0..BLOCK_HEIGHT.min(height) {
+    for (row, row_pixels) in pixels.iter().enumerate().take(BLOCK_HEIGHT.min(height)) {
         // Convert pixel coordinates to byte coordinates.
         let surface_index = ((z * width * height) + (y + row) * width + x) * Rgba::BYTES_PER_PIXEL;
         // The correct slice length is calculated above.
         surface[surface_index..surface_index + bytes_per_row]
-            .copy_from_slice(&bytemuck::cast_slice(&pixels[row])[..bytes_per_row]);
+            .copy_from_slice(&bytemuck::cast_slice(row_pixels)[..bytes_per_row]);
     }
 }
 

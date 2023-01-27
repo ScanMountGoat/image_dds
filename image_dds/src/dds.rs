@@ -2,8 +2,8 @@ use ddsfile::{D3DFormat, DxgiFormat, FourCC};
 use thiserror::Error;
 
 use crate::{
-    decode_surface_rgba8, encode_surface_rgba8_generated_mipmaps, mipmap_count,
-    CompressSurfaceError, DecompressSurfaceError, ImageFormat, Mipmaps, Quality,
+    decode_surface_rgba8, encode_surface_rgba8, mipmap_count, CompressSurfaceError,
+    DecompressSurfaceError, ImageFormat, Mipmaps, Quality,
 };
 
 #[derive(Debug, Error)]
@@ -37,7 +37,7 @@ pub fn dds_from_image(
     )
 }
 
-/// Encode a `width` x `height`  RGBA8 surface to a DDS file with the given `format`.
+/// Encode a `width` x `height` x `depth` RGBA8 surface to a DDS file with the given `format`.
 ///
 /// The number of mipmaps generated depends on the `mipmaps` parameter.
 pub fn dds_from_surface_rgba8(
@@ -52,9 +52,8 @@ pub fn dds_from_surface_rgba8(
     // TODO: This is also calculated in the function below.
     let num_mipmaps = mipmap_count(width, height, depth, mipmaps);
 
-    let surface_data = encode_surface_rgba8_generated_mipmaps(
-        width, height, depth, rgba8_data, format, quality, mipmaps,
-    )?;
+    let surface_data =
+        encode_surface_rgba8(width, height, depth, rgba8_data, format, quality, mipmaps)?;
 
     let mut dds = ddsfile::Dds::new_dxgi(ddsfile::NewDxgiParams {
         height,
