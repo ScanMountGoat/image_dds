@@ -68,6 +68,7 @@ pub struct Surface<T> {
     pub layers: u32,
     /// The number of mipmaps in the surface.
     /// This should be `1` if the surface has only the base mip level.
+    /// All array layers are assumed to have the same number of mipmaps.
     pub mipmaps: u32,
     /// The format of the bytes in [data](#structfield.data).
     pub image_format: ImageFormat,
@@ -89,6 +90,7 @@ pub struct SurfaceRgba8<T> {
     pub layers: u32,
     /// The number of mipmaps in the surface.
     /// This should be `1` if the surface has only the base mip level.
+    /// All array layers are assumed to have the same number of mipmaps.
     pub mipmaps: u32,
     /// The image data for the surface.
     pub data: T,
@@ -304,15 +306,10 @@ fn mip_dimension(dim: u32, mipmap: u32) -> u32 {
 // TODO: Support decoding all layers and mipmaps?
 // This would simplify calculations when using smaller mipmaps.
 /// Decode a single `layer` and `mipmap` from `surface` to RGBA8.
-///
-/// When accessing array layers beyond the first layer,
-/// `mipmaps_per_layer` must be equal to the number of mipmaps in an array layer.
-/// All array layers are assumed to have the same number of mipmaps.
 pub fn decode_surface_rgba8<T: AsRef<[u8]>>(
     surface: Surface<T>,
     layer: u32,  // TODO: Also support ranges?
     mipmap: u32, // TODO: Also support ranges?
-    mipmaps_per_layer: u32,
 ) -> Result<SurfaceRgba8<Vec<u8>>, DecompressSurfaceError> {
     let Surface {
         width,
@@ -336,7 +333,7 @@ pub fn decode_surface_rgba8<T: AsRef<[u8]>>(
         (width, height, depth),
         (block_width, block_height, 1),
         block_size_in_bytes,
-        mipmaps_per_layer,
+        mipmaps,
     );
     // TODO: Avoid panic here.
     let data = &data.as_ref()[offset..];

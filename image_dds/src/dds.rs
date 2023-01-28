@@ -108,7 +108,6 @@ pub fn decode_surface_rgba8_from_dds(
         },
         layer,
         mipmap,
-        dds.get_num_mipmap_levels(),
     )
 }
 
