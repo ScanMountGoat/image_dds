@@ -2,8 +2,8 @@ use ddsfile::{D3DFormat, DxgiFormat, FourCC};
 use thiserror::Error;
 
 use crate::{
-    decode_surface_rgba8, encode_surface_rgba8, mipmap_count, CompressSurfaceError,
-    DecompressSurfaceError, ImageFormat, Mipmaps, Quality, Surface, SurfaceRgba8,
+    decode_surface_rgba8, encode_surface_rgba8, CompressSurfaceError, DecompressSurfaceError,
+    ImageFormat, Mipmaps, Quality, Surface, SurfaceRgba8,
 };
 
 #[derive(Debug, Error)]
@@ -25,18 +25,19 @@ pub fn dds_from_image(
     quality: Quality,
     mipmaps: Mipmaps,
 ) -> Result<ddsfile::Dds, CreateDdsError> {
-    // TODO: Layers?
     // Assume all images are 2D for now.
+    // TODO: 3d and cube map support?
     dds_from_surface_rgba8(
         SurfaceRgba8 {
             width: image.width(),
             height: image.height(),
             depth: 1,
+            layers: 1,
+            mipmaps: 1,
             data: image.as_raw(),
         },
         format,
         quality,
-        1,
         mipmaps,
     )
 }
@@ -48,32 +49,25 @@ pub fn dds_from_surface_rgba8<T: AsRef<[u8]>>(
     surface: SurfaceRgba8<T>,
     format: ImageFormat,
     quality: Quality,
-    layers: u32,
     mipmaps: Mipmaps,
 ) -> Result<ddsfile::Dds, CreateDdsError> {
-    let SurfaceRgba8 {
+    let Surface {
         width,
         height,
         depth,
-        data: _,
-    } = surface;
-
-    // TODO: This is also calculated in the function below.
-    let num_mipmaps = mipmap_count(width, height, depth, mipmaps);
-
-    let surface_data = encode_surface_rgba8(surface, format, quality, layers, mipmaps)?;
+        layers,
+        mipmaps,
+        image_format,
+        data,
+    } = encode_surface_rgba8(surface, format, quality, mipmaps)?;
 
     let mut dds = ddsfile::Dds::new_dxgi(ddsfile::NewDxgiParams {
         height,
         width,
         depth: if depth > 1 { Some(depth) } else { None },
-        format: format.into(),
-        mipmap_levels: if num_mipmaps > 1 {
-            Some(num_mipmaps)
-        } else {
-            None
-        },
-        array_layers: None,
+        format: image_format.into(),
+        mipmap_levels: if mipmaps > 1 { Some(mipmaps) } else { None },
+        array_layers: if layers > 1 { Some(layers) } else { None },
         caps2: None,
         is_cubemap: false,
         resource_dimension: if depth > 1 {
@@ -84,7 +78,7 @@ pub fn dds_from_surface_rgba8<T: AsRef<[u8]>>(
         alpha_mode: ddsfile::AlphaMode::Straight, // TODO: Does this matter?
     })?;
 
-    dds.data = surface_data;
+    dds.data = data;
 
     Ok(dds)
 }
@@ -98,6 +92,8 @@ pub fn decode_surface_rgba8_from_dds(
     let width = dds.get_width();
     let height = dds.get_height();
     let depth = dds.get_depth();
+    let layers = dds.get_num_array_layers();
+    let mipmaps = dds.get_num_mipmap_levels();
 
     let image_format = dds_image_format(dds).ok_or(DecompressSurfaceError::UnrecognizedFormat)?;
     decode_surface_rgba8(
@@ -105,8 +101,10 @@ pub fn decode_surface_rgba8_from_dds(
             width,
             height,
             depth,
-            data: &dds.data,
+            layers,
+            mipmaps,
             image_format,
+            data: &dds.data,
         },
         layer,
         mipmap,
@@ -125,6 +123,8 @@ pub fn image_from_dds(
         width,
         height,
         depth,
+        layers,
+        mipmaps,
         data,
     } = decode_surface_rgba8_from_dds(dds, layer, mipmap)?;
 
