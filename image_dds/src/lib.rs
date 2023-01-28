@@ -304,6 +304,7 @@ fn mip_dimension(dim: u32, mipmap: u32) -> u32 {
 }
 
 // TODO: Support decoding all layers and mipmaps?
+// TODO: Add methods to surfaces for accessing a specific array layer and mipmap.
 // This would simplify calculations when using smaller mipmaps.
 /// Decode a single `layer` and `mipmap` from `surface` to RGBA8.
 pub fn decode_surface_rgba8<T: AsRef<[u8]>>(
