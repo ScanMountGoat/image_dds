@@ -48,86 +48,16 @@ use thiserror::Error;
 
 mod bcn;
 mod rgba;
+mod surface;
+
+pub use surface::{Surface, SurfaceRgba8};
+
 // TODO: Don't export all the functions at the crate root?
 // TODO: Document that this is only available on certain features?
 #[cfg(feature = "ddsfile")]
 mod dds;
 #[cfg(feature = "ddsfile")]
 pub use dds::*;
-
-pub struct Surface<T> {
-    /// The width of the surface in pixels.
-    pub width: u32,
-    /// The height of the surface in pixels.
-    pub height: u32,
-    /// The depth of the surface in pixels.
-    /// This should be `1` for 2D surfaces.
-    pub depth: u32,
-    /// The number of array layers in the surface.
-    /// This should be `1` for most surfaces and `6` for cube maps.
-    pub layers: u32,
-    /// The number of mipmaps in the surface.
-    /// This should be `1` if the surface has only the base mip level.
-    /// All array layers are assumed to have the same number of mipmaps.
-    pub mipmaps: u32,
-    /// The format of the bytes in [data](#structfield.data).
-    pub image_format: ImageFormat,
-    /// The image data.
-    pub data: T,
-}
-
-/// An uncompressed RGBA8 surface with 4 bytes per pixel.
-pub struct SurfaceRgba8<T> {
-    /// The width of the surface in pixels.
-    pub width: u32,
-    /// The height of the surface in pixels.
-    pub height: u32,
-    /// The depth of the surface in pixels.
-    /// This should be `1` for 2D surfaces.
-    pub depth: u32,
-    /// The number of array layers in the surface.
-    /// This should be `1` for most surfaces and `6` for cube maps.
-    pub layers: u32,
-    /// The number of mipmaps in the surface.
-    /// This should be `1` if the surface has only the base mip level.
-    /// All array layers are assumed to have the same number of mipmaps.
-    pub mipmaps: u32,
-    /// The image data for the surface.
-    pub data: T,
-}
-
-impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
-    // TODO: Add tests for this.
-    // TODO: Share code and implement for Surface as well.
-    /// The the range of image data corresponding to the specified `layer` and `mipmap`.
-    /// Returns [None] if the expected range is not fully contained within the buffer.
-    pub fn get_image_data(&self, layer: u32, mipmap: u32) -> Option<&[u8]> {
-        let format = ImageFormat::R8G8B8A8Unorm;
-        let block_size_in_bytes = format.block_size_in_bytes();
-        // TODO: Should this be simplified to just return block dimensions?
-        let offset = calculate_offset(
-            layer,
-            mipmap,
-            (self.width, self.height, self.depth),
-            (1, 1, 1),
-            block_size_in_bytes,
-            self.mipmaps,
-        );
-        // TODO: Avoid unwrap.
-        let size = mip_size(
-            self.width as usize,
-            self.height as usize,
-            self.depth as usize,
-            1,
-            1,
-            1,
-            block_size_in_bytes,
-        )
-        .unwrap();
-
-        self.data.as_ref().get(offset..offset + size)
-    }
-}
 
 /// The conversion quality when converting to compressed formats.
 ///
@@ -193,53 +123,28 @@ pub enum ImageFormat {
 
 impl ImageFormat {
     // TODO: Is it worth making these public?
-    fn block_width(&self) -> u32 {
+    fn block_dimensions(&self) -> (u32, u32, u32) {
         match self {
-            ImageFormat::BC1Unorm => 4,
-            ImageFormat::BC1Srgb => 4,
-            ImageFormat::BC2Unorm => 4,
-            ImageFormat::BC2Srgb => 4,
-            ImageFormat::BC3Unorm => 4,
-            ImageFormat::BC3Srgb => 4,
-            ImageFormat::BC4Unorm => 4,
-            ImageFormat::BC4Snorm => 4,
-            ImageFormat::BC5Unorm => 4,
-            ImageFormat::BC5Snorm => 4,
-            ImageFormat::BC6Ufloat => 4,
-            ImageFormat::BC6Sfloat => 4,
-            ImageFormat::BC7Unorm => 4,
-            ImageFormat::BC7Srgb => 4,
-            ImageFormat::R8Unorm => 1,
-            ImageFormat::R8G8B8A8Unorm => 1,
-            ImageFormat::R8G8B8A8Srgb => 1,
-            ImageFormat::R32G32B32A32Float => 1,
-            ImageFormat::B8G8R8A8Unorm => 1,
-            ImageFormat::B8G8R8A8Srgb => 1,
-        }
-    }
-
-    fn block_height(&self) -> u32 {
-        match self {
-            ImageFormat::BC1Unorm => 4,
-            ImageFormat::BC1Srgb => 4,
-            ImageFormat::BC2Unorm => 4,
-            ImageFormat::BC2Srgb => 4,
-            ImageFormat::BC3Unorm => 4,
-            ImageFormat::BC3Srgb => 4,
-            ImageFormat::BC4Unorm => 4,
-            ImageFormat::BC4Snorm => 4,
-            ImageFormat::BC5Unorm => 4,
-            ImageFormat::BC5Snorm => 4,
-            ImageFormat::BC6Ufloat => 4,
-            ImageFormat::BC6Sfloat => 4,
-            ImageFormat::BC7Unorm => 4,
-            ImageFormat::BC7Srgb => 4,
-            ImageFormat::R8Unorm => 1,
-            ImageFormat::R8G8B8A8Unorm => 1,
-            ImageFormat::R8G8B8A8Srgb => 1,
-            ImageFormat::R32G32B32A32Float => 1,
-            ImageFormat::B8G8R8A8Unorm => 1,
-            ImageFormat::B8G8R8A8Srgb => 1,
+            ImageFormat::BC1Unorm => (4, 4, 1),
+            ImageFormat::BC1Srgb => (4, 4, 1),
+            ImageFormat::BC2Unorm => (4, 4, 1),
+            ImageFormat::BC2Srgb => (4, 4, 1),
+            ImageFormat::BC3Unorm => (4, 4, 1),
+            ImageFormat::BC3Srgb => (4, 4, 1),
+            ImageFormat::BC4Unorm => (4, 4, 1),
+            ImageFormat::BC4Snorm => (4, 4, 1),
+            ImageFormat::BC5Unorm => (4, 4, 1),
+            ImageFormat::BC5Snorm => (4, 4, 1),
+            ImageFormat::BC6Ufloat => (4, 4, 1),
+            ImageFormat::BC6Sfloat => (4, 4, 1),
+            ImageFormat::BC7Unorm => (4, 4, 1),
+            ImageFormat::BC7Srgb => (4, 4, 1),
+            ImageFormat::R8Unorm => (1, 1, 1),
+            ImageFormat::R8G8B8A8Unorm => (1, 1, 1),
+            ImageFormat::R8G8B8A8Srgb => (1, 1, 1),
+            ImageFormat::R32G32B32A32Float => (1, 1, 1),
+            ImageFormat::B8G8R8A8Unorm => (1, 1, 1),
+            ImageFormat::B8G8R8A8Srgb => (1, 1, 1),
         }
     }
 
@@ -354,8 +259,7 @@ pub fn decode_surface_rgba8<T: AsRef<[u8]>>(
 
     // TODO: Add tests for different combinations of layers, mipmaps, and depth.
     // TODO: Make it possible to decode/encode a format known at compile time?
-    let block_width = image_format.block_width() as usize;
-    let block_height = image_format.block_height() as usize;
+    let block_dimensions = image_format.block_dimensions();
     let block_size_in_bytes = image_format.block_size_in_bytes();
 
     let mut combined_surface_data = Vec::new();
@@ -366,7 +270,7 @@ pub fn decode_surface_rgba8<T: AsRef<[u8]>>(
                 layer,
                 mipmap,
                 (width, height, depth),
-                (block_width, block_height, 1),
+                block_dimensions,
                 block_size_in_bytes,
                 mipmaps,
             );
@@ -441,8 +345,7 @@ pub fn encode_surface_rgba8<T: AsRef<[u8]>>(
 
     // The width and height must be a multiple of the block dimensions.
     // This only applies to the base level.
-    let block_width = format.block_width();
-    let block_height = format.block_height();
+    let (block_width, block_height, block_depth) = format.block_dimensions();
     if width % block_width != 0 || height % block_height != 0 {
         return Err(CompressSurfaceError::NonIntegralDimensionsInBlocks {
             width,
@@ -467,14 +370,14 @@ pub fn encode_surface_rgba8<T: AsRef<[u8]>>(
         let mip_height = mip_dimension(height, i);
         let mip_depth = mip_dimension(depth, i);
 
-        // TODO: Find a cleaner way of handling padding of smaller surfaces.
-        // The physical size must be at least 4x4 to have enough data for a full block.
+        // The physical size must be at least a full block.
         // Applications or the GPU will use the smaller virtual size and ignore padding.
+        // For example, a 1x1 BCN block still requires 4x4 pixels of data.
         // https://learn.microsoft.com/en-us/windows/win32/direct3d10/d3d10-graphics-programming-guide-resources-block-compression
         let mip_data = encode_rgba8(
             mip_width.max(block_width),
             mip_height.max(block_height),
-            mip_depth,
+            mip_depth.max(block_depth),
             &mip_image,
             format,
             quality,
@@ -482,16 +385,15 @@ pub fn encode_surface_rgba8<T: AsRef<[u8]>>(
         surface_data.extend_from_slice(&mip_data);
 
         // Halve the width and height for the next mipmap.
-        // TODO: Find a better way to pad the size.
-        // TODO: Block depth for completeness?
-        if mip_width > block_width && mip_height > block_height {
-            mip_image = downsample_rgba8(
-                mip_width as usize,
-                mip_height as usize,
-                mip_depth as usize,
-                &mip_image,
-            );
-        }
+        mip_image = downsample_rgba8(
+            mip_width as usize,
+            mip_height as usize,
+            mip_depth as usize,
+            block_width as usize,
+            block_height as usize,
+            block_depth as usize,
+            &mip_image,
+        );
     }
 
     Ok(Surface {
@@ -533,13 +435,21 @@ fn encode_rgba8(
     }
 }
 
-fn downsample_rgba8(width: usize, height: usize, depth: usize, data: &[u8]) -> Vec<u8> {
+fn downsample_rgba8(
+    width: usize,
+    height: usize,
+    depth: usize,
+    min_width: usize,
+    min_height: usize,
+    min_depth: usize,
+    data: &[u8],
+) -> Vec<u8> {
     // Halve the width and height by averaging pixels.
     // This is faster than resizing using the image crate.
     // TODO: How to handle the case where any of the dimensions is zero?
-    let new_width = (width / 2).max(1);
-    let new_height = (height / 2).max(1);
-    let new_depth = (depth / 2).max(1);
+    let new_width = (width / 2).max(min_width);
+    let new_height = (height / 2).max(min_height);
+    let new_depth = (depth / 2).max(min_depth);
 
     let mut new_data = vec![0u8; new_width * new_height * new_depth * 4];
     for z in 0..new_depth {
@@ -592,7 +502,7 @@ fn calculate_offset(
     layer: u32,
     mipmap: u32,
     dimensions: (u32, u32, u32),
-    block_dimensions: (usize, usize, usize),
+    block_dimensions: (u32, u32, u32),
     block_size_in_bytes: usize,
     mipmaps_per_layer: u32,
 ) -> usize {
@@ -612,9 +522,9 @@ fn calculate_offset(
                 mip_width,
                 mip_height,
                 mip_depth,
-                block_width,
-                block_height,
-                block_depth,
+                block_width as usize,
+                block_height as usize,
+                block_depth as usize,
                 block_size_in_bytes,
             )
             .unwrap()
@@ -690,7 +600,7 @@ mod tests {
             .collect();
         assert_eq!(
             vec![127u8; 2 * 2 * 1 * 4],
-            downsample_rgba8(4, 4, 1, &original)
+            downsample_rgba8(4, 4, 1, 1, 1, 1, &original)
         );
     }
 
@@ -703,7 +613,10 @@ mod tests {
         .take(3 * 3 / 3)
         .flatten()
         .collect();
-        assert_eq!(vec![127u8; 1 * 1 * 4], downsample_rgba8(3, 3, 1, &original));
+        assert_eq!(
+            vec![127u8; 1 * 1 * 4],
+            downsample_rgba8(3, 3, 1, 1, 1, 1, &original)
+        );
     }
 
     #[test]
@@ -715,20 +628,35 @@ mod tests {
         ];
         assert_eq!(
             vec![127u8; 1 * 1 * 1 * 4],
-            downsample_rgba8(2, 2, 2, &original)
+            downsample_rgba8(2, 2, 2, 1, 1, 1, &original)
+        );
+    }
+
+    #[test]
+    fn downsample_rgba8_2x2x2_padded() {
+        // Test that the output is correctly padded.
+        let original = vec![
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255,
+            255, 255, 255, 255, 255, 255, 255, 255,
+        ];
+        assert_eq!(
+            std::iter::repeat(127u8)
+                .take(4)
+                .chain(std::iter::repeat(0u8).take(4 * 4 * 2 * 4 - 4))
+                .collect::<Vec<_>>(),
+            downsample_rgba8(2, 2, 2, 4, 4, 2, &original)
         );
     }
 
     #[test]
     fn downsample_rgba8_0x0() {
-        // TODO: Should this be empty?
-        assert_eq!(vec![0u8; 4], downsample_rgba8(0, 0, 1, &[]));
+        assert_eq!(vec![0u8; 4], downsample_rgba8(0, 0, 1, 1, 1, 1, &[]));
     }
 
     #[test]
-    fn create_surface_integral_dimensions() {
+    fn encode_surface_integral_dimensions() {
         // It's ok for mipmaps to not be divisible by the block width.
-        let result = encode_surface_rgba8(
+        let surface = encode_surface_rgba8(
             SurfaceRgba8 {
                 width: 4,
                 height: 4,
@@ -740,12 +668,21 @@ mod tests {
             ImageFormat::BC7Srgb,
             Quality::Fast,
             Mipmaps::Generated,
-        );
-        assert!(result.is_ok());
+        )
+        .unwrap();
+
+        assert_eq!(4, surface.width);
+        assert_eq!(4, surface.height);
+        assert_eq!(1, surface.depth);
+        assert_eq!(1, surface.layers);
+        assert_eq!(3, surface.mipmaps);
+        assert_eq!(ImageFormat::BC7Srgb, surface.image_format);
+        // Each mipmap must be at least 1 block in size.
+        assert_eq!(16 * 3, surface.data.len());
     }
 
     #[test]
-    fn create_surface_non_integral_dimensions() {
+    fn encode_surface_non_integral_dimensions() {
         // This should still fail even though there is enough data.
         let result = encode_surface_rgba8(
             SurfaceRgba8 {

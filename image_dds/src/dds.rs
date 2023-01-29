@@ -2,8 +2,8 @@ use ddsfile::{D3DFormat, Dds, DxgiFormat, FourCC};
 use thiserror::Error;
 
 use crate::{
-    decode_surface_rgba8, encode_surface_rgba8, CompressSurfaceError, CreateImageError,
-    DecompressSurfaceError, ImageFormat, Mipmaps, Quality, Surface, SurfaceRgba8,
+    decode_surface_rgba8, encode_surface_rgba8, mip_dimension, CompressSurfaceError,
+    CreateImageError, DecompressSurfaceError, ImageFormat, Mipmaps, Quality, Surface, SurfaceRgba8,
 };
 
 #[derive(Debug, Error)]
@@ -120,8 +120,8 @@ pub fn image_from_dds(dds: &Dds, mipmap: u32) -> Result<image::RgbaImage, Create
     let data_length = image_data.len();
 
     // Arrange depth slices horizontally and array layers vertically.
-    let width = surface.width * surface.depth;
-    let height = surface.height * surface.layers;
+    let width = mip_dimension(surface.width, mipmap) * mip_dimension(surface.depth, mipmap);
+    let height = mip_dimension(surface.height, mipmap) * surface.layers;
 
     let image = image::RgbaImage::from_raw(width, height, image_data).ok_or(
         crate::CreateImageError::InvalidSurfaceDimensions {
