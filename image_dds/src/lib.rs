@@ -39,6 +39,7 @@
 //! Creating DDS files with custom mipmaps or extracting mipmap data is not yet supported.
 //! Supporting for floating point data will also be added in a future update.
 //! This mostly impacts BC6H compression since it encodes half precision floating point data.
+
 use bcn::*;
 use rgba::*;
 
@@ -74,20 +75,21 @@ pub enum Quality {
     Slow,
 }
 
-// TODO: Use a struct with count: Option<NonZeroU32> and generated fields?
-// None will automatically calculate the number of mipmaps?
-// Is it better to just create a constructor that fills in the mipmap count?
 /// Options for how many mipmaps to generate.
+/// Mipmaps are counted starting from the base level,
+/// so a surface with only the full resolution base level has 1 mipmap.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Mipmaps {
     /// No mipmapping. Only the base mip level will be used.
     Disabled,
-    /// A set number of mipmaps.
-    // TODO: Don't allow zero?
-    Exact(u32),
+    /// Use the number of mipmaps specified in the input surface.
+    FromSurface,
+    /// Generate mipmaps to create a surface with a desired number of mipmaps.
+    /// A value of `0` or `1` is equivalent to [Mipmaps::Disabled].
+    GeneratedExact(u32),
     /// Generate mipmaps starting from the base level
     /// until dimensions can be reduced no further.
-    Generated,
+    GeneratedAutomatic,
 }
 
 // Each format should have conversions to and from rgba8 and rgbaf32 for convenience.
@@ -222,27 +224,16 @@ pub enum DecompressSurfaceError {
     UnrecognizedFormat,
 }
 
-fn mipmap_count(width: u32, height: u32, depth: u32, mipmaps: Mipmaps) -> u32 {
-    match mipmaps {
-        Mipmaps::Disabled => 1,
-        Mipmaps::Exact(count) => count,
-        Mipmaps::Generated => max_mipmap_count(width.max(height).max(depth)),
-    }
-}
-
 fn max_mipmap_count(max_dimension: u32) -> u32 {
     // log2(x) + 1
     u32::BITS - max_dimension.leading_zeros()
 }
 
-// TODO: Should functions take u32 or usize?
-fn mip_dimension(dim: u32, mipmap: u32) -> u32 {
+pub fn mip_dimension(dim: u32, mipmap: u32) -> u32 {
     // Halve for each mip level.
     (dim >> mipmap).max(1)
 }
 
-// TODO: Add methods to surfaces for accessing a specific array layer and mipmap.
-// This would simplify calculations when using smaller mipmaps.
 /// Decode all layers and mipmaps from `surface` to RGBA8.
 pub fn decode_surface_rgba8<T: AsRef<[u8]>>(
     surface: Surface<T>,
@@ -324,9 +315,6 @@ fn decode_data_rgba8(
     Ok(data)
 }
 
-// TODO: add an option to read mipmaps from the surface.
-// TODO: Should the surface describe how many layers/mipmaps it contains?
-// TODO: Add an option for array layers.
 // TODO: Add documentation showing how to use this.
 /// Encode an RGBA8 surface to the given `format`.
 ///
@@ -341,7 +329,6 @@ pub fn encode_surface_rgba8<T: AsRef<[u8]>>(
     let width = surface.width;
     let height = surface.height;
     let depth = surface.depth;
-    let data = surface.data;
 
     // The width and height must be a multiple of the block dimensions.
     // This only applies to the base level.
@@ -357,43 +344,87 @@ pub fn encode_surface_rgba8<T: AsRef<[u8]>>(
     }
 
     // TODO: Encode the correct number of array layers.
-    let num_mipmaps = mipmap_count(width, height, depth, mipmaps);
+    let num_mipmaps = match mipmaps {
+        Mipmaps::Disabled => 1,
+        Mipmaps::FromSurface => surface.mipmaps,
+        Mipmaps::GeneratedExact(count) => count,
+        Mipmaps::GeneratedAutomatic => max_mipmap_count(width.max(height).max(depth)),
+    };
 
-    let mut surface_data = Vec::new();
+    let use_surface = mipmaps == Mipmaps::FromSurface;
+
+    // The base mip level is always included.
+    let mut surface_data = encode_rgba8(
+        width.max(block_width),
+        height.max(block_height),
+        depth.max(block_depth),
+        surface.data.as_ref(),
+        format,
+        quality,
+    )?;
 
     // TODO: How should the layers be arranged in the surface?
     // TODO: Avoid the initial copy.
-    let mut mip_image = data.as_ref().to_vec();
+    let mut mip_image = surface.data.as_ref().to_vec();
 
-    for i in 0..num_mipmaps {
-        let mip_width = mip_dimension(width, i);
-        let mip_height = mip_dimension(height, i);
-        let mip_depth = mip_dimension(depth, i);
-
+    for mipmap in 1..num_mipmaps {
         // The physical size must be at least a full block.
         // Applications or the GPU will use the smaller virtual size and ignore padding.
         // For example, a 1x1 BCN block still requires 4x4 pixels of data.
         // https://learn.microsoft.com/en-us/windows/win32/direct3d10/d3d10-graphics-programming-guide-resources-block-compression
+        let mip_width = mip_dimension(width, mipmap).max(block_width) as usize;
+        let mip_height = mip_dimension(height, mipmap).max(block_height) as usize;
+        let mip_depth = mip_dimension(depth, mipmap).max(block_depth) as usize;
+
+        // TODO: Find a simpler way to choose a data source.
+        mip_image = if use_surface {
+            // TODO: Array layers.
+            // TODO: Avoid unwrap
+            let data = surface.get_image_data(0, mipmap).unwrap();
+            let expected_size = mip_width * mip_height * mip_depth * 4;
+
+            if data.len() < expected_size {
+                // Zero pad the data to the appropriate size.
+                let mut padded_data = vec![0u8; expected_size];
+                for z in 0..mip_depth {
+                    for y in 0..mip_height {
+                        for x in 0..mip_width {
+                            // TODO: Make this copy technique a helper function?
+                            // TODO: Optimize this for known pixel sizes?
+                            // This can't be a memory copy because of the stride.
+                            let i = (z * mip_width * mip_height) + y * mip_width + x;
+                            padded_data[i] = data[i];
+                        }
+                    }
+                }
+
+                padded_data
+            } else {
+                data.to_vec()
+            }
+        } else {
+            // Halve the width and height from the previous mip level.
+            // This function already handles padding.
+            downsample_rgba8(
+                mip_width,
+                mip_height,
+                mip_depth,
+                block_width as usize,
+                block_height as usize,
+                block_depth as usize,
+                &mip_image,
+            )
+        };
+
         let mip_data = encode_rgba8(
-            mip_width.max(block_width),
-            mip_height.max(block_height),
-            mip_depth.max(block_depth),
+            mip_width as u32,
+            mip_height as u32,
+            mip_depth as u32,
             &mip_image,
             format,
             quality,
         )?;
         surface_data.extend_from_slice(&mip_data);
-
-        // Halve the width and height for the next mipmap.
-        mip_image = downsample_rgba8(
-            mip_width as usize,
-            mip_height as usize,
-            mip_depth as usize,
-            block_width as usize,
-            block_height as usize,
-            block_depth as usize,
-            &mip_image,
-        );
     }
 
     Ok(Surface {
@@ -561,22 +592,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn mipmap_count_one() {
-        assert_eq!(1, mipmap_count(32, 32, 32, Mipmaps::Disabled));
-    }
-
-    #[test]
-    fn mipmap_count_exact() {
-        // TODO: Should this clamp to the max mipmaps or return an error in the functions?
-        assert_eq!(3, mipmap_count(32, 32, 32, Mipmaps::Exact(3)));
-    }
-
-    #[test]
-    fn mipmap_count_generated() {
-        assert_eq!(6, mipmap_count(32, 32, 32, Mipmaps::Generated));
-    }
-
-    #[test]
     fn max_mipmap_count_zero() {
         assert_eq!(0, max_mipmap_count(0));
     }
@@ -667,7 +682,7 @@ mod tests {
             },
             ImageFormat::BC7Srgb,
             Quality::Fast,
-            Mipmaps::Generated,
+            Mipmaps::GeneratedAutomatic,
         )
         .unwrap();
 
@@ -679,6 +694,58 @@ mod tests {
         assert_eq!(ImageFormat::BC7Srgb, surface.image_format);
         // Each mipmap must be at least 1 block in size.
         assert_eq!(16 * 3, surface.data.len());
+    }
+
+    #[test]
+    fn encode_surface_disabled_mipmaps() {
+        let surface = encode_surface_rgba8(
+            SurfaceRgba8 {
+                width: 4,
+                height: 4,
+                depth: 1,
+                layers: 1,
+                mipmaps: 3,
+                data: &[0u8; 64 + 16 + 4],
+            },
+            ImageFormat::BC7Srgb,
+            Quality::Fast,
+            Mipmaps::Disabled,
+        )
+        .unwrap();
+
+        assert_eq!(4, surface.width);
+        assert_eq!(4, surface.height);
+        assert_eq!(1, surface.depth);
+        assert_eq!(1, surface.layers);
+        assert_eq!(1, surface.mipmaps);
+        assert_eq!(ImageFormat::BC7Srgb, surface.image_format);
+        assert_eq!(16, surface.data.len());
+    }
+
+    #[test]
+    fn encode_surface_mipmaps_from_surface() {
+        let surface = encode_surface_rgba8(
+            SurfaceRgba8 {
+                width: 4,
+                height: 4,
+                depth: 1,
+                layers: 1,
+                mipmaps: 2,
+                data: &[0u8; 64 + 16],
+            },
+            ImageFormat::BC7Srgb,
+            Quality::Fast,
+            Mipmaps::FromSurface,
+        )
+        .unwrap();
+
+        assert_eq!(4, surface.width);
+        assert_eq!(4, surface.height);
+        assert_eq!(1, surface.depth);
+        assert_eq!(1, surface.layers);
+        assert_eq!(2, surface.mipmaps);
+        assert_eq!(ImageFormat::BC7Srgb, surface.image_format);
+        assert_eq!(16 * 2, surface.data.len());
     }
 
     #[test]
@@ -695,7 +762,7 @@ mod tests {
             },
             ImageFormat::BC7Srgb,
             Quality::Fast,
-            Mipmaps::Generated,
+            Mipmaps::GeneratedAutomatic,
         );
         assert!(matches!(
             result,

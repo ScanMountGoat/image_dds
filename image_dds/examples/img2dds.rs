@@ -43,7 +43,7 @@ fn main() {
         &image,
         format,
         image_dds::Quality::Fast,
-        image_dds::Mipmaps::Generated,
+        image_dds::Mipmaps::GeneratedAutomatic,
     )
     .unwrap();
     println!("Compressed data in {:?}", start.elapsed());
