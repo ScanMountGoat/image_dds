@@ -1,9 +1,9 @@
-use ddsfile::{D3DFormat, DxgiFormat, FourCC};
+use ddsfile::{D3DFormat, Dds, DxgiFormat, FourCC};
 use thiserror::Error;
 
 use crate::{
-    decode_surface_rgba8, encode_surface_rgba8, CompressSurfaceError, DecompressSurfaceError,
-    ImageFormat, Mipmaps, Quality, Surface, SurfaceRgba8,
+    decode_surface_rgba8, encode_surface_rgba8, CompressSurfaceError, CreateImageError,
+    DecompressSurfaceError, ImageFormat, Mipmaps, Quality, Surface, SurfaceRgba8,
 };
 
 #[derive(Debug, Error)]
@@ -24,7 +24,7 @@ pub fn dds_from_image(
     format: ImageFormat,
     quality: Quality,
     mipmaps: Mipmaps,
-) -> Result<ddsfile::Dds, CreateDdsError> {
+) -> Result<Dds, CreateDdsError> {
     // Assume all images are 2D for now.
     // TODO: 3d and cube map support?
     dds_from_surface_rgba8(
@@ -50,7 +50,7 @@ pub fn dds_from_surface_rgba8<T: AsRef<[u8]>>(
     format: ImageFormat,
     quality: Quality,
     mipmaps: Mipmaps,
-) -> Result<ddsfile::Dds, CreateDdsError> {
+) -> Result<Dds, CreateDdsError> {
     let Surface {
         width,
         height,
@@ -61,7 +61,7 @@ pub fn dds_from_surface_rgba8<T: AsRef<[u8]>>(
         data,
     } = encode_surface_rgba8(surface, format, quality, mipmaps)?;
 
-    let mut dds = ddsfile::Dds::new_dxgi(ddsfile::NewDxgiParams {
+    let mut dds = Dds::new_dxgi(ddsfile::NewDxgiParams {
         height,
         width,
         depth: if depth > 1 { Some(depth) } else { None },
@@ -83,66 +83,69 @@ pub fn dds_from_surface_rgba8<T: AsRef<[u8]>>(
     Ok(dds)
 }
 
-/// Decode the given `layer` and `mipmap` from `dds` to an RGBA8 surface.
+/// Decode all layers and mipmaps from `dds` to an RGBA8 surface.
 pub fn decode_surface_rgba8_from_dds(
-    dds: &ddsfile::Dds,
-    layer: u32,
-    mipmap: u32,
+    dds: &Dds,
 ) -> Result<SurfaceRgba8<Vec<u8>>, DecompressSurfaceError> {
     let width = dds.get_width();
     let height = dds.get_height();
     let depth = dds.get_depth();
-    let layers = dds.get_num_array_layers();
+    let layers = array_layer_count(dds);
     let mipmaps = dds.get_num_mipmap_levels();
 
     let image_format = dds_image_format(dds).ok_or(DecompressSurfaceError::UnrecognizedFormat)?;
-    decode_surface_rgba8(
-        Surface {
-            width,
-            height,
-            depth,
-            layers,
-            mipmaps,
-            image_format,
-            data: &dds.data,
-        },
-        layer,
-        mipmap,
-    )
-}
-
-#[cfg(feature = "image")]
-/// Decode the first array layer and mip level from `dds` to an RGBA8 image.
-pub fn image_from_dds(
-    dds: &ddsfile::Dds,
-    layer: u32,
-    mipmap: u32,
-) -> Result<image::RgbaImage, crate::CreateImageError> {
-    let SurfaceRgba8 {
+    decode_surface_rgba8(Surface {
         width,
         height,
         depth,
         layers,
         mipmaps,
-        data,
-    } = decode_surface_rgba8_from_dds(dds, layer, mipmap)?;
+        image_format,
+        data: &dds.data,
+    })
+}
 
-    // Arrange depth slices horizontally from left to right.
-    let width = width * depth;
+#[cfg(feature = "image")]
+/// Decode the given mip level from `dds` to an RGBA8 image.
+/// Array layers are arranged vertically from top to bottom.
+pub fn image_from_dds(dds: &Dds, mipmap: u32) -> Result<image::RgbaImage, CreateImageError> {
+    let surface = decode_surface_rgba8_from_dds(dds)?;
 
-    let image = image::RgbaImage::from_raw(width, height, data.to_vec()).ok_or(
+    // Mipmaps have different dimensions.
+    // A single 2D image can only represent data from a single mip level across layers.
+    let image_data: Vec<_> = (0..surface.layers)
+        .flat_map(|layer| surface.get_image_data(layer, mipmap).unwrap())
+        .copied()
+        .collect();
+    let data_length = image_data.len();
+
+    // Arrange depth slices horizontally and array layers vertically.
+    let width = surface.width * surface.depth;
+    let height = surface.height * surface.layers;
+
+    let image = image::RgbaImage::from_raw(width, height, image_data).ok_or(
         crate::CreateImageError::InvalidSurfaceDimensions {
             width,
             height,
-            data_length: data.len(),
+            data_length,
         },
     )?;
 
     Ok(image)
 }
 
+fn array_layer_count(dds: &Dds) -> u32 {
+    // Array layers for DDS are calculated differently for cube maps.
+    if matches!(&dds.header10, Some(header10) if header10.misc_flag == ddsfile::MiscFlag::TEXTURECUBE)
+    {
+        dds.get_num_array_layers() * 6
+    } else {
+        dds.get_num_array_layers()
+    }
+}
+
 // TODO: Result?
-fn dds_image_format(dds: &ddsfile::Dds) -> Option<ImageFormat> {
+fn dds_image_format(dds: &Dds) -> Option<ImageFormat> {
     // The format can be DXGI, D3D, or specified in the FOURCC.
     let dxgi = dds.get_dxgi_format();
     let d3d = dds.get_d3d_format();

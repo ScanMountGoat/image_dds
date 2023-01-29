@@ -96,6 +96,39 @@ pub struct SurfaceRgba8<T> {
     pub data: T,
 }
 
+impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
+    // TODO: Add tests for this.
+    // TODO: Share code and implement for Surface as well.
+    /// The the range of image data corresponding to the specified `layer` and `mipmap`.
+    /// Returns [None] if the expected range is not fully contained within the buffer.
+    pub fn get_image_data(&self, layer: u32, mipmap: u32) -> Option<&[u8]> {
+        let format = ImageFormat::R8G8B8A8Unorm;
+        let block_size_in_bytes = format.block_size_in_bytes();
+        // TODO: Should this be simplified to just return block dimensions?
+        let offset = calculate_offset(
+            layer,
+            mipmap,
+            (self.width, self.height, self.depth),
+            (1, 1, 1),
+            block_size_in_bytes,
+            self.mipmaps,
+        );
+        // TODO: Avoid unwrap.
+        let size = mip_size(
+            self.width as usize,
+            self.height as usize,
+            self.depth as usize,
+            1,
+            1,
+            1,
+            block_size_in_bytes,
+        )
+        .unwrap();
+
+        self.data.as_ref().get(offset..offset + size)
+    }
+}
+
 /// The conversion quality when converting to compressed formats.
 ///
 /// Higher quality settings run significantly slower.
@@ -303,14 +336,11 @@ fn mip_dimension(dim: u32, mipmap: u32) -> u32 {
     (dim >> mipmap).max(1)
 }
 
-// TODO: Support decoding all layers and mipmaps?
 // TODO: Add methods to surfaces for accessing a specific array layer and mipmap.
 // This would simplify calculations when using smaller mipmaps.
-/// Decode a single `layer` and `mipmap` from `surface` to RGBA8.
+/// Decode all layers and mipmaps from `surface` to RGBA8.
 pub fn decode_surface_rgba8<T: AsRef<[u8]>>(
     surface: Surface<T>,
-    layer: u32,  // TODO: Also support ranges?
-    mipmap: u32, // TODO: Also support ranges?
 ) -> Result<SurfaceRgba8<Vec<u8>>, DecompressSurfaceError> {
     let Surface {
         width,
@@ -327,23 +357,50 @@ pub fn decode_surface_rgba8<T: AsRef<[u8]>>(
     let block_width = image_format.block_width() as usize;
     let block_height = image_format.block_height() as usize;
     let block_size_in_bytes = image_format.block_size_in_bytes();
-    // TODO: avoid panics in this function.
-    let offset = calculate_offset(
-        layer as usize,
-        mipmap as usize,
-        (width, height, depth),
-        (block_width, block_height, 1),
-        block_size_in_bytes,
+
+    let mut combined_surface_data = Vec::new();
+    for layer in 0..layers {
+        for mipmap in 0..mipmaps {
+            // TODO: avoid panics in this function.
+            let offset = calculate_offset(
+                layer,
+                mipmap,
+                (width, height, depth),
+                (block_width, block_height, 1),
+                block_size_in_bytes,
+                mipmaps,
+            );
+            // TODO: Avoid panic here.
+            let data = &data.as_ref()[offset..];
+
+            // The mipmap index is already validated by the offset calculation.
+            let width = mip_dimension(width, mipmap);
+            let height = mip_dimension(height, mipmap);
+            let depth = mip_dimension(depth, mipmap);
+
+            // TODO: Avoid additional copies?
+            let data = decode_data_rgba8(width, height, depth, image_format, data)?;
+            combined_surface_data.extend_from_slice(&data);
+        }
+    }
+
+    Ok(SurfaceRgba8 {
+        width,
+        height,
+        depth,
+        layers,
         mipmaps,
-    );
-    // TODO: Avoid panic here.
-    let data = &data.as_ref()[offset..];
+        data: combined_surface_data,
+    })
+}
 
-    // The mipmap index is already validated by the offset calculation.
-    let width = mip_dimension(width, mipmap);
-    let height = mip_dimension(height, mipmap);
-    let depth = mip_dimension(depth, mipmap);
-
+fn decode_data_rgba8(
+    width: u32,
+    height: u32,
+    depth: u32,
+    image_format: ImageFormat,
+    data: &[u8],
+) -> Result<Vec<u8>, DecompressSurfaceError> {
     use ImageFormat as F;
     let data = match image_format {
         F::BC1Unorm | F::BC1Srgb => rgba8_from_bcn::<Bc1>(width, height, depth, data),
@@ -360,15 +417,7 @@ pub fn decode_surface_rgba8<T: AsRef<[u8]>>(
         F::B8G8R8A8Unorm => rgba8_from_bgra8(width, height, depth, data),
         F::B8G8R8A8Srgb => rgba8_from_bgra8(width, height, depth, data),
     }?;
-
-    Ok(SurfaceRgba8 {
-        width,
-        height,
-        depth,
-        layers: 1,
-        mipmaps: 1,
-        data,
-    })
+    Ok(data)
 }
 
 // TODO: add an option to read mipmaps from the surface.
@@ -540,13 +589,14 @@ fn div_round_up(x: usize, d: usize) -> usize {
 // Surfaces typically use a row-major memory layout like surface[layer][mipmap][z][y][x].
 // Not all mipmaps are the same size, so the offset calculation is slightly more complex.
 fn calculate_offset(
-    layer: usize,
-    mipmap: usize,
+    layer: u32,
+    mipmap: u32,
     dimensions: (u32, u32, u32),
     block_dimensions: (usize, usize, usize),
     block_size_in_bytes: usize,
     mipmaps_per_layer: u32,
 ) -> usize {
+    // TODO: Avoid destructuring this?
     let (width, height, depth) = dimensions;
     let (block_width, block_height, block_depth) = block_dimensions;
 
@@ -576,8 +626,8 @@ fn calculate_offset(
     let layer_size: usize = mip_sizes.iter().sum();
 
     // Each layer should have the same number of mipmaps.
-    let layer_offset = layer * layer_size;
-    let mip_offset: usize = mip_sizes[0..mipmap].iter().sum();
+    let layer_offset = layer as usize * layer_size;
+    let mip_offset: usize = mip_sizes[0..mipmap as usize].iter().sum();
     layer_offset + mip_offset
 }
 
