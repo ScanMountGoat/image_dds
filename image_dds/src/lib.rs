@@ -406,8 +406,8 @@ pub fn encode_surface_rgba8<T: AsRef<[u8]>>(
     let width = surface.width;
     let height = surface.height;
     let depth = surface.depth;
+    let layers = surface.layers;
 
-    let (block_width, block_height, block_depth) = format.block_dimensions();
     validate_surface_encode(&surface, format)?;
 
     // TODO: Encode the correct number of array layers.
@@ -420,9 +420,48 @@ pub fn encode_surface_rgba8<T: AsRef<[u8]>>(
 
     let use_surface = mipmaps == Mipmaps::FromSurface;
 
-    // The base mip level is always included.
     // TODO: Does this work if the base mip level is smaller than 4x4?
-    let mut surface_data = encode_rgba8(
+    let mut surface_data = Vec::new();
+
+    for layer in 0..layers {
+        encode_mipmaps_rgba8(
+            &mut surface_data,
+            &surface,
+            format,
+            quality,
+            num_mipmaps,
+            use_surface,
+            layer,
+        )?;
+    }
+
+    Ok(Surface {
+        width,
+        height,
+        depth,
+        layers,
+        mipmaps: num_mipmaps,
+        image_format: format,
+        data: surface_data,
+    })
+}
+
+fn encode_mipmaps_rgba8<T: AsRef<[u8]>>(
+    encoded_data: &mut Vec<u8>,
+    surface: &SurfaceRgba8<T>,
+    format: ImageFormat,
+    quality: Quality,
+    num_mipmaps: u32,
+    use_surface: bool,
+    layer: u32,
+) -> Result<(), CompressSurfaceError> {
+    let width = surface.width;
+    let height = surface.height;
+    let depth = surface.depth;
+    let (block_width, block_height, block_depth) = format.block_dimensions();
+
+    // The base mip level is always included.
+    let base_layer = encode_rgba8(
         width.max(block_width),
         height.max(block_height),
         depth.max(block_depth),
@@ -430,16 +469,15 @@ pub fn encode_surface_rgba8<T: AsRef<[u8]>>(
         format,
         quality,
     )?;
+    encoded_data.extend_from_slice(&base_layer);
 
-    // TODO: How should the layers be arranged in the surface?
-    // TODO: Avoid the initial copy.
     let mut mip_image = surface.data.as_ref().to_vec();
 
     let mut previous_width = width as usize;
     let mut previous_height = height as usize;
     let mut previous_depth = depth as usize;
 
-    for mipmap in 1..num_mipmaps {
+    Ok(for mipmap in 1..num_mipmaps {
         // The physical size must have integral dimensions in blocks.
         // Applications or the GPU will use the smaller virtual size and ignore padding.
         // For example, a 1x1 BCN block still requires 4x4 pixels of data.
@@ -453,7 +491,7 @@ pub fn encode_surface_rgba8<T: AsRef<[u8]>>(
         mip_image = if use_surface {
             // TODO: Array layers.
             // TODO: Avoid unwrap
-            let data = surface.get_image_data(0, mipmap).unwrap();
+            let data = surface.get_image_data(layer, mipmap).unwrap();
             let expected_size = mip_width * mip_height * mip_depth * 4;
 
             if data.len() < expected_size {
@@ -497,22 +535,12 @@ pub fn encode_surface_rgba8<T: AsRef<[u8]>>(
             format,
             quality,
         )?;
-        surface_data.extend_from_slice(&mip_data);
+        encoded_data.extend_from_slice(&mip_data);
 
         // Update the dimensions for the previous mipmap image data.
         previous_width = mip_width;
         previous_height = mip_height;
         previous_depth = mip_depth;
-    }
-
-    Ok(Surface {
-        width,
-        height,
-        depth,
-        layers: 1,
-        mipmaps: num_mipmaps,
-        image_format: format,
-        data: surface_data,
     })
 }
 
@@ -785,6 +813,34 @@ mod tests {
         assert_eq!(ImageFormat::BC7Srgb, surface.image_format);
         // Each mipmap must be at least 1 block in size.
         assert_eq!((9 + 4 + 1 + 1) * 16, surface.data.len());
+    }
+
+    #[test]
+    fn encode_surface_cube_mipmaps() {
+        // It's ok for mipmaps to not be divisible by the block width.
+        let surface = encode_surface_rgba8(
+            SurfaceRgba8 {
+                width: 4,
+                height: 4,
+                depth: 1,
+                layers: 6,
+                mipmaps: 3,
+                data: &[0u8; (4 * 4 + 2 * 2 + 1 * 1) * 6 * 4],
+            },
+            ImageFormat::BC7Srgb,
+            Quality::Fast,
+            Mipmaps::GeneratedAutomatic,
+        )
+        .unwrap();
+
+        assert_eq!(4, surface.width);
+        assert_eq!(4, surface.height);
+        assert_eq!(1, surface.depth);
+        assert_eq!(6, surface.layers);
+        assert_eq!(3, surface.mipmaps);
+        assert_eq!(ImageFormat::BC7Srgb, surface.image_format);
+        // Each mipmap must be at least 1 block in size.
+        assert_eq!(3 * 16 * 6, surface.data.len());
     }
 
     #[test]
