@@ -200,7 +200,7 @@ pub enum CreateImageError {
 
 #[derive(Debug, Error)]
 pub enum CompressSurfaceError {
-    // TODO: Split this into two error types
+    // TODO: Separate errors for zero size and dimensions that would overflow usize
     #[error("surface dimensions {width} x {height} x {depth} are zero sized or would overflow")]
     InvalidDimensions { width: u32, height: u32, depth: u32 },
 
@@ -222,11 +222,22 @@ pub enum CompressSurfaceError {
 
 #[derive(Debug, Error)]
 pub enum DecompressSurfaceError {
-    #[error("surface dimensions {width} x {height} are not valid")]
-    InvalidDimensions { width: u32, height: u32 },
+    // TODO: Separate errors for zero size and dimensions that would overflow usize
+    #[error("surface dimensions {width} x {height} x {depth} are not valid")]
+    InvalidDimensions { width: u32, height: u32, depth: u32 },
+
+    #[error("mipmap count {mipmaps} exceeds the maximum value of {max_total_mipmaps}")]
+    InvalidMipmapCount {
+        mipmaps: u32,
+        height: u32,
+        max_total_mipmaps: u32,
+    },
 
     #[error("expected surface to have at least {expected} bytes but found {actual}")]
     NotEnoughData { expected: usize, actual: usize },
+
+    #[error("failed to calculate offset for layer {layer} mipmap {mipmap}")]
+    OffsetError { layer: u32, mipmap: u32 },
 
     #[error("the image format of the surface can not be determined")]
     UnrecognizedFormat,
@@ -254,8 +265,10 @@ pub fn decode_surface_rgba8<T: AsRef<[u8]>>(
         layers,
         mipmaps,
         image_format,
-        data,
+        data: _,
     } = surface;
+
+    validate_surface_decode(&surface)?;
 
     // TODO: Add tests for different combinations of layers, mipmaps, and depth.
     // TODO: Make it possible to decode/encode a format known at compile time?
@@ -273,9 +286,11 @@ pub fn decode_surface_rgba8<T: AsRef<[u8]>>(
                 block_dimensions,
                 block_size_in_bytes,
                 mipmaps,
-            );
+            )
+            .ok_or(DecompressSurfaceError::OffsetError { layer, mipmap })?;
+
             // TODO: Avoid panic here.
-            let data = &data.as_ref()[offset..];
+            let data = &surface.data.as_ref()[offset..];
 
             // The mipmap index is already validated by the offset calculation.
             let width = mip_dimension(width, mipmap);
@@ -296,6 +311,58 @@ pub fn decode_surface_rgba8<T: AsRef<[u8]>>(
         mipmaps,
         data: combined_surface_data,
     })
+}
+
+fn validate_surface_decode<T: AsRef<[u8]>>(
+    surface: &Surface<T>,
+) -> Result<(), DecompressSurfaceError> {
+    // TODO: Add a validate function for surfaces?
+    // TODO: Should empty surfaces be an error?
+    if surface.width == 0 || surface.height == 0 || surface.depth == 0 {
+        return Err(DecompressSurfaceError::InvalidDimensions {
+            width: surface.width,
+            height: surface.height,
+            depth: surface.depth,
+        });
+    }
+
+    if surface.mipmaps > max_mipmap_count(surface.width.max(surface.height).max(surface.depth)) {
+        return Err(DecompressSurfaceError::InvalidDimensions {
+            width: surface.width,
+            height: surface.height,
+            depth: surface.depth,
+        });
+    }
+
+    // TODO: This should be a specific error for overflow.
+    let (block_width, block_height, block_depth) = surface.image_format.block_dimensions();
+    let block_size_in_bytes = surface.image_format.block_size_in_bytes();
+    let base_layer_size = mip_size(
+        surface.width as usize,
+        surface.height as usize,
+        surface.depth as usize,
+        block_width as usize,
+        block_height as usize,
+        block_depth as usize,
+        block_size_in_bytes,
+    )
+    .ok_or(DecompressSurfaceError::InvalidDimensions {
+        width: surface.width,
+        height: surface.height,
+        depth: surface.depth,
+    })?;
+
+    // TODO: validate the combined length of layers + mipmaps.
+    // TODO: Calculate the correct expected size.
+    if base_layer_size > surface.data.as_ref().len() {
+        return Err(DecompressSurfaceError::NotEnoughData {
+            expected: base_layer_size,
+            actual: surface.data.as_ref().len(),
+        });
+    }
+
+    // TODO: Return the mipmap and array offsets.
+    Ok(())
 }
 
 fn decode_data_rgba8(
@@ -340,18 +407,8 @@ pub fn encode_surface_rgba8<T: AsRef<[u8]>>(
     let height = surface.height;
     let depth = surface.depth;
 
-    // The width and height must be a multiple of the block dimensions.
-    // This only applies to the base level.
     let (block_width, block_height, block_depth) = format.block_dimensions();
-    if width % block_width != 0 || height % block_height != 0 {
-        return Err(CompressSurfaceError::NonIntegralDimensionsInBlocks {
-            width,
-            height,
-            depth,
-            block_width,
-            block_height,
-        });
-    }
+    validate_surface_encode(&surface, format)?;
 
     // TODO: Encode the correct number of array layers.
     let num_mipmaps = match mipmaps {
@@ -364,6 +421,7 @@ pub fn encode_surface_rgba8<T: AsRef<[u8]>>(
     let use_surface = mipmaps == Mipmaps::FromSurface;
 
     // The base mip level is always included.
+    // TODO: Does this work if the base mip level is smaller than 4x4?
     let mut surface_data = encode_rgba8(
         width.max(block_width),
         height.max(block_height),
@@ -458,6 +516,36 @@ pub fn encode_surface_rgba8<T: AsRef<[u8]>>(
     })
 }
 
+fn validate_surface_encode<T>(
+    surface: &SurfaceRgba8<T>,
+    format: ImageFormat,
+) -> Result<(), CompressSurfaceError> {
+    let (block_width, block_height, block_depth) = format.block_dimensions();
+    let width = surface.width;
+    let height = surface.height;
+    let depth = surface.depth;
+
+    if width == 0 || height == 0 || depth == 0 {
+        return Err(CompressSurfaceError::InvalidDimensions {
+            width,
+            height,
+            depth,
+        });
+    }
+
+    if width % block_width != 0 || height % block_height != 0 || depth % block_depth != 0 {
+        return Err(CompressSurfaceError::NonIntegralDimensionsInBlocks {
+            width,
+            height,
+            depth,
+            block_width,
+            block_height,
+        });
+    }
+
+    Ok(())
+}
+
 fn encode_rgba8(
     width: u32,
     height: u32,
@@ -548,8 +636,7 @@ fn round_up(x: usize, n: usize) -> usize {
     ((x + n - 1) / n) * n
 }
 
-// Surfaces typically use a row-major memory layout like surface[layer][mipmap][z][y][x].
-// Not all mipmaps are the same size, so the offset calculation is slightly more complex.
+// TODO: Use result?
 fn calculate_offset(
     layer: u32,
     mipmap: u32,
@@ -557,13 +644,13 @@ fn calculate_offset(
     block_dimensions: (u32, u32, u32),
     block_size_in_bytes: usize,
     mipmaps_per_layer: u32,
-) -> usize {
-    // TODO: Avoid destructuring this?
+) -> Option<usize> {
+    // Surfaces typically use a row-major memory layout like surface[layer][mipmap][z][y][x].
+    // Not all mipmaps are the same size, so the offset calculation is slightly more complex.
     let (width, height, depth) = dimensions;
     let (block_width, block_height, block_depth) = block_dimensions;
 
-    // TODO: Check if mipmap is greater than total mipmaps.
-    let mip_sizes: Vec<_> = (0..mipmaps_per_layer)
+    let mip_sizes = (0..mipmaps_per_layer)
         .map(|i| {
             let mip_width = mip_dimension(width, i) as usize;
             let mip_height = mip_dimension(height, i) as usize;
@@ -579,9 +666,8 @@ fn calculate_offset(
                 block_depth as usize,
                 block_size_in_bytes,
             )
-            .unwrap()
         })
-        .collect();
+        .collect::<Option<Vec<_>>>()?;
 
     // Assume mipmaps are tightly packed.
     // This is the case for DDS surface data.
@@ -589,8 +675,8 @@ fn calculate_offset(
 
     // Each layer should have the same number of mipmaps.
     let layer_offset = layer as usize * layer_size;
-    let mip_offset: usize = mip_sizes[0..mipmap as usize].iter().sum();
-    layer_offset + mip_offset
+    let mip_offset: usize = mip_sizes.get(0..mipmap as usize)?.iter().sum();
+    Some(layer_offset + mip_offset)
 }
 
 fn mip_size(
@@ -783,7 +869,10 @@ mod tests {
 
     #[test]
     fn calculate_offset_layer0_mip0() {
-        assert_eq!(0, calculate_offset(0, 0, (8, 8, 8), (4, 4, 4), 16, 4));
+        assert_eq!(
+            0,
+            calculate_offset(0, 0, (8, 8, 8), (4, 4, 4), 16, 4).unwrap()
+        );
     }
 
     #[test]
@@ -791,7 +880,7 @@ mod tests {
         // The sum of the first 2 mipmaps.
         assert_eq!(
             128 + 16,
-            calculate_offset(0, 2, (8, 8, 8), (4, 4, 4), 16, 4)
+            calculate_offset(0, 2, (8, 8, 8), (4, 4, 4), 16, 4).unwrap()
         );
     }
 
@@ -801,7 +890,7 @@ mod tests {
         // Each mipmap must have at least a full block of data.
         assert_eq!(
             (128 + 16 + 16 + 16) * 2,
-            calculate_offset(2, 0, (8, 8, 8), (4, 4, 4), 16, 4)
+            calculate_offset(2, 0, (8, 8, 8), (4, 4, 4), 16, 4).unwrap()
         );
     }
 
@@ -811,7 +900,7 @@ mod tests {
         // Each mipmap must have at least a full block of data.
         assert_eq!(
             (128 + 16 + 16 + 16) * 2 + 128 + 16,
-            calculate_offset(2, 2, (8, 8, 8), (4, 4, 4), 16, 4)
+            calculate_offset(2, 2, (8, 8, 8), (4, 4, 4), 16, 4).unwrap()
         );
     }
 }

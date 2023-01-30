@@ -404,7 +404,11 @@ where
         1,
         T::CompressedBlock::SIZE_IN_BYTES,
     )
-    .ok_or(DecompressSurfaceError::InvalidDimensions { width, height })?;
+    .ok_or(DecompressSurfaceError::InvalidDimensions {
+        width,
+        height,
+        depth,
+    })?;
 
     // Mipmap dimensions do not need to be multiples of the block dimensions.
     // A mipmap of size 1x1 pixels can still be decoded.

@@ -7,7 +7,14 @@ pub fn decode_rgba8_from_rgba8(
     depth: u32,
     data: &[u8],
 ) -> Result<Vec<u8>, DecompressSurfaceError> {
-    let expected = width as usize * height as usize * depth as usize * 4;
+    let expected = expected_size(width, height, depth, 4).ok_or(
+        DecompressSurfaceError::InvalidDimensions {
+            width,
+            height,
+            depth,
+        },
+    )?;
+
     if data.len() >= expected {
         Ok(data.to_vec())
     } else {
@@ -24,7 +31,12 @@ pub fn encode_rgba8_from_rgba8(
     depth: u32,
     data: &[u8],
 ) -> Result<Vec<u8>, CompressSurfaceError> {
-    let expected = width as usize * height as usize * depth as usize * 4;
+    let expected =
+        expected_size(width, height, depth, 4).ok_or(CompressSurfaceError::InvalidDimensions {
+            width,
+            height,
+            depth,
+        })?;
     if data.len() >= expected {
         Ok(data.to_vec())
     } else {
@@ -41,7 +53,14 @@ pub fn rgba8_from_rgbaf32(
     depth: u32,
     data: &[u8],
 ) -> Result<Vec<u8>, DecompressSurfaceError> {
-    let expected = width as usize * height as usize * depth as usize * 16;
+    let expected = expected_size(width, height, depth, 16).ok_or(
+        DecompressSurfaceError::InvalidDimensions {
+            width,
+            height,
+            depth,
+        },
+    )?;
+
     if data.len() >= expected {
         // Use expected length to ensure the slice is an integral number of floats.
         let rgba_f32: &[f32] = bytemuck::cast_slice(&data[..expected]);
@@ -60,7 +79,12 @@ pub fn rgbaf32_from_rgba8(
     depth: u32,
     data: &[u8],
 ) -> Result<Vec<u8>, CompressSurfaceError> {
-    let expected = width as usize * height as usize * depth as usize * 4;
+    let expected =
+        expected_size(width, height, depth, 4).ok_or(CompressSurfaceError::InvalidDimensions {
+            width,
+            height,
+            depth,
+        })?;
     if data.len() >= expected {
         let rgba_f32: Vec<_> = data.iter().map(|u| *u as f32 / 255.0).collect();
         Ok(bytemuck::cast_slice(&rgba_f32).to_vec())
@@ -78,7 +102,14 @@ pub fn rgba8_from_bgra8(
     depth: u32,
     data: &[u8],
 ) -> Result<Vec<u8>, DecompressSurfaceError> {
-    let expected = width as usize * height as usize * depth as usize * 4;
+    let expected = expected_size(width, height, depth, 4).ok_or(
+        DecompressSurfaceError::InvalidDimensions {
+            width,
+            height,
+            depth,
+        },
+    )?;
+
     if data.len() >= expected {
         let mut bgra = data.to_vec();
         swap_red_blue(width, height, &mut bgra);
@@ -97,7 +128,12 @@ pub fn r8_from_rgba8(
     depth: u32,
     data: &[u8],
 ) -> Result<Vec<u8>, CompressSurfaceError> {
-    let expected = width as usize * height as usize * depth as usize * 4;
+    let expected =
+        expected_size(width, height, depth, 4).ok_or(CompressSurfaceError::InvalidDimensions {
+            width,
+            height,
+            depth,
+        })?;
     if data.len() >= expected {
         Ok(data.iter().copied().step_by(4).collect())
     } else {
@@ -114,7 +150,14 @@ pub fn rgba8_from_r8(
     depth: u32,
     data: &[u8],
 ) -> Result<Vec<u8>, DecompressSurfaceError> {
-    let expected = width as usize * height as usize * depth as usize;
+    let expected = expected_size(width, height, depth, 1).ok_or(
+        DecompressSurfaceError::InvalidDimensions {
+            width,
+            height,
+            depth,
+        },
+    )?;
+
     if data.len() >= expected {
         Ok(data.iter().flat_map(|r| [*r, *r, *r, 255u8]).collect())
     } else {
@@ -131,7 +174,12 @@ pub fn bgra8_from_rgba8(
     depth: u32,
     data: &[u8],
 ) -> Result<Vec<u8>, CompressSurfaceError> {
-    let expected = width as usize * height as usize * depth as usize * 4;
+    let expected =
+        expected_size(width, height, depth, 4).ok_or(CompressSurfaceError::InvalidDimensions {
+            width,
+            height,
+            depth,
+        })?;
     if data.len() >= expected {
         let mut bgra = data.to_vec();
         swap_red_blue(width, height, &mut bgra);
@@ -149,6 +197,13 @@ fn swap_red_blue(width: u32, height: u32, rgba: &mut [u8]) {
         // RGBA -> BGRA.
         rgba.swap(i * 4, i * 4 + 2);
     }
+}
+
+fn expected_size(width: u32, height: u32, depth: u32, bytes_per_pixel: usize) -> Option<usize> {
+    (width as usize)
+        .checked_mul(height as usize)?
+        .checked_mul(depth as usize)?
+        .checked_mul(bytes_per_pixel)
 }
 
 #[cfg(test)]

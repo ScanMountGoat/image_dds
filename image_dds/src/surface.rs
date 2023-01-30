@@ -1,5 +1,6 @@
 use crate::{calculate_offset, mip_dimension, mip_size, ImageFormat};
 
+// TODO: Add length validation methods that don't overflow.
 /// A surface with an image format known at runtime.
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -56,7 +57,8 @@ impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
     pub fn get_image_data(&self, layer: u32, mipmap: u32) -> Option<&[u8]> {
         let format = ImageFormat::R8G8B8A8Unorm;
         let block_size_in_bytes = format.block_size_in_bytes();
-        // TODO: Should this be simplified to just return block dimensions?
+
+        // TODO: Create an error for failed offset calculations?
         let offset = calculate_offset(
             layer,
             mipmap,
@@ -64,13 +66,13 @@ impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
             (1, 1, 1),
             block_size_in_bytes,
             self.mipmaps,
-        );
+        )?;
 
         let mip_width = mip_dimension(self.width, mipmap);
         let mip_height = mip_dimension(self.height, mipmap);
         let mip_depth = mip_dimension(self.depth, mipmap);
 
-        // TODO: Avoid unwrap.
+        // TODO: Create an error for overflow?
         let size = mip_size(
             mip_width as usize,
             mip_height as usize,
@@ -79,8 +81,7 @@ impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
             1,
             1,
             block_size_in_bytes,
-        )
-        .unwrap();
+        )?;
 
         self.data.as_ref().get(offset..offset + size)
     }
