@@ -99,7 +99,7 @@ pub enum Mipmaps {
 /// Not all DDS formats are supported,
 /// but all current variants for [ImageFormat] are supported by some version of DDS.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, strum::EnumString, strum::Display)]
 pub enum ImageFormat {
     R8Unorm,
     R8G8B8A8Unorm,
@@ -174,6 +174,12 @@ impl ImageFormat {
             ImageFormat::BC7Srgb => 16,
         }
     }
+}
+
+struct Rgba;
+impl Rgba {
+    const BYTES_PER_PIXEL: usize = 4;
+    const BYTES_PER_BLOCK: usize = 64;
 }
 
 // TODO: error module?
@@ -367,14 +373,19 @@ pub fn encode_surface_rgba8<T: AsRef<[u8]>>(
     // TODO: Avoid the initial copy.
     let mut mip_image = surface.data.as_ref().to_vec();
 
+    let mut previous_width = width as usize;
+    let mut previous_height = height as usize;
+    let mut previous_depth = depth as usize;
+
     for mipmap in 1..num_mipmaps {
-        // The physical size must be at least a full block.
+        // The physical size must have integral dimensions in blocks.
         // Applications or the GPU will use the smaller virtual size and ignore padding.
         // For example, a 1x1 BCN block still requires 4x4 pixels of data.
         // https://learn.microsoft.com/en-us/windows/win32/direct3d10/d3d10-graphics-programming-guide-resources-block-compression
-        let mip_width = mip_dimension(width, mipmap).max(block_width) as usize;
-        let mip_height = mip_dimension(height, mipmap).max(block_height) as usize;
-        let mip_depth = mip_dimension(depth, mipmap).max(block_depth) as usize;
+        let mip_dimension_rounded = |x, n| round_up(mip_dimension(x, mipmap) as usize, n as usize);
+        let mip_width = mip_dimension_rounded(width, block_width);
+        let mip_height = mip_dimension_rounded(height, block_height);
+        let mip_depth = mip_dimension_rounded(depth, block_depth);
 
         // TODO: Find a simpler way to choose a data source.
         mip_image = if use_surface {
@@ -403,15 +414,15 @@ pub fn encode_surface_rgba8<T: AsRef<[u8]>>(
                 data.to_vec()
             }
         } else {
-            // Halve the width and height from the previous mip level.
-            // This function already handles padding.
+            // Downsample the previous mip level.
+            // This also handles padding since the new dimensions are rounded.
             downsample_rgba8(
                 mip_width,
                 mip_height,
                 mip_depth,
-                block_width as usize,
-                block_height as usize,
-                block_depth as usize,
+                previous_width,
+                previous_height,
+                previous_depth,
                 &mip_image,
             )
         };
@@ -425,6 +436,11 @@ pub fn encode_surface_rgba8<T: AsRef<[u8]>>(
             quality,
         )?;
         surface_data.extend_from_slice(&mip_data);
+
+        // Update the dimensions for the previous mipmap image data.
+        previous_width = mip_width;
+        previous_height = mip_height;
+        previous_depth = mip_depth;
     }
 
     Ok(Surface {
@@ -467,21 +483,16 @@ fn encode_rgba8(
 }
 
 fn downsample_rgba8(
+    new_width: usize,
+    new_height: usize,
+    new_depth: usize,
     width: usize,
     height: usize,
     depth: usize,
-    min_width: usize,
-    min_height: usize,
-    min_depth: usize,
     data: &[u8],
 ) -> Vec<u8> {
     // Halve the width and height by averaging pixels.
     // This is faster than resizing using the image crate.
-    // TODO: How to handle the case where any of the dimensions is zero?
-    let new_width = (width / 2).max(min_width);
-    let new_height = (height / 2).max(min_height);
-    let new_depth = (depth / 2).max(min_depth);
-
     let mut new_data = vec![0u8; new_width * new_height * new_depth * 4];
     for z in 0..new_depth {
         for x in 0..new_width {
@@ -523,8 +534,14 @@ fn downsample_rgba8(
     new_data
 }
 
+#[inline(always)]
 fn div_round_up(x: usize, d: usize) -> usize {
     (x + d - 1) / d
+}
+
+#[inline(always)]
+fn round_up(x: usize, n: usize) -> usize {
+    ((x + n - 1) / n) * n
 }
 
 // Surfaces typically use a row-major memory layout like surface[layer][mipmap][z][y][x].
@@ -615,7 +632,7 @@ mod tests {
             .collect();
         assert_eq!(
             vec![127u8; 2 * 2 * 1 * 4],
-            downsample_rgba8(4, 4, 1, 1, 1, 1, &original)
+            downsample_rgba8(2, 2, 1, 4, 4, 1, &original)
         );
     }
 
@@ -630,7 +647,7 @@ mod tests {
         .collect();
         assert_eq!(
             vec![127u8; 1 * 1 * 4],
-            downsample_rgba8(3, 3, 1, 1, 1, 1, &original)
+            downsample_rgba8(1, 1, 1, 3, 3, 1, &original)
         );
     }
 
@@ -643,29 +660,13 @@ mod tests {
         ];
         assert_eq!(
             vec![127u8; 1 * 1 * 1 * 4],
-            downsample_rgba8(2, 2, 2, 1, 1, 1, &original)
-        );
-    }
-
-    #[test]
-    fn downsample_rgba8_2x2x2_padded() {
-        // Test that the output is correctly padded.
-        let original = vec![
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255,
-            255, 255, 255, 255, 255, 255, 255, 255,
-        ];
-        assert_eq!(
-            std::iter::repeat(127u8)
-                .take(4)
-                .chain(std::iter::repeat(0u8).take(4 * 4 * 2 * 4 - 4))
-                .collect::<Vec<_>>(),
-            downsample_rgba8(2, 2, 2, 4, 4, 2, &original)
+            downsample_rgba8(1, 1, 1, 2, 2, 2, &original)
         );
     }
 
     #[test]
     fn downsample_rgba8_0x0() {
-        assert_eq!(vec![0u8; 4], downsample_rgba8(0, 0, 1, 1, 1, 1, &[]));
+        assert_eq!(vec![0u8; 4], downsample_rgba8(1, 1, 1, 0, 0, 1, &[]));
     }
 
     #[test]
@@ -673,12 +674,12 @@ mod tests {
         // It's ok for mipmaps to not be divisible by the block width.
         let surface = encode_surface_rgba8(
             SurfaceRgba8 {
-                width: 4,
-                height: 4,
+                width: 12,
+                height: 12,
                 depth: 1,
                 layers: 1,
                 mipmaps: 1,
-                data: &[0u8; 64],
+                data: &[0u8; 12 * 12 * 4],
             },
             ImageFormat::BC7Srgb,
             Quality::Fast,
@@ -686,14 +687,14 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(4, surface.width);
-        assert_eq!(4, surface.height);
+        assert_eq!(12, surface.width);
+        assert_eq!(12, surface.height);
         assert_eq!(1, surface.depth);
         assert_eq!(1, surface.layers);
-        assert_eq!(3, surface.mipmaps);
+        assert_eq!(4, surface.mipmaps);
         assert_eq!(ImageFormat::BC7Srgb, surface.image_format);
         // Each mipmap must be at least 1 block in size.
-        assert_eq!(16 * 3, surface.data.len());
+        assert_eq!((9 + 4 + 1 + 1) * 16, surface.data.len());
     }
 
     #[test]

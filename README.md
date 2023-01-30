@@ -5,7 +5,7 @@ A library for converting uncompressed image data to and from compressed formats.
 The provided example projects demonstrate basic usage of the conversion functions. 
 The library also provides functions for working directly with the raw bytes of a surface instead of a dds or image file.
 
-`cargo run --release --example img2dds image.png out.dds bc3unorm`  
+`cargo run --release --example img2dds image.png out.dds BC3Unorm`  
 `cargo run --release --example dds2img out.dds out.tiff`  
 
 ## Supported Formats

@@ -1,4 +1,4 @@
-use crate::{mip_size, CompressSurfaceError, DecompressSurfaceError, ImageFormat, Quality};
+use crate::{mip_size, CompressSurfaceError, DecompressSurfaceError, ImageFormat, Quality, Rgba};
 use half::f16;
 
 // All BCN formats use 4x4 pixel blocks.
@@ -75,13 +75,6 @@ impl ReadBlock for Block16 {
     fn read_block(data: &[u8], offset: usize) -> Self {
         Self(data[offset..offset + 16].try_into().unwrap())
     }
-}
-
-// TODO: Make a trait for this and make the functions generic?
-struct Rgba;
-impl Rgba {
-    const BYTES_PER_PIXEL: usize = 4;
-    const BYTES_PER_BLOCK: usize = 64;
 }
 
 pub struct Bc1;
@@ -468,12 +461,12 @@ fn put_rgba_block(
     height: usize,
 ) {
     // Place the compressed block into the decompressed surface.
-    // The data from each block will update 4 rows of the RGBA surface.
-    // Avoid copying too much data if width or height are smaller than the block dimensions.
-    // TODO: Examine the assembly for this.
-    let bytes_per_row = std::mem::size_of::<[u8; 4]>() * BLOCK_WIDTH.min(width);
+    // The data from each block will update up to 4 rows of the RGBA surface.
+    // Add checks since the edges won't always have full blocks.
+    // TODO: potential overflow if x > width or y > height?
+    let bytes_per_row = (std::mem::size_of::<[u8; 4]>() * BLOCK_WIDTH).min(width - x);
 
-    for (row, row_pixels) in pixels.iter().enumerate().take(BLOCK_HEIGHT.min(height)) {
+    for (row, row_pixels) in pixels.iter().enumerate().take(BLOCK_HEIGHT.min(height - y)) {
         // Convert pixel coordinates to byte coordinates.
         let surface_index = ((z * width * height) + (y + row) * width + x) * Rgba::BYTES_PER_PIXEL;
         // The correct slice length is calculated above.
@@ -516,6 +509,7 @@ pub fn bcn_from_rgba8<T: Bcn<[u8; 4]>>(
         depth,
     })?;
 
+    // The surface must be a multiple of the block dimensions for safety.
     if data.len() < expected_size {
         return Err(CompressSurfaceError::NotEnoughData {
             expected: expected_size,
