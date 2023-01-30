@@ -43,7 +43,8 @@ pub fn rgba8_from_rgbaf32(
 ) -> Result<Vec<u8>, DecompressSurfaceError> {
     let expected = width as usize * height as usize * depth as usize * 16;
     if data.len() >= expected {
-        let rgba_f32: &[f32] = bytemuck::cast_slice(data);
+        // Use expected length to ensure the slice is an integral number of floats.
+        let rgba_f32: &[f32] = bytemuck::cast_slice(&data[..expected]);
         Ok(rgba_f32.iter().map(|f| (f * 255.0) as u8).collect())
     } else {
         Err(DecompressSurfaceError::NotEnoughData {
