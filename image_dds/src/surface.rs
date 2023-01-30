@@ -1,6 +1,8 @@
 use crate::{calculate_offset, mip_dimension, mip_size, ImageFormat};
 
 /// A surface with an image format known at runtime.
+#[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct Surface<T> {
     /// The width of the surface in pixels.
     pub width: u32,
@@ -23,6 +25,8 @@ pub struct Surface<T> {
 }
 
 /// An uncompressed RGBA8 surface with 4 bytes per pixel.
+#[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct SurfaceRgba8<T> {
     /// The width of the surface in pixels.
     pub width: u32,

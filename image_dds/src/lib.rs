@@ -65,6 +65,7 @@ pub use dds::*;
 /// Higher quality settings run significantly slower.
 /// Block compressed formats like BC7 use a fixed compression ratio,
 /// so lower quality settings do not use less space than slower ones.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Quality {
     /// Faster exports with slightly lower quality.
@@ -78,6 +79,7 @@ pub enum Quality {
 /// Options for how many mipmaps to generate.
 /// Mipmaps are counted starting from the base level,
 /// so a surface with only the full resolution base level has 1 mipmap.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Mipmaps {
     /// No mipmapping. Only the base mip level will be used.
@@ -240,6 +242,7 @@ pub fn mip_dimension(dim: u32, mipmap: u32) -> u32 {
     (dim >> mipmap).max(1)
 }
 
+// TODO: Take surface by reference?
 /// Decode all layers and mipmaps from `surface` to RGBA8.
 pub fn decode_surface_rgba8<T: AsRef<[u8]>>(
     surface: Surface<T>,
@@ -321,6 +324,7 @@ fn decode_data_rgba8(
     Ok(data)
 }
 
+// TODO: Take the surface by reference?
 // TODO: Add documentation showing how to use this.
 /// Encode an RGBA8 surface to the given `format`.
 ///

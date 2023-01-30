@@ -23,25 +23,19 @@ members = ["."]
 debug = 1
 
 [[bin]]
-name = "rgba8_from_bcn"
-path = "fuzz_targets/rgba8_from_bcn.rs"
+name = "decode_surface_rgba8"
+path = "fuzz_targets/decode_surface_rgba8.rs"
 test = false
 doc = false
 
 [[bin]]
-name = "bcn_from_rgba8"
-path = "fuzz_targets/bcn_from_rgba8.rs"
+name = "encode_surface_rgba8"
+path = "fuzz_targets/encode_surface_rgba8.rs"
 test = false
 doc = false
 
 [[bin]]
-name = "bcn_from_rgba8_valid"
-path = "fuzz_targets/bcn_from_rgba8_valid.rs"
-test = false
-doc = false
-
-[[bin]]
-name = "rgba8_from_bcn_single_block"
-path = "fuzz_targets/rgba8_from_bcn_single_block.rs"
+name = "decode_surface_rgba8_single_block"
+path = "fuzz_targets/decode_surface_rgba8_single_block.rs"
 test = false
 doc = false
