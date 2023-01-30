@@ -9,7 +9,7 @@ The library also provides functions for working directly with the raw bytes of a
 `cargo run --release --example dds2img out.dds out.tiff`  
 
 ## Supported Formats
-Currently only BCN formats are supported at this time since these are the formats commonly used by DDS files and compressed GPU textures. This library current does not support other compressed formats used for GPU textures like ETC1. Compression is handled using [intel-tex-rs-2](https://github.com/Traverse-Research/intel-tex-rs-2) for bindings to Intel's ISPC texture compressor in C++. Decompression is handled using bindings to the [bcdec](https://github.com/iOrange/bcdec) library in C.
+The only compressed formats supported at this time are BCN formats since these are the formats commonly used by DDS files and compressed GPU textures. This library current does not support other compressed formats used for GPU textures like ETC1. Compression is handled using [intel-tex-rs-2](https://github.com/Traverse-Research/intel-tex-rs-2) for bindings to Intel's ISPC texture compressor in C++. Decompression is handled using bindings to the [bcdec](https://github.com/iOrange/bcdec) library in C.
 
 | Format | Encode | Decode |
 | --- | --- | --- |
