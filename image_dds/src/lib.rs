@@ -101,7 +101,7 @@ pub enum Mipmaps {
 /// Not all DDS formats are supported,
 /// but all current variants for [ImageFormat] are supported by some version of DDS.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, PartialEq, Eq, Clone, Copy, strum::EnumString, strum::Display)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, strum::EnumString, strum::Display, strum::EnumIter)]
 pub enum ImageFormat {
     R8Unorm,
     R8G8B8A8Unorm,
