@@ -186,7 +186,6 @@ fn image_format_from_dxgi(format: DxgiFormat) -> Option<ImageFormat> {
 }
 
 fn image_format_from_d3d(format: D3DFormat) -> Option<ImageFormat> {
-    // TODO: Support uncompressed formats.
     match format {
         D3DFormat::DXT1 => Some(ImageFormat::BC1Unorm),
         D3DFormat::DXT2 => Some(ImageFormat::BC2Unorm),

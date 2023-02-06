@@ -200,7 +200,10 @@ pub enum CreateImageError {
 
 #[derive(Debug, Error)]
 pub enum CompressSurfaceError {
-    // TODO: Separate errors for zero size and dimensions that would overflow usize
+    #[error("surface dimensions {width} x {height} x {depth} contain no pixels")]
+    ZeroSizedSurface { width: u32, height: u32, depth: u32 },
+
+    // TODO: mention that this only applies to overflow.
     #[error("surface dimensions {width} x {height} x {depth} are zero sized or would overflow")]
     InvalidDimensions { width: u32, height: u32, depth: u32 },
 
@@ -222,7 +225,10 @@ pub enum CompressSurfaceError {
 
 #[derive(Debug, Error)]
 pub enum DecompressSurfaceError {
-    // TODO: Separate errors for zero size and dimensions that would overflow usize
+    #[error("surface dimensions {width} x {height} x {depth} contain no pixels")]
+    ZeroSizedSurface { width: u32, height: u32, depth: u32 },
+
+    // TODO: mention that this only applies to overflow.
     #[error("surface dimensions {width} x {height} x {depth} are not valid")]
     InvalidDimensions { width: u32, height: u32, depth: u32 },
 
@@ -241,6 +247,9 @@ pub enum DecompressSurfaceError {
 
     #[error("the image format of the surface can not be determined")]
     UnrecognizedFormat,
+
+    #[error("{mipmaps} mipmaps exceeds the maximum expected mipmap count of {max_mipmaps}")]
+    UnexpectedMipmapCount { mipmaps: u32, max_mipmaps: u32 },
 }
 
 fn max_mipmap_count(max_dimension: u32) -> u32 {
@@ -319,18 +328,18 @@ fn validate_surface_decode<T: AsRef<[u8]>>(
     // TODO: Add a validate function for surfaces?
     // TODO: Should empty surfaces be an error?
     if surface.width == 0 || surface.height == 0 || surface.depth == 0 {
-        return Err(DecompressSurfaceError::InvalidDimensions {
+        return Err(DecompressSurfaceError::ZeroSizedSurface {
             width: surface.width,
             height: surface.height,
             depth: surface.depth,
         });
     }
 
-    if surface.mipmaps > max_mipmap_count(surface.width.max(surface.height).max(surface.depth)) {
-        return Err(DecompressSurfaceError::InvalidDimensions {
-            width: surface.width,
-            height: surface.height,
-            depth: surface.depth,
+    let max_mipmaps = max_mipmap_count(surface.width.max(surface.height).max(surface.depth));
+    if surface.mipmaps > max_mipmaps {
+        return Err(DecompressSurfaceError::UnexpectedMipmapCount {
+            mipmaps: surface.mipmaps,
+            max_mipmaps,
         });
     }
 
@@ -477,7 +486,7 @@ fn encode_mipmaps_rgba8<T: AsRef<[u8]>>(
     let mut previous_height = height as usize;
     let mut previous_depth = depth as usize;
 
-    Ok(for mipmap in 1..num_mipmaps {
+    for mipmap in 1..num_mipmaps {
         // The physical size must have integral dimensions in blocks.
         // Applications or the GPU will use the smaller virtual size and ignore padding.
         // For example, a 1x1 BCN block still requires 4x4 pixels of data.
@@ -541,7 +550,8 @@ fn encode_mipmaps_rgba8<T: AsRef<[u8]>>(
         previous_width = mip_width;
         previous_height = mip_height;
         previous_depth = mip_depth;
-    })
+    }
+    Ok(())
 }
 
 fn validate_surface_encode<T>(
@@ -554,7 +564,7 @@ fn validate_surface_encode<T>(
     let depth = surface.depth;
 
     if width == 0 || height == 0 || depth == 0 {
-        return Err(CompressSurfaceError::InvalidDimensions {
+        return Err(CompressSurfaceError::ZeroSizedSurface {
             width,
             height,
             depth,
@@ -919,6 +929,94 @@ mod tests {
                 depth: 2,
                 block_width: 4,
                 block_height: 4
+            })
+        ));
+    }
+
+    #[test]
+    fn encode_surface_zero_size() {
+        let result = encode_surface_rgba8(
+            SurfaceRgba8 {
+                width: 0,
+                height: 0,
+                depth: 0,
+                layers: 1,
+                mipmaps: 1,
+                data: &[0u8; 0],
+            },
+            ImageFormat::BC7Srgb,
+            Quality::Fast,
+            Mipmaps::GeneratedAutomatic,
+        );
+        assert!(matches!(
+            result,
+            Err(CompressSurfaceError::ZeroSizedSurface {
+                width: 0,
+                height: 0,
+                depth: 0,
+            })
+        ));
+    }
+
+    #[test]
+    fn decode_surface_zero_size() {
+        let result = decode_surface_rgba8(Surface {
+            width: 0,
+            height: 0,
+            depth: 0,
+            layers: 1,
+            mipmaps: 1,
+            image_format: ImageFormat::R8G8B8A8Srgb,
+            data: &[0u8; 0],
+        });
+        assert!(matches!(
+            result,
+            Err(DecompressSurfaceError::ZeroSizedSurface {
+                width: 0,
+                height: 0,
+                depth: 0,
+            })
+        ));
+    }
+
+    #[test]
+    fn decode_surface_dimensions_overflow() {
+        let result = decode_surface_rgba8(Surface {
+            width: u32::MAX,
+            height: u32::MAX,
+            depth: u32::MAX,
+            layers: 1,
+            mipmaps: 1,
+            image_format: ImageFormat::R8G8B8A8Srgb,
+            data: &[0u8; 0],
+        });
+        assert!(matches!(
+            result,
+            Err(DecompressSurfaceError::InvalidDimensions {
+                width: u32::MAX,
+                height: u32::MAX,
+                depth: u32::MAX,
+            })
+        ));
+    }
+
+    #[test]
+    fn decode_surface_too_many_mipmaps() {
+        let result = decode_surface_rgba8(Surface {
+            width: 4,
+            height: 4,
+            depth: 1,
+            layers: 1,
+            mipmaps: 10,
+            image_format: ImageFormat::R8G8B8A8Srgb,
+            data: &[0u8; 4 * 4 * 4],
+        });
+
+        assert!(matches!(
+            result,
+            Err(DecompressSurfaceError::UnexpectedMipmapCount {
+                mipmaps: 10,
+                max_mipmaps: 3
             })
         ));
     }

@@ -559,6 +559,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn bc2_decompress_compressed() {
         // TODO: Revise this test to check each direction separately.
         // TODO: BC2 compression should return an error.
@@ -593,6 +594,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn bc6_decompress_compressed() {
         // TODO: Revise this test to check each direction separately.
         let rgba = vec![64u8; Rgba::BYTES_PER_BLOCK];

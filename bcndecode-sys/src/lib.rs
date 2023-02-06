@@ -1,9 +1,6 @@
 use std::ffi::c_int;
 
 extern "C" {
-    // TODO: Pointer alignment?
-    // TODO: compressed_block is cast to (unsigned long long*) or (unsigned short*).
-    // TODO: Use the type cast internally rather than *mut u8
     pub fn bcdec_bc1(
         compressed_block: *const u8,
         decompressed_block: *mut u8,
