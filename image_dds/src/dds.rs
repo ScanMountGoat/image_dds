@@ -114,7 +114,7 @@ pub fn image_from_dds(dds: &Dds, mipmap: u32) -> Result<image::RgbaImage, Create
     // Mipmaps have different dimensions.
     // A single 2D image can only represent data from a single mip level across layers.
     let image_data: Vec<_> = (0..surface.layers)
-        .flat_map(|layer| surface.get_image_data(layer, mipmap).unwrap())
+        .flat_map(|layer| surface.get(layer, mipmap).unwrap())
         .copied()
         .collect();
     let data_length = image_data.len();
