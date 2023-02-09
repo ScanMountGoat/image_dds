@@ -144,7 +144,8 @@ fn array_layer_count(dds: &Dds) -> u32 {
     }
 }
 
-fn dds_image_format(dds: &Dds) -> Option<ImageFormat> {
+/// Returns the format of `dds` or `None` if the format is unrecognized.
+pub fn dds_image_format(dds: &Dds) -> Option<ImageFormat> {
     // The format can be DXGI, D3D, or specified in the FOURCC.
     let dxgi = dds.get_dxgi_format();
     let d3d = dds.get_d3d_format();
