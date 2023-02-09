@@ -3,7 +3,6 @@ use crate::{
     DecompressSurfaceError, ImageFormat,
 };
 
-// TODO: Add length validation methods that don't overflow.
 /// A surface with an image format known at runtime.
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -77,7 +76,7 @@ impl<T: AsRef<[u8]>> Surface<T> {
             block_depth as usize,
             block_size_in_bytes,
         )
-        .ok_or(DecompressSurfaceError::InvalidDimensions {
+        .ok_or(DecompressSurfaceError::PixelCountWouldOverflow {
             width: self.width,
             height: self.height,
             depth: self.depth,

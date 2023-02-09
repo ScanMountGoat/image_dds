@@ -404,7 +404,7 @@ where
         1,
         T::CompressedBlock::SIZE_IN_BYTES,
     )
-    .ok_or(DecompressSurfaceError::InvalidDimensions {
+    .ok_or(DecompressSurfaceError::PixelCountWouldOverflow {
         width,
         height,
         depth,
@@ -487,17 +487,7 @@ pub fn bcn_from_rgba8<T: Bcn<[u8; 4]>>(
     data: &[u8],
     quality: Quality,
 ) -> Result<Vec<u8>, CompressSurfaceError> {
-    // TODO: How to handle the zero case?
-    if width == 0 || height == 0 || depth == 0 {
-        return Err(CompressSurfaceError::InvalidDimensions {
-            width,
-            height,
-            depth,
-        });
-    }
-
     // Surface dimensions are not validated yet and may cause overflow.
-    // TODO: Is checking 4x4 pixel blocks the right choice here?
     let expected_size = mip_size(
         width as usize,
         height as usize,
@@ -507,7 +497,7 @@ pub fn bcn_from_rgba8<T: Bcn<[u8; 4]>>(
         1,
         Rgba::BYTES_PER_BLOCK,
     )
-    .ok_or(CompressSurfaceError::InvalidDimensions {
+    .ok_or(CompressSurfaceError::PixelCountWouldOverflow {
         width,
         height,
         depth,

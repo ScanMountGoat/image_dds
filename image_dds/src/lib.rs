@@ -43,18 +43,15 @@
 use bcn::*;
 use rgba::*;
 
-use thiserror::Error;
-
-// TODO: Module level documentation explaining limitations and showing basic usage.
-
 mod bcn;
 mod rgba;
 mod surface;
 
 pub use surface::{Surface, SurfaceRgba8};
 
-// TODO: Don't export all the functions at the crate root?
-// TODO: Document that this is only available on certain features?
+pub mod error;
+use error::*;
+
 #[cfg(feature = "ddsfile")]
 mod dds;
 #[cfg(feature = "ddsfile")]
@@ -184,74 +181,6 @@ impl Rgba {
     const BYTES_PER_BLOCK: usize = 64;
 }
 
-// TODO: error module?
-#[derive(Debug, Error)]
-pub enum CreateImageError {
-    #[error("data length {data_length} is not valid for a {width}x{height} image")]
-    InvalidSurfaceDimensions {
-        width: u32,
-        height: u32,
-        data_length: usize,
-    },
-
-    #[error("error decompressing surface")]
-    DecompressSurface(#[from] DecompressSurfaceError),
-}
-
-#[derive(Debug, Error)]
-pub enum CompressSurfaceError {
-    #[error("surface dimensions {width} x {height} x {depth} contain no pixels")]
-    ZeroSizedSurface { width: u32, height: u32, depth: u32 },
-
-    // TODO: mention that this only applies to overflow.
-    #[error("surface dimensions {width} x {height} x {depth} are zero sized or would overflow")]
-    InvalidDimensions { width: u32, height: u32, depth: u32 },
-
-    #[error("surface dimensions {width} x {height} x {depth} are not divisibly by the block dimensions {block_width} x {block_height}")]
-    NonIntegralDimensionsInBlocks {
-        width: u32,
-        height: u32,
-        depth: u32,
-        block_width: u32,
-        block_height: u32,
-    },
-
-    #[error("expected surface to have at least {expected} bytes but found {actual}")]
-    NotEnoughData { expected: usize, actual: usize },
-
-    #[error("compressing data to format {format:?} is not supported")]
-    UnsupportedFormat { format: ImageFormat },
-}
-
-#[derive(Debug, Error)]
-pub enum DecompressSurfaceError {
-    #[error("surface dimensions {width} x {height} x {depth} contain no pixels")]
-    ZeroSizedSurface { width: u32, height: u32, depth: u32 },
-
-    // TODO: mention that this only applies to overflow.
-    #[error("surface dimensions {width} x {height} x {depth} are not valid")]
-    InvalidDimensions { width: u32, height: u32, depth: u32 },
-
-    #[error("mipmap count {mipmaps} exceeds the maximum value of {max_total_mipmaps}")]
-    InvalidMipmapCount {
-        mipmaps: u32,
-        height: u32,
-        max_total_mipmaps: u32,
-    },
-
-    #[error("expected surface to have at least {expected} bytes but found {actual}")]
-    NotEnoughData { expected: usize, actual: usize },
-
-    #[error("failed to calculate offset for layer {layer} mipmap {mipmap}")]
-    OffsetError { layer: u32, mipmap: u32 },
-
-    #[error("the image format of the surface can not be determined")]
-    UnrecognizedFormat,
-
-    #[error("{mipmaps} mipmaps exceeds the maximum expected mipmap count of {max_mipmaps}")]
-    UnexpectedMipmapCount { mipmaps: u32, max_mipmaps: u32 },
-}
-
 fn max_mipmap_count(max_dimension: u32) -> u32 {
     // log2(x) + 1
     u32::BITS - max_dimension.leading_zeros()
@@ -263,7 +192,6 @@ pub fn mip_dimension(base_dimension: u32, mipmap: u32) -> u32 {
     (base_dimension >> mipmap).max(1)
 }
 
-// TODO: Take surface by reference?
 /// Decode all layers and mipmaps from `surface` to RGBA8.
 pub fn decode_surface_rgba8<T: AsRef<[u8]>>(
     surface: Surface<T>,
@@ -283,10 +211,9 @@ pub fn decode_surface_rgba8<T: AsRef<[u8]>>(
     let mut combined_surface_data = Vec::new();
     for layer in 0..layers {
         for mipmap in 0..mipmaps {
-            // TODO: Rework this error to also include the length.
             let data = surface
                 .get(layer, mipmap)
-                .ok_or(DecompressSurfaceError::OffsetError { layer, mipmap })?;
+                .ok_or(DecompressSurfaceError::MipmapDataOutOfBounds { layer, mipmap })?;
 
             // The mipmap index is already validated by get above.
             let width = mip_dimension(width, mipmap);
@@ -579,7 +506,6 @@ fn round_up(x: usize, n: usize) -> usize {
     ((x + n - 1) / n) * n
 }
 
-// TODO: Use result?
 fn calculate_offset(
     layer: u32,
     mipmap: u32,
@@ -599,7 +525,6 @@ fn calculate_offset(
             let mip_height = mip_dimension(height, i) as usize;
             let mip_depth = mip_dimension(depth, i) as usize;
 
-            // TODO: Avoid unwrap.
             mip_size(
                 mip_width,
                 mip_height,
@@ -897,7 +822,7 @@ mod tests {
         });
         assert!(matches!(
             result,
-            Err(DecompressSurfaceError::InvalidDimensions {
+            Err(DecompressSurfaceError::PixelCountWouldOverflow {
                 width: u32::MAX,
                 height: u32::MAX,
                 depth: u32::MAX,
