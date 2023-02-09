@@ -10,4 +10,3 @@ edition = "2021"
 
 [build-dependencies]
 cc = "1.0"
-bindgen = "0.53.1"
