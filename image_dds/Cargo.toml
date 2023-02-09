@@ -1,6 +1,12 @@
 [package]
 name = "image_dds"
 version = "0.1.0"
+authors = ["ScanMountGoat <>"]
+description = "Convert images to and from compressed DDS formats"
+license = "MIT"
+documentation = "https://docs.rs/image_dds"
+repository = "https://github.com/ScanMountGoat/image_dds"
+readme = "../README.md"
 edition = "2021"
 
 [dependencies]
