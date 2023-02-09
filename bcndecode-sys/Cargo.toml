@@ -6,7 +6,6 @@ description = "Rust bindings to bcndecode"
 license = "MIT"
 documentation = "https://docs.rs/bcndecode-sys"
 repository = "https://github.com/ScanMountGoat/image_dds"
-readme = "../README.md"
 edition = "2021"
 
 [build-dependencies]
