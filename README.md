@@ -1,4 +1,7 @@
 # image_dds
+
+[![Latest Version](https://img.shields.io/crates/v/image_dds.svg)](https://crates.io/crates/image_dds) [![docs.rs](https://docs.rs/image_dds/badge.svg)](https://docs.rs/image_dds)
+
 A library for converting uncompressed image data to and from compressed formats.
 
 ## Examples
