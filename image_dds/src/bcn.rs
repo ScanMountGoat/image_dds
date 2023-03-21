@@ -468,7 +468,7 @@ fn put_rgba_block(
     // The data from each block will update up to 4 rows of the RGBA surface.
     // Add checks since the edges won't always have full blocks.
     // TODO: potential overflow if x > width or y > height?
-    let bytes_per_row = (std::mem::size_of::<[u8; 4]>() * BLOCK_WIDTH).min(width - x);
+    let bytes_per_row = std::mem::size_of::<[u8; 4]>() * BLOCK_WIDTH.min(width - x);
 
     for (row, row_pixels) in pixels.iter().enumerate().take(BLOCK_HEIGHT.min(height - y)) {
         // Convert pixel coordinates to byte coordinates.
@@ -599,5 +599,60 @@ mod tests {
         check_decompress_compressed_bcn::<Bc7>(&rgba, Quality::Fast);
         check_decompress_compressed_bcn::<Bc7>(&rgba, Quality::Normal);
         check_decompress_compressed_bcn::<Bc7>(&rgba, Quality::Slow);
+    }
+
+    #[test]
+    fn put_rgba_block_4x4() {
+        // Write an entire block.
+        let mut surface = vec![0u8; 4 * 4 * 4];
+        put_rgba_block(
+            &mut surface,
+            [[[1u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT],
+            0,
+            0,
+            0,
+            4,
+            4,
+        );
+        assert_eq!(vec![1u8; 4 * 4 * 4], surface);
+    }
+
+    #[test]
+    fn put_rgba_block_5x5() {
+        // Test that block xy offsets work properly.
+        let mut surface = vec![0u8; 5 * 5 * 4];
+
+        put_rgba_block(
+            &mut surface,
+            [[[1u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT],
+            0,
+            0,
+            0,
+            5,
+            5,
+        );
+        put_rgba_block(
+            &mut surface,
+            [[[2u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT],
+            1,
+            1,
+            0,
+            5,
+            5,
+        );
+
+        assert_eq!(
+            [
+                [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+                [1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+                [1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+                [1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+                [0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+            ]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>(),
+            surface
+        );
     }
 }
