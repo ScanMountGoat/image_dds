@@ -42,6 +42,34 @@ pub fn dds_from_image(
     )
 }
 
+/// Creates a DDS file from the raw data in `surface`.
+pub fn dds_from_surface<T: AsRef<[u8]>>(surface: Surface<T>) -> Result<Dds, CreateDdsError> {
+    let mut dds = Dds::new_dxgi(ddsfile::NewDxgiParams {
+        height: surface.height,
+        width: surface.width,
+        depth: if surface.depth > 1 {
+            Some(surface.depth)
+        } else {
+            None
+        },
+        format: surface.image_format.into(),
+        mipmap_levels: (surface.mipmaps > 1).then_some(surface.mipmaps),
+        array_layers: (surface.layers > 1).then_some(surface.layers),
+        caps2: None,
+        is_cubemap: false,
+        resource_dimension: if surface.depth > 1 {
+            ddsfile::D3D10ResourceDimension::Texture3D
+        } else {
+            ddsfile::D3D10ResourceDimension::Texture2D
+        },
+        alpha_mode: ddsfile::AlphaMode::Straight, // TODO: Does this matter?
+    })?;
+
+    dds.data = surface.data.as_ref().to_vec();
+
+    Ok(dds)
+}
+
 /// Encode a `width` x `height` x `depth` RGBA8 surface to a DDS file with the given `format`.
 ///
 /// The number of mipmaps generated depends on the `mipmaps` parameter.
