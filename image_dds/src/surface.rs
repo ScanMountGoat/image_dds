@@ -6,6 +6,7 @@ use crate::{
 /// A surface with an image format known at runtime.
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Surface<T> {
     /// The width of the surface in pixels.
     pub width: u32,
@@ -99,6 +100,7 @@ impl<T: AsRef<[u8]>> Surface<T> {
 /// An uncompressed RGBA8 surface with 4 bytes per pixel.
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SurfaceRgba8<T> {
     /// The width of the surface in pixels.
     pub width: u32,

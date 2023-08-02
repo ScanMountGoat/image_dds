@@ -63,6 +63,7 @@ pub use dds::*;
 /// Block compressed formats like BC7 use a fixed compression ratio,
 /// so lower quality settings do not use less space than slower ones.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Quality {
     /// Faster exports with slightly lower quality.
@@ -77,6 +78,7 @@ pub enum Quality {
 /// Mipmaps are counted starting from the base level,
 /// so a surface with only the full resolution base level has 1 mipmap.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Mipmaps {
     /// No mipmapping. Only the base mip level will be used.
@@ -98,6 +100,7 @@ pub enum Mipmaps {
 /// Not all DDS formats are supported,
 /// but all current variants for [ImageFormat] are supported by some version of DDS.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, strum::EnumString, strum::Display, strum::EnumIter)]
 pub enum ImageFormat {
     R8Unorm,
