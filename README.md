@@ -16,23 +16,23 @@ The only compressed formats supported at this time are BCN formats since these a
 
 | Format | Encode | Decode |
 | --- | --- | --- |
-| BC1 | :heavy_check_mark: | :heavy_check_mark: |
-| BC2 | :x: | :heavy_check_mark: |
-| BC3 | :heavy_check_mark: | :heavy_check_mark: |
-| BC4 | :heavy_check_mark: | :heavy_check_mark: |
-| BC5 | :heavy_check_mark: | :heavy_check_mark: |
-| BC6 | :heavy_check_mark: | :heavy_check_mark: |
-| BC7 | :heavy_check_mark: | :heavy_check_mark: |
+| BC1 | ✔️ | ✔️ |
+| BC2 | ❌ | ✔️ |
+| BC3 | ✔️ | ✔️ |
+| BC4 | ✔️ | ✔️ |
+| BC5 | ✔️ | ✔️ |
+| BC6 | ✔️ | ✔️ |
+| BC7 | ✔️ | ✔️ |
 
 Some uncompressed formats are also supported. These formats are supported by DDS but are rarely used with DDS files in practice. Uncompressed formats are often used for small textures or textures used for window surfaces and UI elements. Like compressed formats, uncompressed formats can be encoded and decoded to and from RGBA8.
 
 | Format | Encode | Decode |
 | --- | --- | --- |
-| R8 | :heavy_check_mark: | :heavy_check_mark: |
-| R8G8B8A8 | :heavy_check_mark: | :heavy_check_mark: |
-| R8G8B8A8 | :heavy_check_mark: | :heavy_check_mark: |
-| R32G32B32A32 | :heavy_check_mark: | :heavy_check_mark: |
-| B8G8R8A8 | :heavy_check_mark: | :heavy_check_mark: |
+| R8 | ✔️ | ✔️ |
+| R8G8B8A8 | ✔️ | ✔️ |
+| R8G8B8A8 | ✔️ | ✔️ |
+| R32G32B32A32 | ✔️ | ✔️ |
+| B8G8R8A8 | ✔️ | ✔️ |
 
 ## Features
 Helper functions for working with the files from the [image](https://crates.io/crates/image) and [ddsfile](https://crates.io/crates/ddsfile) crates are supported under feature flags and enabled by default.
