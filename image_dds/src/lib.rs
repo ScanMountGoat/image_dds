@@ -47,6 +47,7 @@ mod bcn;
 mod rgba;
 mod surface;
 
+use strum::{EnumIter, EnumString};
 pub use surface::{Surface, SurfaceRgba8};
 
 pub mod error;
@@ -64,7 +65,7 @@ pub use dds::*;
 /// so lower quality settings do not use less space than slower ones.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, EnumString, strum::Display, EnumIter)]
 pub enum Quality {
     /// Faster exports with slightly lower quality.
     Fast,
@@ -79,7 +80,7 @@ pub enum Quality {
 /// so a surface with only the full resolution base level has 1 mipmap.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, EnumString, strum::Display, EnumIter)]
 pub enum Mipmaps {
     /// No mipmapping. Only the base mip level will be used.
     Disabled,
@@ -101,7 +102,7 @@ pub enum Mipmaps {
 /// but all current variants for [ImageFormat] are supported by some version of DDS.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, PartialEq, Eq, Clone, Copy, strum::EnumString, strum::Display, strum::EnumIter)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, EnumString, strum::Display, EnumIter)]
 pub enum ImageFormat {
     R8Unorm,
     R8G8B8A8Unorm,
