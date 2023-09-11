@@ -8,10 +8,10 @@ use crate::{
 
 #[derive(Debug, Error)]
 pub enum CreateDdsError {
-    #[error("error creating DDS")]
+    #[error("error creating DDS: {0}")]
     Dds(#[from] ddsfile::Error),
 
-    #[error("error compressing surface")]
+    #[error("error compressing surface: {0}")]
     CompressSurface(#[from] CompressSurfaceError),
 }
 

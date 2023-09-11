@@ -11,7 +11,7 @@ pub enum CreateImageError {
         data_length: usize,
     },
 
-    #[error("error decompressing surface")]
+    #[error("error decompressing surface: {0}")]
     DecompressSurface(#[from] DecompressSurfaceError),
 }
 
