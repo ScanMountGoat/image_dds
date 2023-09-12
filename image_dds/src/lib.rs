@@ -40,7 +40,7 @@
 //! Supporting for floating point data will also be added in a future update.
 //! This mostly impacts BC6H compression since it encodes half precision floating point data.
 
-use bcn::*;
+use bcn::{Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7};
 use rgba::*;
 
 mod bcn;
@@ -57,6 +57,8 @@ use error::*;
 mod dds;
 #[cfg(feature = "ddsfile")]
 pub use dds::*;
+
+use crate::bcn::{bcn_from_rgba8, rgba8_from_bcn};
 
 /// The conversion quality when converting to compressed formats.
 ///
