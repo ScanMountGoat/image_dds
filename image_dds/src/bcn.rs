@@ -2,10 +2,14 @@
 const BLOCK_WIDTH: usize = 4;
 const BLOCK_HEIGHT: usize = 4;
 
+#[cfg(feature = "decode")]
 mod decode;
+#[cfg(feature = "encode")]
 mod encode;
 
+#[cfg(feature = "decode")]
 pub use decode::rgba8_from_bcn;
+#[cfg(feature = "encode")]
 pub use encode::bcn_from_rgba8;
 
 pub struct Bc1;

@@ -2,8 +2,8 @@ use ddsfile::{D3DFormat, Dds, DxgiFormat, FourCC};
 use thiserror::Error;
 
 use crate::{
-    decode_surface_rgba8, encode_surface_rgba8, mip_dimension, CompressSurfaceError,
-    CreateImageError, DecompressSurfaceError, ImageFormat, Mipmaps, Quality, Surface, SurfaceRgba8,
+    mip_dimension, CompressSurfaceError, CreateImageError, DecompressSurfaceError, ImageFormat,
+    Mipmaps, Quality, Surface, SurfaceRgba8,
 };
 
 #[derive(Debug, Error)]
@@ -15,6 +15,7 @@ pub enum CreateDdsError {
     CompressSurface(#[from] CompressSurfaceError),
 }
 
+#[cfg(feature = "encode")]
 /// Encode `image` to a DDS file with the given `format`.
 ///
 /// The number of mipmaps generated depends on the `mipmaps` parameter.
@@ -70,6 +71,7 @@ pub fn dds_from_surface<T: AsRef<[u8]>>(surface: Surface<T>) -> Result<Dds, Crea
     Ok(dds)
 }
 
+#[cfg(feature = "encode")]
 /// Encode a `width` x `height` x `depth` RGBA8 surface to a DDS file with the given `format`.
 ///
 /// The number of mipmaps generated depends on the `mipmaps` parameter.
@@ -87,7 +89,7 @@ pub fn dds_from_surface_rgba8<T: AsRef<[u8]>>(
         mipmaps,
         image_format,
         data,
-    } = encode_surface_rgba8(surface, format, quality, mipmaps)?;
+    } = crate::encode_surface_rgba8(surface, format, quality, mipmaps)?;
 
     let mut dds = Dds::new_dxgi(ddsfile::NewDxgiParams {
         height,
@@ -111,6 +113,7 @@ pub fn dds_from_surface_rgba8<T: AsRef<[u8]>>(
     Ok(dds)
 }
 
+#[cfg(feature = "decode")]
 /// Decode all layers and mipmaps from `dds` to an RGBA8 surface.
 pub fn decode_surface_rgba8_from_dds(
     dds: &Dds,
@@ -122,7 +125,7 @@ pub fn decode_surface_rgba8_from_dds(
     let mipmaps = dds.get_num_mipmap_levels();
 
     let image_format = dds_image_format(dds).ok_or(DecompressSurfaceError::UnrecognizedFormat)?;
-    decode_surface_rgba8(Surface {
+    crate::decode_surface_rgba8(Surface {
         width,
         height,
         depth,
@@ -133,6 +136,7 @@ pub fn decode_surface_rgba8_from_dds(
     })
 }
 
+#[cfg(feature = "decode")]
 #[cfg(feature = "image")]
 /// Decode the given mip level from `dds` to an RGBA8 image.
 /// Array layers are arranged vertically from top to bottom.
@@ -162,6 +166,7 @@ pub fn image_from_dds(dds: &Dds, mipmap: u32) -> Result<image::RgbaImage, Create
     Ok(image)
 }
 
+#[cfg(feature = "decode")]
 fn array_layer_count(dds: &Dds) -> u32 {
     // Array layers for DDS are calculated differently for cube maps.
     if matches!(&dds.header10, Some(header10) if header10.misc_flag == ddsfile::MiscFlag::TEXTURECUBE)

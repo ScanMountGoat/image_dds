@@ -10,10 +10,10 @@ readme = "../README.md"
 edition = "2021"
 
 [dependencies]
-intel_tex_2 = "0.2.1"
+intel_tex_2 = { version = "0.2.1", optional = true }
 image = { version = "0.24.5", optional = true }
 ddsfile = { version = "0.5.1", optional = true }
-bcndecode-sys = { version = "0.1.0", path = "../bcndecode-sys" }
+bcndecode-sys = { version = "0.1.0", path = "../bcndecode-sys", optional = true }
 thiserror = "1.0.38"
 arbitrary = { version = "1.2.2", features = ["derive"], optional = true }
 half = { version = "2.2.1", features = ["bytemuck"] }
@@ -22,4 +22,6 @@ strum = { version = "0.24", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"], optional = true }
 
 [features]
-default = ["ddsfile", "image"]
+default = ["ddsfile", "image", "encode", "decode"]
+encode = ["intel_tex_2"]
+decode = ["bcndecode-sys"]

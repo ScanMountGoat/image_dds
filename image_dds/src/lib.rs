@@ -58,8 +58,6 @@ mod dds;
 #[cfg(feature = "ddsfile")]
 pub use dds::*;
 
-use crate::bcn::{bcn_from_rgba8, rgba8_from_bcn};
-
 /// The conversion quality when converting to compressed formats.
 ///
 /// Higher quality settings run significantly slower.
@@ -198,6 +196,7 @@ pub fn mip_dimension(base_dimension: u32, mipmap: u32) -> u32 {
     (base_dimension >> mipmap).max(1)
 }
 
+#[cfg(feature = "decode")]
 /// Decode all layers and mipmaps from `surface` to RGBA8.
 pub fn decode_surface_rgba8<T: AsRef<[u8]>>(
     surface: Surface<T>,
@@ -242,6 +241,7 @@ pub fn decode_surface_rgba8<T: AsRef<[u8]>>(
     })
 }
 
+#[cfg(feature = "decode")]
 fn decode_data_rgba8(
     width: u32,
     height: u32,
@@ -251,13 +251,13 @@ fn decode_data_rgba8(
 ) -> Result<Vec<u8>, DecompressSurfaceError> {
     use ImageFormat as F;
     let data = match image_format {
-        F::BC1Unorm | F::BC1Srgb => rgba8_from_bcn::<Bc1>(width, height, depth, data),
-        F::BC2Unorm | F::BC2Srgb => rgba8_from_bcn::<Bc2>(width, height, depth, data),
-        F::BC3Unorm | F::BC3Srgb => rgba8_from_bcn::<Bc3>(width, height, depth, data),
-        F::BC4Unorm | F::BC4Snorm => rgba8_from_bcn::<Bc4>(width, height, depth, data),
-        F::BC5Unorm | F::BC5Snorm => rgba8_from_bcn::<Bc5>(width, height, depth, data),
-        F::BC6Ufloat | F::BC6Sfloat => rgba8_from_bcn::<Bc6>(width, height, depth, data),
-        F::BC7Unorm | F::BC7Srgb => rgba8_from_bcn::<Bc7>(width, height, depth, data),
+        F::BC1Unorm | F::BC1Srgb => bcn::rgba8_from_bcn::<Bc1>(width, height, depth, data),
+        F::BC2Unorm | F::BC2Srgb => bcn::rgba8_from_bcn::<Bc2>(width, height, depth, data),
+        F::BC3Unorm | F::BC3Srgb => bcn::rgba8_from_bcn::<Bc3>(width, height, depth, data),
+        F::BC4Unorm | F::BC4Snorm => bcn::rgba8_from_bcn::<Bc4>(width, height, depth, data),
+        F::BC5Unorm | F::BC5Snorm => bcn::rgba8_from_bcn::<Bc5>(width, height, depth, data),
+        F::BC6Ufloat | F::BC6Sfloat => bcn::rgba8_from_bcn::<Bc6>(width, height, depth, data),
+        F::BC7Unorm | F::BC7Srgb => bcn::rgba8_from_bcn::<Bc7>(width, height, depth, data),
         F::R8Unorm => rgba8_from_r8(width, height, depth, data),
         F::R8G8B8A8Unorm => decode_rgba8_from_rgba8(width, height, depth, data),
         F::R8G8B8A8Srgb => decode_rgba8_from_rgba8(width, height, depth, data),
@@ -270,6 +270,7 @@ fn decode_data_rgba8(
 
 // TODO: Take the surface by reference?
 // TODO: Add documentation showing how to use this.
+#[cfg(feature = "encode")]
 /// Encode an RGBA8 surface to the given `format`.
 ///
 /// The number of mipmaps generated depends on the `mipmaps` parameter.
@@ -323,6 +324,7 @@ pub fn encode_surface_rgba8<T: AsRef<[u8]>>(
     })
 }
 
+#[cfg(feature = "encode")]
 fn encode_mipmaps_rgba8<T: AsRef<[u8]>>(
     encoded_data: &mut Vec<u8>,
     surface: &SurfaceRgba8<T>,
@@ -422,6 +424,7 @@ fn encode_mipmaps_rgba8<T: AsRef<[u8]>>(
     Ok(())
 }
 
+#[cfg(feature = "encode")]
 fn encode_rgba8(
     width: u32,
     height: u32,
@@ -434,13 +437,19 @@ fn encode_rgba8(
 
     use ImageFormat as F;
     match format {
-        F::BC1Unorm | F::BC1Srgb => bcn_from_rgba8::<Bc1>(width, height, depth, data, quality),
-        F::BC2Unorm | F::BC2Srgb => bcn_from_rgba8::<Bc2>(width, height, depth, data, quality),
-        F::BC3Unorm | F::BC3Srgb => bcn_from_rgba8::<Bc3>(width, height, depth, data, quality),
-        F::BC4Unorm | F::BC4Snorm => bcn_from_rgba8::<Bc4>(width, height, depth, data, quality),
-        F::BC5Unorm | F::BC5Snorm => bcn_from_rgba8::<Bc5>(width, height, depth, data, quality),
-        F::BC6Ufloat | F::BC6Sfloat => bcn_from_rgba8::<Bc6>(width, height, depth, data, quality),
-        F::BC7Unorm | F::BC7Srgb => bcn_from_rgba8::<Bc7>(width, height, depth, data, quality),
+        F::BC1Unorm | F::BC1Srgb => bcn::bcn_from_rgba8::<Bc1>(width, height, depth, data, quality),
+        F::BC2Unorm | F::BC2Srgb => bcn::bcn_from_rgba8::<Bc2>(width, height, depth, data, quality),
+        F::BC3Unorm | F::BC3Srgb => bcn::bcn_from_rgba8::<Bc3>(width, height, depth, data, quality),
+        F::BC4Unorm | F::BC4Snorm => {
+            bcn::bcn_from_rgba8::<Bc4>(width, height, depth, data, quality)
+        }
+        F::BC5Unorm | F::BC5Snorm => {
+            bcn::bcn_from_rgba8::<Bc5>(width, height, depth, data, quality)
+        }
+        F::BC6Ufloat | F::BC6Sfloat => {
+            bcn::bcn_from_rgba8::<Bc6>(width, height, depth, data, quality)
+        }
+        F::BC7Unorm | F::BC7Srgb => bcn::bcn_from_rgba8::<Bc7>(width, height, depth, data, quality),
         F::R8Unorm => r8_from_rgba8(width, height, depth, data),
         F::R8G8B8A8Unorm => encode_rgba8_from_rgba8(width, height, depth, data),
         F::R8G8B8A8Srgb => encode_rgba8_from_rgba8(width, height, depth, data),
@@ -633,6 +642,7 @@ mod tests {
         assert_eq!(vec![0u8; 4], downsample_rgba8(1, 1, 1, 0, 0, 1, &[]));
     }
 
+    #[cfg(feature = "encode")]
     #[test]
     fn encode_surface_integral_dimensions() {
         // It's ok for mipmaps to not be divisible by the block width.
@@ -661,6 +671,7 @@ mod tests {
         assert_eq!((9 + 4 + 1 + 1) * 16, surface.data.len());
     }
 
+    #[cfg(feature = "encode")]
     #[test]
     fn encode_surface_cube_mipmaps() {
         // It's ok for mipmaps to not be divisible by the block width.
@@ -689,6 +700,7 @@ mod tests {
         assert_eq!(3 * 16 * 6, surface.data.len());
     }
 
+    #[cfg(feature = "encode")]
     #[test]
     fn encode_surface_disabled_mipmaps() {
         let surface = encode_surface_rgba8(
@@ -715,6 +727,7 @@ mod tests {
         assert_eq!(16, surface.data.len());
     }
 
+    #[cfg(feature = "encode")]
     #[test]
     fn encode_surface_mipmaps_from_surface() {
         let surface = encode_surface_rgba8(
@@ -741,6 +754,7 @@ mod tests {
         assert_eq!(16 * 2, surface.data.len());
     }
 
+    #[cfg(feature = "encode")]
     #[test]
     fn encode_surface_non_integral_dimensions() {
         // This should still fail even though there is enough data.
@@ -769,6 +783,7 @@ mod tests {
         ));
     }
 
+    #[cfg(feature = "encode")]
     #[test]
     fn encode_surface_zero_size() {
         let result = encode_surface_rgba8(
@@ -794,6 +809,7 @@ mod tests {
         ));
     }
 
+    #[cfg(feature = "decode")]
     #[test]
     fn decode_surface_zero_size() {
         let result = decode_surface_rgba8(Surface {
@@ -815,6 +831,7 @@ mod tests {
         ));
     }
 
+    #[cfg(feature = "decode")]
     #[test]
     fn decode_surface_dimensions_overflow() {
         let result = decode_surface_rgba8(Surface {
@@ -836,6 +853,7 @@ mod tests {
         ));
     }
 
+    #[cfg(feature = "decode")]
     #[test]
     fn decode_surface_too_many_mipmaps() {
         let result = decode_surface_rgba8(Surface {
