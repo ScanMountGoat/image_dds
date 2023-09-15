@@ -186,7 +186,6 @@ pub fn image_from_dds(dds: &Dds, mipmap: u32) -> Result<image::RgbaImage, Create
     Ok(image)
 }
 
-#[cfg(feature = "decode")]
 fn array_layer_count(dds: &Dds) -> u32 {
     // Array layers for DDS are calculated differently for cube maps.
     if matches!(&dds.header10, Some(header10) if header10.misc_flag == ddsfile::MiscFlag::TEXTURECUBE)
