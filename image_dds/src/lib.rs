@@ -50,6 +50,9 @@ pub use surface::{Surface, SurfaceRgba8};
 pub mod error;
 use error::*;
 
+#[cfg(feature = "ddsfile")]
+pub use ddsfile;
+
 #[cfg(feature = "decode")]
 mod decode;
 #[cfg(feature = "decode")]
