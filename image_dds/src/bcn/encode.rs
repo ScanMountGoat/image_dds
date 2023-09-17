@@ -1,7 +1,7 @@
-use crate::{mip_size, CompressSurfaceError, ImageFormat, Quality, Rgba};
+use crate::{mip_size, CompressSurfaceError, ImageFormat, Quality};
 use half::f16;
 
-use super::{Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7, BLOCK_HEIGHT, BLOCK_WIDTH};
+use super::{Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7, Rgba8, BLOCK_HEIGHT, BLOCK_WIDTH};
 
 // Quality modes are optimized for a balance of speed and quality.
 impl From<Quality> for intel_tex_2::bc6h::EncodeSettings {
@@ -49,7 +49,7 @@ impl BcnEncode<[u8; 4]> for Bc1 {
         let surface = intel_tex_2::RgbaSurface {
             width,
             height,
-            stride: width * Rgba::BYTES_PER_PIXEL as u32,
+            stride: width * Rgba8::BYTES_PER_PIXEL as u32,
             data: rgba8_data,
         };
 
@@ -82,7 +82,7 @@ impl BcnEncode<[u8; 4]> for Bc3 {
         let surface = intel_tex_2::RgbaSurface {
             width,
             height,
-            stride: width * Rgba::BYTES_PER_PIXEL as u32,
+            stride: width * Rgba8::BYTES_PER_PIXEL as u32,
             data: rgba8_data,
         };
 
@@ -101,7 +101,7 @@ impl BcnEncode<[u8; 4]> for Bc4 {
         let surface = intel_tex_2::RgbaSurface {
             width,
             height,
-            stride: width * Rgba::BYTES_PER_PIXEL as u32,
+            stride: width * Rgba8::BYTES_PER_PIXEL as u32,
             data: rgba8_data,
         };
 
@@ -120,7 +120,7 @@ impl BcnEncode<[u8; 4]> for Bc5 {
         let surface = intel_tex_2::RgbaSurface {
             width,
             height,
-            stride: width * Rgba::BYTES_PER_PIXEL as u32,
+            stride: width * Rgba8::BYTES_PER_PIXEL as u32,
             data: rgba8_data,
         };
 
@@ -167,7 +167,7 @@ impl BcnEncode<[u8; 4]> for Bc7 {
         let surface = intel_tex_2::RgbaSurface {
             width,
             height,
-            stride: width * Rgba::BYTES_PER_PIXEL as u32,
+            stride: width * Rgba8::BYTES_PER_PIXEL as u32,
             data: rgba8_data,
         };
 
@@ -191,7 +191,7 @@ pub fn bcn_from_rgba8<T: BcnEncode<[u8; 4]>>(
         BLOCK_WIDTH,
         BLOCK_HEIGHT,
         1,
-        Rgba::BYTES_PER_BLOCK,
+        Rgba8::BYTES_PER_BLOCK,
     )
     .ok_or(CompressSurfaceError::PixelCountWouldOverflow {
         width,
@@ -215,7 +215,7 @@ pub fn bcn_from_rgba8<T: BcnEncode<[u8; 4]>>(
 mod tests {
     use super::*;
 
-    use crate::{bcn::encode::bcn_from_rgba8, Quality, Rgba};
+    use crate::{bcn::encode::bcn_from_rgba8, bcn::Rgba8, Quality};
 
     // TODO: Create tests for data length since we can't know what the compressed blocks should be?
     // TODO: Test edge cases and type conversions?
@@ -228,7 +228,7 @@ mod tests {
 
     #[test]
     fn bc1_compress() {
-        let rgba = vec![64u8; Rgba::BYTES_PER_BLOCK];
+        let rgba = vec![64u8; Rgba8::BYTES_PER_BLOCK];
         check_compress_bcn::<Bc1>(&rgba, Quality::Fast);
         check_compress_bcn::<Bc1>(&rgba, Quality::Normal);
         check_compress_bcn::<Bc1>(&rgba, Quality::Slow);
@@ -239,7 +239,7 @@ mod tests {
     fn bc2_compress() {
         // TODO: Revise this test to check each direction separately.
         // TODO: BC2 compression should return an error.
-        let rgba = vec![64u8; Rgba::BYTES_PER_BLOCK];
+        let rgba = vec![64u8; Rgba8::BYTES_PER_BLOCK];
         check_compress_bcn::<Bc2>(&rgba, Quality::Fast);
         check_compress_bcn::<Bc2>(&rgba, Quality::Normal);
         check_compress_bcn::<Bc2>(&rgba, Quality::Slow);
@@ -247,7 +247,7 @@ mod tests {
 
     #[test]
     fn bc3_compress() {
-        let rgba = vec![64u8; Rgba::BYTES_PER_BLOCK];
+        let rgba = vec![64u8; Rgba8::BYTES_PER_BLOCK];
         check_compress_bcn::<Bc3>(&rgba, Quality::Fast);
         check_compress_bcn::<Bc3>(&rgba, Quality::Normal);
         check_compress_bcn::<Bc3>(&rgba, Quality::Slow);
@@ -255,7 +255,7 @@ mod tests {
 
     #[test]
     fn bc4_compress() {
-        let rgba = vec![64u8; Rgba::BYTES_PER_BLOCK];
+        let rgba = vec![64u8; Rgba8::BYTES_PER_BLOCK];
         check_compress_bcn::<Bc4>(&rgba, Quality::Fast);
         check_compress_bcn::<Bc4>(&rgba, Quality::Normal);
         check_compress_bcn::<Bc4>(&rgba, Quality::Slow);
@@ -263,7 +263,7 @@ mod tests {
 
     #[test]
     fn bc5_compress() {
-        let rgba = vec![64u8; Rgba::BYTES_PER_BLOCK];
+        let rgba = vec![64u8; Rgba8::BYTES_PER_BLOCK];
         check_compress_bcn::<Bc5>(&rgba, Quality::Fast);
         check_compress_bcn::<Bc5>(&rgba, Quality::Normal);
         check_compress_bcn::<Bc5>(&rgba, Quality::Slow);
@@ -273,7 +273,7 @@ mod tests {
     #[ignore]
     fn bc6_compress() {
         // TODO: Revise this test to check each direction separately.
-        let rgba = vec![64u8; Rgba::BYTES_PER_BLOCK];
+        let rgba = vec![64u8; Rgba8::BYTES_PER_BLOCK];
         check_compress_bcn::<Bc6>(&rgba, Quality::Fast);
         check_compress_bcn::<Bc6>(&rgba, Quality::Normal);
         check_compress_bcn::<Bc6>(&rgba, Quality::Slow);
@@ -281,7 +281,7 @@ mod tests {
 
     #[test]
     fn bc7_compress() {
-        let rgba = vec![64u8; Rgba::BYTES_PER_BLOCK];
+        let rgba = vec![64u8; Rgba8::BYTES_PER_BLOCK];
         check_compress_bcn::<Bc7>(&rgba, Quality::Fast);
         check_compress_bcn::<Bc7>(&rgba, Quality::Normal);
         check_compress_bcn::<Bc7>(&rgba, Quality::Slow);

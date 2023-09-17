@@ -19,3 +19,9 @@ pub struct Bc4;
 pub struct Bc5;
 pub struct Bc6;
 pub struct Bc7;
+
+struct Rgba8;
+impl Rgba8 {
+    const BYTES_PER_PIXEL: usize = 4;
+    const BYTES_PER_BLOCK: usize = 64;
+}

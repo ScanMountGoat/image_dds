@@ -1,7 +1,6 @@
-use crate::Rgba;
 use crate::{error::DecompressSurfaceError, mip_size};
 
-use super::{Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7, BLOCK_HEIGHT, BLOCK_WIDTH};
+use super::{Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7, Rgba8, BLOCK_HEIGHT, BLOCK_WIDTH};
 
 pub trait BcnDecode<Pixel> {
     type CompressedBlock;
@@ -52,7 +51,7 @@ impl BcnDecode<[u8; 4]> for Bc1 {
             bcndecode_sys::bcdec_bc1(
                 block.0.as_ptr(),
                 decompressed.as_mut_ptr() as _,
-                (BLOCK_WIDTH * Rgba::BYTES_PER_PIXEL) as i32,
+                (BLOCK_WIDTH * Rgba8::BYTES_PER_PIXEL) as i32,
             );
         }
 
@@ -70,7 +69,7 @@ impl BcnDecode<[u8; 4]> for Bc2 {
             bcndecode_sys::bcdec_bc2(
                 block.0.as_ptr(),
                 decompressed.as_mut_ptr() as _,
-                (BLOCK_WIDTH * Rgba::BYTES_PER_PIXEL) as i32,
+                (BLOCK_WIDTH * Rgba8::BYTES_PER_PIXEL) as i32,
             );
         }
 
@@ -88,7 +87,7 @@ impl BcnDecode<[u8; 4]> for Bc3 {
             bcndecode_sys::bcdec_bc3(
                 block.0.as_ptr(),
                 decompressed.as_mut_ptr() as _,
-                (BLOCK_WIDTH * Rgba::BYTES_PER_PIXEL) as i32,
+                (BLOCK_WIDTH * Rgba8::BYTES_PER_PIXEL) as i32,
             );
         }
 
@@ -207,7 +206,7 @@ impl BcnDecode<[u8; 4]> for Bc7 {
             bcndecode_sys::bcdec_bc7(
                 block.0.as_ptr(),
                 decompressed.as_mut_ptr() as _,
-                (BLOCK_WIDTH * Rgba::BYTES_PER_PIXEL) as i32,
+                (BLOCK_WIDTH * Rgba8::BYTES_PER_PIXEL) as i32,
             );
         }
 
@@ -257,7 +256,7 @@ where
     }
 
     let mut rgba =
-        vec![0u8; width as usize * height as usize * depth as usize * Rgba::BYTES_PER_PIXEL];
+        vec![0u8; width as usize * height as usize * depth as usize * Rgba8::BYTES_PER_PIXEL];
 
     // BCN formats lay out blocks in row-major order.
     // TODO: calculate x and y using division and mod?
@@ -308,7 +307,7 @@ fn put_rgba_block(
 
     for (row, row_pixels) in pixels.iter().enumerate().take(BLOCK_HEIGHT.min(height - y)) {
         // Convert pixel coordinates to byte coordinates.
-        let surface_index = ((z * width * height) + (y + row) * width + x) * Rgba::BYTES_PER_PIXEL;
+        let surface_index = ((z * width * height) + (y + row) * width + x) * Rgba8::BYTES_PER_PIXEL;
         // The correct slice length is calculated above.
         surface[surface_index..surface_index + bytes_per_row]
             .copy_from_slice(&bytemuck::cast_slice(row_pixels)[..bytes_per_row]);
