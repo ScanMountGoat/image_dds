@@ -1,28 +1,13 @@
 use crate::{CompressSurfaceError, DecompressSurfaceError};
 
-// TODO: Share code for the rgba8 methods.
 pub fn decode_rgba8_from_rgba8(
     width: u32,
     height: u32,
     depth: u32,
     data: &[u8],
 ) -> Result<Vec<u8>, DecompressSurfaceError> {
-    let expected = expected_size(width, height, depth, 4).ok_or(
-        DecompressSurfaceError::PixelCountWouldOverflow {
-            width,
-            height,
-            depth,
-        },
-    )?;
-
-    if data.len() >= expected {
-        Ok(data.to_vec())
-    } else {
-        Err(DecompressSurfaceError::NotEnoughData {
-            expected,
-            actual: data.len(),
-        })
-    }
+    validate_length_decode(width, height, depth, 4, data)?;
+    Ok(data.to_vec())
 }
 
 pub fn encode_rgba8_from_rgba8(
@@ -31,21 +16,8 @@ pub fn encode_rgba8_from_rgba8(
     depth: u32,
     data: &[u8],
 ) -> Result<Vec<u8>, CompressSurfaceError> {
-    let expected = expected_size(width, height, depth, 4).ok_or(
-        CompressSurfaceError::PixelCountWouldOverflow {
-            width,
-            height,
-            depth,
-        },
-    )?;
-    if data.len() >= expected {
-        Ok(data.to_vec())
-    } else {
-        Err(CompressSurfaceError::NotEnoughData {
-            expected,
-            actual: data.len(),
-        })
-    }
+    validate_length_encode(width, height, depth, 4, data)?;
+    Ok(data.to_vec())
 }
 
 pub fn rgba8_from_rgbaf32(
@@ -54,24 +26,11 @@ pub fn rgba8_from_rgbaf32(
     depth: u32,
     data: &[u8],
 ) -> Result<Vec<u8>, DecompressSurfaceError> {
-    let expected = expected_size(width, height, depth, 16).ok_or(
-        DecompressSurfaceError::PixelCountWouldOverflow {
-            width,
-            height,
-            depth,
-        },
-    )?;
+    let expected = validate_length_decode(width, height, depth, 16, data)?;
 
-    if data.len() >= expected {
-        // Use expected length to ensure the slice is an integral number of floats.
-        let rgba_f32: &[f32] = bytemuck::cast_slice(&data[..expected]);
-        Ok(rgba_f32.iter().map(|f| (f * 255.0) as u8).collect())
-    } else {
-        Err(DecompressSurfaceError::NotEnoughData {
-            expected,
-            actual: data.len(),
-        })
-    }
+    // Use expected length to ensure the slice is an integral number of floats.
+    let rgba_f32: &[f32] = bytemuck::cast_slice(&data[..expected]);
+    Ok(rgba_f32.iter().map(|f| (f * 255.0) as u8).collect())
 }
 
 pub fn rgbaf32_from_rgba8(
@@ -80,22 +39,10 @@ pub fn rgbaf32_from_rgba8(
     depth: u32,
     data: &[u8],
 ) -> Result<Vec<u8>, CompressSurfaceError> {
-    let expected = expected_size(width, height, depth, 4).ok_or(
-        CompressSurfaceError::PixelCountWouldOverflow {
-            width,
-            height,
-            depth,
-        },
-    )?;
-    if data.len() >= expected {
-        let rgba_f32: Vec<_> = data.iter().map(|u| *u as f32 / 255.0).collect();
-        Ok(bytemuck::cast_slice(&rgba_f32).to_vec())
-    } else {
-        Err(CompressSurfaceError::NotEnoughData {
-            expected,
-            actual: data.len(),
-        })
-    }
+    validate_length_encode(width, height, depth, 4, data)?;
+
+    let rgba_f32: Vec<_> = data.iter().map(|u| *u as f32 / 255.0).collect();
+    Ok(bytemuck::cast_slice(&rgba_f32).to_vec())
 }
 
 pub fn rgba8_from_bgra8(
@@ -104,24 +51,11 @@ pub fn rgba8_from_bgra8(
     depth: u32,
     data: &[u8],
 ) -> Result<Vec<u8>, DecompressSurfaceError> {
-    let expected = expected_size(width, height, depth, 4).ok_or(
-        DecompressSurfaceError::PixelCountWouldOverflow {
-            width,
-            height,
-            depth,
-        },
-    )?;
+    validate_length_decode(width, height, depth, 4, data)?;
 
-    if data.len() >= expected {
-        let mut bgra = data.to_vec();
-        swap_red_blue(width, height, &mut bgra);
-        Ok(bgra)
-    } else {
-        Err(DecompressSurfaceError::NotEnoughData {
-            expected,
-            actual: data.len(),
-        })
-    }
+    let mut bgra = data.to_vec();
+    swap_red_blue(width, height, &mut bgra);
+    Ok(bgra)
 }
 
 pub fn r8_from_rgba8(
@@ -130,21 +64,8 @@ pub fn r8_from_rgba8(
     depth: u32,
     data: &[u8],
 ) -> Result<Vec<u8>, CompressSurfaceError> {
-    let expected = expected_size(width, height, depth, 4).ok_or(
-        CompressSurfaceError::PixelCountWouldOverflow {
-            width,
-            height,
-            depth,
-        },
-    )?;
-    if data.len() >= expected {
-        Ok(data.iter().copied().step_by(4).collect())
-    } else {
-        Err(CompressSurfaceError::NotEnoughData {
-            expected,
-            actual: data.len(),
-        })
-    }
+    validate_length_encode(width, height, depth, 4, data)?;
+    Ok(data.iter().copied().step_by(4).collect())
 }
 
 pub fn rgba8_from_r8(
@@ -153,22 +74,8 @@ pub fn rgba8_from_r8(
     depth: u32,
     data: &[u8],
 ) -> Result<Vec<u8>, DecompressSurfaceError> {
-    let expected = expected_size(width, height, depth, 1).ok_or(
-        DecompressSurfaceError::PixelCountWouldOverflow {
-            width,
-            height,
-            depth,
-        },
-    )?;
-
-    if data.len() >= expected {
-        Ok(data.iter().flat_map(|r| [*r, *r, *r, 255u8]).collect())
-    } else {
-        Err(DecompressSurfaceError::NotEnoughData {
-            expected,
-            actual: data.len(),
-        })
-    }
+    validate_length_decode(width, height, depth, 1, data)?;
+    Ok(data.iter().flat_map(|r| [*r, *r, *r, 255u8]).collect())
 }
 
 pub fn bgra8_from_rgba8(
@@ -177,29 +84,67 @@ pub fn bgra8_from_rgba8(
     depth: u32,
     data: &[u8],
 ) -> Result<Vec<u8>, CompressSurfaceError> {
-    let expected = expected_size(width, height, depth, 4).ok_or(
-        CompressSurfaceError::PixelCountWouldOverflow {
-            width,
-            height,
-            depth,
-        },
-    )?;
-    if data.len() >= expected {
-        let mut bgra = data.to_vec();
-        swap_red_blue(width, height, &mut bgra);
-        Ok(bgra)
-    } else {
-        Err(CompressSurfaceError::NotEnoughData {
-            expected,
-            actual: data.len(),
-        })
-    }
+    validate_length_encode(width, height, depth, 4, data)?;
+
+    let mut bgra = data.to_vec();
+    swap_red_blue(width, height, &mut bgra);
+    Ok(bgra)
 }
 
 fn swap_red_blue(width: u32, height: u32, rgba: &mut [u8]) {
     for i in 0..(width as usize * height as usize) {
         // RGBA -> BGRA.
         rgba.swap(i * 4, i * 4 + 2);
+    }
+}
+
+fn validate_length_encode(
+    width: u32,
+    height: u32,
+    depth: u32,
+    bytes_per_pixel: usize,
+    data: &[u8],
+) -> Result<usize, CompressSurfaceError> {
+    let expected = expected_size(width, height, depth, bytes_per_pixel).ok_or(
+        CompressSurfaceError::PixelCountWouldOverflow {
+            width,
+            height,
+            depth,
+        },
+    )?;
+
+    if data.len() < expected {
+        Err(CompressSurfaceError::NotEnoughData {
+            expected,
+            actual: data.len(),
+        })
+    } else {
+        Ok(expected)
+    }
+}
+
+fn validate_length_decode(
+    width: u32,
+    height: u32,
+    depth: u32,
+    bytes_per_pixel: usize,
+    data: &[u8],
+) -> Result<usize, DecompressSurfaceError> {
+    let expected = expected_size(width, height, depth, bytes_per_pixel).ok_or(
+        DecompressSurfaceError::PixelCountWouldOverflow {
+            width,
+            height,
+            depth,
+        },
+    )?;
+
+    if data.len() < expected {
+        Err(DecompressSurfaceError::NotEnoughData {
+            expected,
+            actual: data.len(),
+        })
+    } else {
+        Ok(expected)
     }
 }
 
