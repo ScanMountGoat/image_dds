@@ -20,15 +20,20 @@
 //! image_dds supports decoding surfaces to RGBA8 for
 //! better compatibility at the cost of increased memory usage.
 //!
+//! # Usage
+//! The main conversion functions [image_from_dds] and [dds_from_image] convert between [ddsfile] and [image].
+//!
+//! These functions are wrappers over conversion methods for the [Surface] and [SurfaceRgba8] types.
+//! These lower level functions are ideal for internal conversions in libraries
+//! or applications that want to skip intermediate formats like DDS.
+// TODO: example code
+//!
 //! # Features
 //! Despite the name, neither the `ddsfile` nor `image` crates are required
 //! and can be disabled in the Cargo.toml by setting `default-features = false`.
 //! The `"ddsfile"` and `"image"` features can then be enabled individually.
-//! Surface data can still be encoded and decoded using lower level functions like
-//! [decode_surface_rgba8] or [encode_surface_rgba8]. These lower level functions are
-//! ideal for internal conversions in libraries or applications that want to skip intermediate formats like DDS.
-//! Texture conversion utilities will probably want to use the higher level functions like
-//! [image_from_dds] for convenience.
+//! The `"encode"` and `"decode"` features are enabled by default but can be disabled
+//! to resolve compiliation errors on some targets at the cost of reduced functionality.
 //!
 //! # Limitations
 //! BC2 data can be decoded but not encoded due to limitations in intel-tex-rs-2.
@@ -52,15 +57,14 @@ use error::*;
 #[cfg(feature = "ddsfile")]
 pub use ddsfile;
 
+#[cfg(feature = "image")]
+pub use image;
+
 #[cfg(feature = "decode")]
 mod decode;
-#[cfg(feature = "decode")]
-pub use decode::*;
 
 #[cfg(feature = "encode")]
 mod encode;
-#[cfg(feature = "encode")]
-pub use encode::*;
 
 #[cfg(feature = "ddsfile")]
 mod dds;

@@ -1,10 +1,7 @@
 use ddsfile::{D3DFormat, Dds, DxgiFormat, FourCC};
 use thiserror::Error;
 
-use crate::{
-    mip_dimension, CreateImageError, ImageFormat, Mipmaps, Quality, Surface, SurfaceError,
-    SurfaceRgba8,
-};
+use crate::{CreateImageError, ImageFormat, Mipmaps, Quality, Surface, SurfaceError, SurfaceRgba8};
 
 #[derive(Debug, Error)]
 pub enum CreateDdsError {
@@ -27,131 +24,10 @@ pub fn dds_from_image(
     mipmaps: Mipmaps,
 ) -> Result<Dds, CreateDdsError> {
     // Assume all images are 2D for now.
-    // TODO: 3d and cube map support?
-    dds_from_surface_rgba8(
-        SurfaceRgba8 {
-            width: image.width(),
-            height: image.height(),
-            depth: 1,
-            layers: 1,
-            mipmaps: 1,
-            data: image.as_raw(),
-        },
-        format,
-        quality,
-        mipmaps,
-    )
-}
-
-/// Creates a DDS file from the raw data in `surface`.
-pub fn dds_from_surface<T: AsRef<[u8]>>(surface: Surface<T>) -> Result<Dds, CreateDdsError> {
-    let mut dds = Dds::new_dxgi(ddsfile::NewDxgiParams {
-        height: surface.height,
-        width: surface.width,
-        depth: if surface.depth > 1 {
-            Some(surface.depth)
-        } else {
-            None
-        },
-        format: surface.image_format.into(),
-        mipmap_levels: (surface.mipmaps > 1).then_some(surface.mipmaps),
-        array_layers: (surface.layers > 1).then_some(surface.layers),
-        caps2: None,
-        is_cubemap: false,
-        resource_dimension: if surface.depth > 1 {
-            ddsfile::D3D10ResourceDimension::Texture3D
-        } else {
-            ddsfile::D3D10ResourceDimension::Texture2D
-        },
-        alpha_mode: ddsfile::AlphaMode::Straight, // TODO: Does this matter?
-    })?;
-
-    dds.data = surface.data.as_ref().to_vec();
-
-    Ok(dds)
-}
-
-#[cfg(feature = "encode")]
-/// Encode a `width` x `height` x `depth` RGBA8 surface to a DDS file with the given `format`.
-///
-/// The number of mipmaps generated depends on the `mipmaps` parameter.
-pub fn dds_from_surface_rgba8<T: AsRef<[u8]>>(
-    surface: SurfaceRgba8<T>,
-    format: ImageFormat,
-    quality: Quality,
-    mipmaps: Mipmaps,
-) -> Result<Dds, CreateDdsError> {
-    let Surface {
-        width,
-        height,
-        depth,
-        layers,
-        mipmaps,
-        image_format,
-        data,
-    } = crate::encode_surface_rgba8(surface, format, quality, mipmaps)?;
-
-    let mut dds = Dds::new_dxgi(ddsfile::NewDxgiParams {
-        height,
-        width,
-        depth: if depth > 1 { Some(depth) } else { None },
-        format: image_format.into(),
-        mipmap_levels: if mipmaps > 1 { Some(mipmaps) } else { None },
-        array_layers: if layers > 1 { Some(layers) } else { None },
-        caps2: None,
-        is_cubemap: false,
-        resource_dimension: if depth > 1 {
-            ddsfile::D3D10ResourceDimension::Texture3D
-        } else {
-            ddsfile::D3D10ResourceDimension::Texture2D
-        },
-        alpha_mode: ddsfile::AlphaMode::Straight, // TODO: Does this matter?
-    })?;
-
-    dds.data = data;
-
-    Ok(dds)
-}
-
-/// Converts `dds` to a surface that preserves the underlying format and image data.
-pub fn surface_from_dds(dds: &Dds) -> Result<Surface<&[u8]>, SurfaceError> {
-    let width = dds.get_width();
-    let height = dds.get_height();
-    let depth = dds.get_depth();
-    let layers = array_layer_count(dds);
-    let mipmaps = dds.get_num_mipmap_levels();
-    let image_format = dds_image_format(dds).ok_or(SurfaceError::UnrecognizedFormat)?;
-
-    Ok(Surface {
-        width,
-        height,
-        depth,
-        layers,
-        mipmaps,
-        image_format,
-        data: &dds.data,
-    })
-}
-
-#[cfg(feature = "decode")]
-/// Decode all layers and mipmaps from `dds` to an RGBA8 surface.
-pub fn decode_surface_rgba8_from_dds(dds: &Dds) -> Result<SurfaceRgba8<Vec<u8>>, SurfaceError> {
-    let width = dds.get_width();
-    let height = dds.get_height();
-    let depth = dds.get_depth();
-    let layers = array_layer_count(dds);
-    let mipmaps = dds.get_num_mipmap_levels();
-
-    let image_format = dds_image_format(dds).ok_or(SurfaceError::UnrecognizedFormat)?;
-    crate::decode_surface_rgba8(Surface {
-        width,
-        height,
-        depth,
-        layers,
-        mipmaps,
-        image_format,
-        data: &dds.data,
-    })
+    // TODO: 3d and cube map support in separate functions?
+    SurfaceRgba8::from_image(image)
+        .encode(format, quality, mipmaps)?
+        .to_dds()
 }
 
 #[cfg(feature = "decode")]
@@ -159,29 +35,82 @@ pub fn decode_surface_rgba8_from_dds(dds: &Dds) -> Result<SurfaceRgba8<Vec<u8>>,
 /// Decode the given mip level from `dds` to an RGBA8 image.
 /// Array layers are arranged vertically from top to bottom.
 pub fn image_from_dds(dds: &Dds, mipmap: u32) -> Result<image::RgbaImage, CreateImageError> {
-    let surface = decode_surface_rgba8_from_dds(dds)?;
+    SurfaceRgba8::decode_dds(dds)?.to_image(mipmap)
+}
 
-    // Mipmaps have different dimensions.
-    // A single 2D image can only represent data from a single mip level across layers.
-    let image_data: Vec<_> = (0..surface.layers)
-        .flat_map(|layer| surface.get(layer, mipmap).unwrap())
-        .copied()
-        .collect();
-    let data_length = image_data.len();
+impl<T: AsRef<[u8]>> Surface<T> {
+    /// Create a DDS file with the same image data and format.
+    pub fn to_dds(&self) -> Result<crate::ddsfile::Dds, CreateDdsError> {
+        let mut dds = Dds::new_dxgi(ddsfile::NewDxgiParams {
+            height: self.height,
+            width: self.width,
+            depth: if self.depth > 1 {
+                Some(self.depth)
+            } else {
+                None
+            },
+            format: self.image_format.into(),
+            mipmap_levels: (self.mipmaps > 1).then_some(self.mipmaps),
+            array_layers: (self.layers > 1).then_some(self.layers),
+            caps2: None,
+            is_cubemap: false,
+            resource_dimension: if self.depth > 1 {
+                ddsfile::D3D10ResourceDimension::Texture3D
+            } else {
+                ddsfile::D3D10ResourceDimension::Texture2D
+            },
+            alpha_mode: ddsfile::AlphaMode::Straight, // TODO: Does this matter?
+        })?;
 
-    // Arrange depth slices horizontally and array layers vertically.
-    let width = mip_dimension(surface.width, mipmap) * mip_dimension(surface.depth, mipmap);
-    let height = mip_dimension(surface.height, mipmap) * surface.layers;
+        dds.data = self.data.as_ref().to_vec();
 
-    let image = image::RgbaImage::from_raw(width, height, image_data).ok_or(
-        crate::CreateImageError::InvalidSurfaceDimensions {
+        Ok(dds)
+    }
+}
+
+impl<'a> Surface<&'a [u8]> {
+    /// Create a view over the data in `dds` without any copies.
+    pub fn from_dds(dds: &'a crate::ddsfile::Dds) -> Result<Self, SurfaceError> {
+        let width = dds.get_width();
+        let height = dds.get_height();
+        let depth = dds.get_depth();
+        let layers = array_layer_count(dds);
+        let mipmaps = dds.get_num_mipmap_levels();
+        let image_format = dds_image_format(dds).ok_or(SurfaceError::UnrecognizedFormat)?;
+
+        Ok(Surface {
             width,
             height,
-            data_length,
-        },
-    )?;
+            depth,
+            layers,
+            mipmaps,
+            image_format,
+            data: &dds.data,
+        })
+    }
+}
 
-    Ok(image)
+#[cfg(feature = "encode")]
+impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
+    /// Encode a `width` x `height` x `depth` RGBA8 surface to a DDS file with the given `format`.
+    ///
+    /// The number of mipmaps generated depends on the `mipmaps` parameter.
+    pub fn encode_dds(
+        &self,
+        format: ImageFormat,
+        quality: Quality,
+        mipmaps: Mipmaps,
+    ) -> Result<Dds, CreateDdsError> {
+        self.encode(format, quality, mipmaps)?.to_dds()
+    }
+}
+
+#[cfg(feature = "decode")]
+impl SurfaceRgba8<Vec<u8>> {
+    /// Decode all layers and mipmaps from `dds` to an RGBA8 surface.
+    pub fn decode_dds(dds: &Dds) -> Result<SurfaceRgba8<Vec<u8>>, SurfaceError> {
+        Surface::from_dds(dds)?.decode_rgba8()
+    }
 }
 
 fn array_layer_count(dds: &Dds) -> u32 {

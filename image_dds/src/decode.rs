@@ -7,49 +7,38 @@ use crate::{
 };
 use bcn::{Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7};
 
-// TODO: make this a method?
-/// Decode all layers and mipmaps from `surface` to RGBA8.
-pub fn decode_surface_rgba8<T: AsRef<[u8]>>(
-    surface: Surface<T>,
-) -> Result<SurfaceRgba8<Vec<u8>>, SurfaceError> {
-    let Surface {
-        width,
-        height,
-        depth,
-        layers,
-        mipmaps,
-        image_format,
-        data: _,
-    } = surface;
+impl<T: AsRef<[u8]>> Surface<T> {
+    /// Decode all layers and mipmaps from `surface` to RGBA8.
+    pub fn decode_rgba8(&self) -> Result<SurfaceRgba8<Vec<u8>>, SurfaceError> {
+        self.validate()?;
 
-    surface.validate()?;
+        let mut combined_surface_data = Vec::new();
+        for layer in 0..self.layers {
+            for mipmap in 0..self.mipmaps {
+                let data = self
+                    .get(layer, mipmap)
+                    .ok_or(SurfaceError::MipmapDataOutOfBounds { layer, mipmap })?;
 
-    let mut combined_surface_data = Vec::new();
-    for layer in 0..layers {
-        for mipmap in 0..mipmaps {
-            let data = surface
-                .get(layer, mipmap)
-                .ok_or(SurfaceError::MipmapDataOutOfBounds { layer, mipmap })?;
+                // The mipmap index is already validated by get above.
+                let width = mip_dimension(self.width, mipmap);
+                let height = mip_dimension(self.height, mipmap);
+                let depth = mip_dimension(self.depth, mipmap);
 
-            // The mipmap index is already validated by get above.
-            let width = mip_dimension(width, mipmap);
-            let height = mip_dimension(height, mipmap);
-            let depth = mip_dimension(depth, mipmap);
-
-            // TODO: Avoid additional copies?
-            let data = decode_data_rgba8(width, height, depth, image_format, data)?;
-            combined_surface_data.extend_from_slice(&data);
+                // TODO: Avoid additional copies?
+                let data = decode_data_rgba8(width, height, depth, self.image_format, data)?;
+                combined_surface_data.extend_from_slice(&data);
+            }
         }
-    }
 
-    Ok(SurfaceRgba8 {
-        width,
-        height,
-        depth,
-        layers,
-        mipmaps,
-        data: combined_surface_data,
-    })
+        Ok(SurfaceRgba8 {
+            width: self.width,
+            height: self.height,
+            depth: self.depth,
+            layers: self.layers,
+            mipmaps: self.mipmaps,
+            data: combined_surface_data,
+        })
+    }
 }
 
 fn decode_data_rgba8(
@@ -84,7 +73,7 @@ mod tests {
 
     #[test]
     fn decode_surface_zero_size() {
-        let result = decode_surface_rgba8(Surface {
+        let result = Surface {
             width: 0,
             height: 0,
             depth: 0,
@@ -92,7 +81,9 @@ mod tests {
             mipmaps: 1,
             image_format: ImageFormat::R8G8B8A8Srgb,
             data: &[0u8; 0],
-        });
+        }
+        .decode_rgba8();
+
         assert!(matches!(
             result,
             Err(SurfaceError::ZeroSizedSurface {
@@ -105,7 +96,7 @@ mod tests {
 
     #[test]
     fn decode_surface_dimensions_overflow() {
-        let result = decode_surface_rgba8(Surface {
+        let result = Surface {
             width: u32::MAX,
             height: u32::MAX,
             depth: u32::MAX,
@@ -113,7 +104,9 @@ mod tests {
             mipmaps: 1,
             image_format: ImageFormat::R8G8B8A8Srgb,
             data: &[0u8; 0],
-        });
+        }
+        .decode_rgba8();
+
         assert!(matches!(
             result,
             Err(SurfaceError::PixelCountWouldOverflow {
@@ -126,7 +119,7 @@ mod tests {
 
     #[test]
     fn decode_surface_too_many_mipmaps() {
-        let result = decode_surface_rgba8(Surface {
+        let result = Surface {
             width: 4,
             height: 4,
             depth: 1,
@@ -134,7 +127,8 @@ mod tests {
             mipmaps: 10,
             image_format: ImageFormat::R8G8B8A8Srgb,
             data: &[0u8; 4 * 4 * 4],
-        });
+        }
+        .decode_rgba8();
 
         assert!(matches!(
             result,

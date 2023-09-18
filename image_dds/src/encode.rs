@@ -5,58 +5,60 @@ use crate::{
     Mipmaps, Quality, Surface, SurfaceRgba8,
 };
 
-// TODO: Add documentation showing how to use this.
-/// Encode an RGBA8 surface to the given `format`.
-///
-/// The number of mipmaps generated depends on the `mipmaps` parameter.
-/// The `rgba8_data` only needs to contain enough data for the base mip level of `width` x `height` pixels.
-pub fn encode_surface_rgba8<T: AsRef<[u8]>>(
-    surface: SurfaceRgba8<T>,
-    format: ImageFormat,
-    quality: Quality,
-    mipmaps: Mipmaps,
-) -> Result<Surface<Vec<u8>>, SurfaceError> {
-    let width = surface.width;
-    let height = surface.height;
-    let depth = surface.depth;
-    let layers = surface.layers;
+impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
+    // TODO: Add documentation showing how to use this.
+    /// Encode an RGBA8 surface to the given `format`.
+    ///
+    /// The number of mipmaps generated depends on the `mipmaps` parameter.
+    /// The `rgba8_data` only needs to contain enough data for the base mip level of `width` x `height` pixels.
+    pub fn encode(
+        &self,
+        format: ImageFormat,
+        quality: Quality,
+        mipmaps: Mipmaps,
+    ) -> Result<Surface<Vec<u8>>, SurfaceError> {
+        let width = self.width;
+        let height = self.height;
+        let depth = self.depth;
+        let layers = self.layers;
 
-    surface.validate()?;
+        self.validate()?;
 
-    // TODO: Encode the correct number of array layers.
-    let num_mipmaps = match mipmaps {
-        Mipmaps::Disabled => 1,
-        Mipmaps::FromSurface => surface.mipmaps,
-        Mipmaps::GeneratedExact(count) => count,
-        Mipmaps::GeneratedAutomatic => max_mipmap_count(width.max(height).max(depth)),
-    };
+        // TODO: Encode the correct number of array layers.
+        let num_mipmaps = match mipmaps {
+            Mipmaps::Disabled => 1,
+            Mipmaps::FromSurface => self.mipmaps,
+            Mipmaps::GeneratedExact(count) => count,
+            Mipmaps::GeneratedAutomatic => max_mipmap_count(width.max(height).max(depth)),
+        };
 
-    let use_surface = mipmaps == Mipmaps::FromSurface;
+        let use_surface = mipmaps == Mipmaps::FromSurface;
 
-    // TODO: Does this work if the base mip level is smaller than 4x4?
-    let mut surface_data = Vec::new();
+        // TODO: Does this work if the base mip level is smaller than 4x4?
+        let mut surface_data = Vec::new();
 
-    for layer in 0..layers {
-        encode_mipmaps_rgba8(
-            &mut surface_data,
-            &surface,
-            format,
-            quality,
-            num_mipmaps,
-            use_surface,
-            layer,
-        )?;
+        for layer in 0..layers {
+            encode_mipmaps_rgba8(
+                &mut surface_data,
+                self,
+                format,
+                quality,
+                num_mipmaps,
+                use_surface,
+                layer,
+            )?;
+        }
+
+        Ok(Surface {
+            width,
+            height,
+            depth,
+            layers,
+            mipmaps: num_mipmaps,
+            image_format: format,
+            data: surface_data,
+        })
     }
-
-    Ok(Surface {
-        width,
-        height,
-        depth,
-        layers,
-        mipmaps: num_mipmaps,
-        image_format: format,
-        data: surface_data,
-    })
 }
 
 fn encode_mipmaps_rgba8<T: AsRef<[u8]>>(
@@ -265,15 +267,15 @@ mod tests {
     #[test]
     fn encode_surface_integral_dimensions() {
         // It's ok for mipmaps to not be divisible by the block width.
-        let surface = encode_surface_rgba8(
-            SurfaceRgba8 {
-                width: 12,
-                height: 12,
-                depth: 1,
-                layers: 1,
-                mipmaps: 1,
-                data: &[0u8; 12 * 12 * 4],
-            },
+        let surface = SurfaceRgba8 {
+            width: 12,
+            height: 12,
+            depth: 1,
+            layers: 1,
+            mipmaps: 1,
+            data: &[0u8; 12 * 12 * 4],
+        }
+        .encode(
             ImageFormat::BC7Srgb,
             Quality::Fast,
             Mipmaps::GeneratedAutomatic,
@@ -293,15 +295,15 @@ mod tests {
     #[test]
     fn encode_surface_cube_mipmaps() {
         // It's ok for mipmaps to not be divisible by the block width.
-        let surface = encode_surface_rgba8(
-            SurfaceRgba8 {
-                width: 4,
-                height: 4,
-                depth: 1,
-                layers: 6,
-                mipmaps: 3,
-                data: &[0u8; (4 * 4 + 2 * 2 + 1 * 1) * 6 * 4],
-            },
+        let surface = SurfaceRgba8 {
+            width: 4,
+            height: 4,
+            depth: 1,
+            layers: 6,
+            mipmaps: 3,
+            data: &[0u8; (4 * 4 + 2 * 2 + 1 * 1) * 6 * 4],
+        }
+        .encode(
             ImageFormat::BC7Srgb,
             Quality::Fast,
             Mipmaps::GeneratedAutomatic,
@@ -320,19 +322,15 @@ mod tests {
 
     #[test]
     fn encode_surface_disabled_mipmaps() {
-        let surface = encode_surface_rgba8(
-            SurfaceRgba8 {
-                width: 4,
-                height: 4,
-                depth: 1,
-                layers: 1,
-                mipmaps: 3,
-                data: &[0u8; 64 + 16 + 4],
-            },
-            ImageFormat::BC7Srgb,
-            Quality::Fast,
-            Mipmaps::Disabled,
-        )
+        let surface = SurfaceRgba8 {
+            width: 4,
+            height: 4,
+            depth: 1,
+            layers: 1,
+            mipmaps: 3,
+            data: &[0u8; 64 + 16 + 4],
+        }
+        .encode(ImageFormat::BC7Srgb, Quality::Fast, Mipmaps::Disabled)
         .unwrap();
 
         assert_eq!(4, surface.width);
@@ -346,19 +344,15 @@ mod tests {
 
     #[test]
     fn encode_surface_mipmaps_from_surface() {
-        let surface = encode_surface_rgba8(
-            SurfaceRgba8 {
-                width: 4,
-                height: 4,
-                depth: 1,
-                layers: 1,
-                mipmaps: 2,
-                data: &[0u8; 64 + 16],
-            },
-            ImageFormat::BC7Srgb,
-            Quality::Fast,
-            Mipmaps::FromSurface,
-        )
+        let surface = SurfaceRgba8 {
+            width: 4,
+            height: 4,
+            depth: 1,
+            layers: 1,
+            mipmaps: 2,
+            data: &[0u8; 64 + 16],
+        }
+        .encode(ImageFormat::BC7Srgb, Quality::Fast, Mipmaps::FromSurface)
         .unwrap();
 
         assert_eq!(4, surface.width);
@@ -373,15 +367,15 @@ mod tests {
     #[test]
     fn encode_surface_non_integral_dimensions() {
         // This should succeed with appropriate padding.
-        let surface = encode_surface_rgba8(
-            SurfaceRgba8 {
-                width: 3,
-                height: 5,
-                depth: 1,
-                layers: 1,
-                mipmaps: 1,
-                data: &[0u8; 256],
-            },
+        let surface = SurfaceRgba8 {
+            width: 3,
+            height: 5,
+            depth: 1,
+            layers: 1,
+            mipmaps: 1,
+            data: &[0u8; 256],
+        }
+        .encode(
             ImageFormat::BC7Srgb,
             Quality::Fast,
             Mipmaps::GeneratedAutomatic,
@@ -400,15 +394,15 @@ mod tests {
 
     #[test]
     fn encode_surface_zero_size() {
-        let result = encode_surface_rgba8(
-            SurfaceRgba8 {
-                width: 0,
-                height: 0,
-                depth: 0,
-                layers: 1,
-                mipmaps: 1,
-                data: &[0u8; 0],
-            },
+        let result = SurfaceRgba8 {
+            width: 0,
+            height: 0,
+            depth: 0,
+            layers: 1,
+            mipmaps: 1,
+            data: &[0u8; 0],
+        }
+        .encode(
             ImageFormat::BC7Srgb,
             Quality::Fast,
             Mipmaps::GeneratedAutomatic,

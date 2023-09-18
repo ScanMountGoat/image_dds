@@ -1,5 +1,6 @@
 use crate::{
-    calculate_offset, max_mipmap_count, mip_dimension, mip_size, ImageFormat, SurfaceError,
+    calculate_offset, error::CreateImageError, max_mipmap_count, mip_dimension, mip_size,
+    ImageFormat, SurfaceError,
 };
 
 /// A surface with an image format known at runtime.
@@ -148,6 +149,50 @@ impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
             data: self.data.as_ref(),
         }
         .validate()
+    }
+}
+
+#[cfg(feature = "image")]
+impl<'a> SurfaceRgba8<&'a [u8]> {
+    /// Create a 2D view over the data in `image` without any copies.
+    pub fn from_image(image: &'a image::RgbaImage) -> Self {
+        SurfaceRgba8 {
+            width: image.width(),
+            height: image.height(),
+            depth: 1,
+            layers: 1,
+            mipmaps: 1,
+            data: image.as_raw(),
+        }
+    }
+}
+
+#[cfg(feature = "image")]
+impl SurfaceRgba8<Vec<u8>> {
+    // TODO: Allow configuring the output like cross, horizontal, etc?
+    /// Create an image for all layers and depth slices for the given `mipmap`.
+    ///
+    /// Array layers are arranged vertically from top to bottom.
+    pub fn to_image(&self, mipmap: u32) -> Result<image::RgbaImage, CreateImageError> {
+        // Mipmaps have different dimensions.
+        // A single 2D image can only represent data from a single mip level across layers.
+        let image_data: Vec<_> = (0..self.layers)
+            .flat_map(|layer| self.get(layer, mipmap).unwrap())
+            .copied()
+            .collect();
+        let data_length = image_data.len();
+
+        // Arrange depth slices horizontally and array layers vertically.
+        let width = mip_dimension(self.width, mipmap) * mip_dimension(self.depth, mipmap);
+        let height = mip_dimension(self.height, mipmap) * self.layers;
+
+        image::RgbaImage::from_raw(width, height, image_data).ok_or(
+            crate::CreateImageError::InvalidSurfaceDimensions {
+                width,
+                height,
+                data_length,
+            },
+        )
     }
 }
 
