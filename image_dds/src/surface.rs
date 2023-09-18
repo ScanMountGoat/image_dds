@@ -1,6 +1,5 @@
 use crate::{
-    calculate_offset, max_mipmap_count, mip_dimension, mip_size, CompressSurfaceError,
-    DecompressSurfaceError, ImageFormat,
+    calculate_offset, max_mipmap_count, mip_dimension, mip_size, ImageFormat, SurfaceError,
 };
 
 /// A surface with an image format known at runtime.
@@ -47,10 +46,10 @@ impl<T: AsRef<[u8]>> Surface<T> {
         )
     }
 
-    // TODO: Use a custom error for surface validation?
-    pub(crate) fn validate(&self) -> Result<(), DecompressSurfaceError> {
+    // TODO: Add tests for each of these cases.
+    pub(crate) fn validate(&self) -> Result<(), SurfaceError> {
         if self.width == 0 || self.height == 0 || self.depth == 0 {
-            return Err(DecompressSurfaceError::ZeroSizedSurface {
+            return Err(SurfaceError::ZeroSizedSurface {
                 width: self.width,
                 height: self.height,
                 depth: self.depth,
@@ -59,7 +58,7 @@ impl<T: AsRef<[u8]>> Surface<T> {
 
         let max_mipmaps = max_mipmap_count(self.width.max(self.height).max(self.depth));
         if self.mipmaps > max_mipmaps {
-            return Err(DecompressSurfaceError::UnexpectedMipmapCount {
+            return Err(SurfaceError::UnexpectedMipmapCount {
                 mipmaps: self.mipmaps,
                 max_mipmaps,
             });
@@ -76,7 +75,7 @@ impl<T: AsRef<[u8]>> Surface<T> {
             block_depth as usize,
             block_size_in_bytes,
         )
-        .ok_or(DecompressSurfaceError::PixelCountWouldOverflow {
+        .ok_or(SurfaceError::PixelCountWouldOverflow {
             width: self.width,
             height: self.height,
             depth: self.depth,
@@ -85,7 +84,7 @@ impl<T: AsRef<[u8]>> Surface<T> {
         // TODO: validate the combined length of layers + mipmaps.
         // TODO: Calculate the correct expected size.
         if base_layer_size > self.data.as_ref().len() {
-            return Err(DecompressSurfaceError::NotEnoughData {
+            return Err(SurfaceError::NotEnoughData {
                 expected: base_layer_size,
                 actual: self.data.as_ref().len(),
             });
@@ -138,20 +137,17 @@ impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
         )
     }
 
-    pub(crate) fn validate(&self) -> Result<(), CompressSurfaceError> {
-        let width = self.width;
-        let height = self.height;
-        let depth = self.depth;
-
-        if width == 0 || height == 0 || depth == 0 {
-            return Err(CompressSurfaceError::ZeroSizedSurface {
-                width,
-                height,
-                depth,
-            });
+    pub(crate) fn validate(&self) -> Result<(), SurfaceError> {
+        Surface {
+            width: self.width,
+            height: self.height,
+            depth: self.depth,
+            layers: self.layers,
+            mipmaps: self.mipmaps,
+            image_format: ImageFormat::R8G8B8A8Unorm,
+            data: self.data.as_ref(),
         }
-
-        Ok(())
+        .validate()
     }
 }
 

@@ -1,8 +1,8 @@
 use crate::bcn::{self, Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7};
 use crate::rgba::{bgra8_from_rgba8, encode_rgba8_from_rgba8, r8_from_rgba8, rgbaf32_from_rgba8};
 use crate::{
-    downsample_rgba8, error::CompressSurfaceError, max_mipmap_count, mip_dimension, round_up,
-    ImageFormat, Mipmaps, Quality, Surface, SurfaceRgba8,
+    downsample_rgba8, error::SurfaceError, max_mipmap_count, mip_dimension, round_up, ImageFormat,
+    Mipmaps, Quality, Surface, SurfaceRgba8,
 };
 
 // TODO: Add documentation showing how to use this.
@@ -15,7 +15,7 @@ pub fn encode_surface_rgba8<T: AsRef<[u8]>>(
     format: ImageFormat,
     quality: Quality,
     mipmaps: Mipmaps,
-) -> Result<Surface<Vec<u8>>, CompressSurfaceError> {
+) -> Result<Surface<Vec<u8>>, SurfaceError> {
     let width = surface.width;
     let height = surface.height;
     let depth = surface.depth;
@@ -67,7 +67,7 @@ fn encode_mipmaps_rgba8<T: AsRef<[u8]>>(
     num_mipmaps: u32,
     use_surface: bool,
     layer: u32,
-) -> Result<(), CompressSurfaceError> {
+) -> Result<(), SurfaceError> {
     let (block_width, block_height, block_depth) = format.block_dimensions();
 
     let width = surface.width;
@@ -231,7 +231,7 @@ fn encode_rgba8(
     data: &[u8],
     format: ImageFormat,
     quality: Quality,
-) -> Result<Vec<u8>, CompressSurfaceError> {
+) -> Result<Vec<u8>, SurfaceError> {
     // TODO: Handle unorm vs srgb for uncompressed or leave the data as is?
 
     use ImageFormat as F;
@@ -415,7 +415,7 @@ mod tests {
         );
         assert!(matches!(
             result,
-            Err(CompressSurfaceError::ZeroSizedSurface {
+            Err(SurfaceError::ZeroSizedSurface {
                 width: 0,
                 height: 0,
                 depth: 0,

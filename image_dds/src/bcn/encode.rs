@@ -1,4 +1,4 @@
-use crate::{mip_size, CompressSurfaceError, ImageFormat, Quality};
+use crate::{mip_size, ImageFormat, Quality, SurfaceError};
 use half::f16;
 
 use super::{Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7, Rgba8, BLOCK_HEIGHT, BLOCK_WIDTH};
@@ -35,7 +35,7 @@ pub trait BcnEncode<Pixel> {
         height: u32,
         rgba8_data: &[u8],
         quality: Quality,
-    ) -> Result<Vec<u8>, CompressSurfaceError>;
+    ) -> Result<Vec<u8>, SurfaceError>;
 }
 
 impl BcnEncode<[u8; 4]> for Bc1 {
@@ -44,7 +44,7 @@ impl BcnEncode<[u8; 4]> for Bc1 {
         height: u32,
         rgba8_data: &[u8],
         _: Quality,
-    ) -> Result<Vec<u8>, CompressSurfaceError> {
+    ) -> Result<Vec<u8>, SurfaceError> {
         // RGBA with 4 bytes per pixel.
         let surface = intel_tex_2::RgbaSurface {
             width,
@@ -63,9 +63,9 @@ impl BcnEncode<[u8; 4]> for Bc2 {
         _height: u32,
         _rgba8_data: &[u8],
         _quality: Quality,
-    ) -> Result<Vec<u8>, CompressSurfaceError> {
+    ) -> Result<Vec<u8>, SurfaceError> {
         // TODO: Find an implementation that supports this?
-        Err(CompressSurfaceError::UnsupportedFormat {
+        Err(SurfaceError::UnsupportedFormat {
             format: ImageFormat::BC2Unorm,
         })
     }
@@ -77,7 +77,7 @@ impl BcnEncode<[u8; 4]> for Bc3 {
         height: u32,
         rgba8_data: &[u8],
         _: Quality,
-    ) -> Result<Vec<u8>, CompressSurfaceError> {
+    ) -> Result<Vec<u8>, SurfaceError> {
         // RGBA with 4 bytes per pixel.
         let surface = intel_tex_2::RgbaSurface {
             width,
@@ -96,7 +96,7 @@ impl BcnEncode<[u8; 4]> for Bc4 {
         height: u32,
         rgba8_data: &[u8],
         _: Quality,
-    ) -> Result<Vec<u8>, CompressSurfaceError> {
+    ) -> Result<Vec<u8>, SurfaceError> {
         // RGBA with 4 bytes per pixel.
         let surface = intel_tex_2::RgbaSurface {
             width,
@@ -115,7 +115,7 @@ impl BcnEncode<[u8; 4]> for Bc5 {
         height: u32,
         rgba8_data: &[u8],
         _: Quality,
-    ) -> Result<Vec<u8>, CompressSurfaceError> {
+    ) -> Result<Vec<u8>, SurfaceError> {
         // RGBA with 4 bytes per pixel.
         let surface = intel_tex_2::RgbaSurface {
             width,
@@ -134,7 +134,7 @@ impl BcnEncode<[u8; 4]> for Bc6 {
         height: u32,
         rgba8_data: &[u8],
         quality: Quality,
-    ) -> Result<Vec<u8>, CompressSurfaceError> {
+    ) -> Result<Vec<u8>, SurfaceError> {
         // The BC6H encoder expects the data to be in half precision floating point.
         // This differs from the other formats that expect [u8; 4] for each pixel.
         let f16_data: Vec<f16> = rgba8_data
@@ -162,7 +162,7 @@ impl BcnEncode<[u8; 4]> for Bc7 {
         height: u32,
         rgba8_data: &[u8],
         quality: Quality,
-    ) -> Result<Vec<u8>, CompressSurfaceError> {
+    ) -> Result<Vec<u8>, SurfaceError> {
         // RGBA with 4 bytes per pixel.
         let surface = intel_tex_2::RgbaSurface {
             width,
@@ -182,7 +182,7 @@ pub fn bcn_from_rgba8<T: BcnEncode<[u8; 4]>>(
     depth: u32,
     data: &[u8],
     quality: Quality,
-) -> Result<Vec<u8>, CompressSurfaceError> {
+) -> Result<Vec<u8>, SurfaceError> {
     // Surface dimensions are not validated yet and may cause overflow.
     let expected_size = mip_size(
         width as usize,
@@ -193,7 +193,7 @@ pub fn bcn_from_rgba8<T: BcnEncode<[u8; 4]>>(
         1,
         Rgba8::BYTES_PER_BLOCK,
     )
-    .ok_or(CompressSurfaceError::PixelCountWouldOverflow {
+    .ok_or(SurfaceError::PixelCountWouldOverflow {
         width,
         height,
         depth,
@@ -201,7 +201,7 @@ pub fn bcn_from_rgba8<T: BcnEncode<[u8; 4]>>(
 
     // The surface must be a multiple of the block dimensions for safety.
     if data.len() < expected_size {
-        return Err(CompressSurfaceError::NotEnoughData {
+        return Err(SurfaceError::NotEnoughData {
             expected: expected_size,
             actual: data.len(),
         });

@@ -12,11 +12,11 @@ pub enum CreateImageError {
     },
 
     #[error("error decompressing surface: {0}")]
-    DecompressSurface(#[from] DecompressSurfaceError),
+    DecompressSurface(#[from] SurfaceError),
 }
 
 #[derive(Debug, Error)]
-pub enum CompressSurfaceError {
+pub enum SurfaceError {
     #[error("surface dimensions {width} x {height} x {depth} contain no pixels")]
     ZeroSizedSurface { width: u32, height: u32, depth: u32 },
 
@@ -37,15 +37,6 @@ pub enum CompressSurfaceError {
 
     #[error("compressing data to format {format:?} is not supported")]
     UnsupportedFormat { format: ImageFormat },
-}
-
-#[derive(Debug, Error)]
-pub enum DecompressSurfaceError {
-    #[error("surface dimensions {width} x {height} x {depth} contain no pixels")]
-    ZeroSizedSurface { width: u32, height: u32, depth: u32 },
-
-    #[error("surface pixel count {width} x {height} x {depth} would overflow")]
-    PixelCountWouldOverflow { width: u32, height: u32, depth: u32 },
 
     #[error("mipmap count {mipmaps} exceeds the maximum value of {max_total_mipmaps}")]
     InvalidMipmapCount {
@@ -53,9 +44,6 @@ pub enum DecompressSurfaceError {
         height: u32,
         max_total_mipmaps: u32,
     },
-
-    #[error("expected surface to have at least {expected} bytes but found {actual}")]
-    NotEnoughData { expected: usize, actual: usize },
 
     #[error("failed to get image data for layer {layer} mipmap {mipmap}")]
     MipmapDataOutOfBounds { layer: u32, mipmap: u32 },

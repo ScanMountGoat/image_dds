@@ -1,4 +1,4 @@
-use crate::{error::DecompressSurfaceError, mip_size};
+use crate::{error::SurfaceError, mip_size};
 
 use super::{Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7, Rgba8, BLOCK_HEIGHT, BLOCK_WIDTH};
 
@@ -221,7 +221,7 @@ pub fn rgba8_from_bcn<T: BcnDecode<[u8; 4]>>(
     height: u32,
     depth: u32,
     data: &[u8],
-) -> Result<Vec<u8>, DecompressSurfaceError>
+) -> Result<Vec<u8>, SurfaceError>
 where
     T::CompressedBlock: ReadBlock,
 {
@@ -239,7 +239,7 @@ where
         1,
         T::CompressedBlock::SIZE_IN_BYTES,
     )
-    .ok_or(DecompressSurfaceError::PixelCountWouldOverflow {
+    .ok_or(SurfaceError::PixelCountWouldOverflow {
         width,
         height,
         depth,
@@ -249,7 +249,7 @@ where
     // A mipmap of size 1x1 pixels can still be decoded.
     // Simply checking the data length is sufficient.
     if data.len() < expected_size {
-        return Err(DecompressSurfaceError::NotEnoughData {
+        return Err(SurfaceError::NotEnoughData {
             expected: expected_size,
             actual: data.len(),
         });

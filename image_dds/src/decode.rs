@@ -1,16 +1,17 @@
 use crate::{
     bcn,
-    error::DecompressSurfaceError,
+    error::SurfaceError,
     mip_dimension,
     rgba::{decode_rgba8_from_rgba8, rgba8_from_bgra8, rgba8_from_r8, rgba8_from_rgbaf32},
     ImageFormat, Surface, SurfaceRgba8,
 };
 use bcn::{Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7};
 
+// TODO: make this a method?
 /// Decode all layers and mipmaps from `surface` to RGBA8.
 pub fn decode_surface_rgba8<T: AsRef<[u8]>>(
     surface: Surface<T>,
-) -> Result<SurfaceRgba8<Vec<u8>>, DecompressSurfaceError> {
+) -> Result<SurfaceRgba8<Vec<u8>>, SurfaceError> {
     let Surface {
         width,
         height,
@@ -28,7 +29,7 @@ pub fn decode_surface_rgba8<T: AsRef<[u8]>>(
         for mipmap in 0..mipmaps {
             let data = surface
                 .get(layer, mipmap)
-                .ok_or(DecompressSurfaceError::MipmapDataOutOfBounds { layer, mipmap })?;
+                .ok_or(SurfaceError::MipmapDataOutOfBounds { layer, mipmap })?;
 
             // The mipmap index is already validated by get above.
             let width = mip_dimension(width, mipmap);
@@ -57,7 +58,7 @@ fn decode_data_rgba8(
     depth: u32,
     image_format: ImageFormat,
     data: &[u8],
-) -> Result<Vec<u8>, DecompressSurfaceError> {
+) -> Result<Vec<u8>, SurfaceError> {
     use ImageFormat as F;
     let data = match image_format {
         F::BC1Unorm | F::BC1Srgb => bcn::rgba8_from_bcn::<Bc1>(width, height, depth, data),
@@ -94,7 +95,7 @@ mod tests {
         });
         assert!(matches!(
             result,
-            Err(DecompressSurfaceError::ZeroSizedSurface {
+            Err(SurfaceError::ZeroSizedSurface {
                 width: 0,
                 height: 0,
                 depth: 0,
@@ -115,7 +116,7 @@ mod tests {
         });
         assert!(matches!(
             result,
-            Err(DecompressSurfaceError::PixelCountWouldOverflow {
+            Err(SurfaceError::PixelCountWouldOverflow {
                 width: u32::MAX,
                 height: u32::MAX,
                 depth: u32::MAX,
@@ -137,7 +138,7 @@ mod tests {
 
         assert!(matches!(
             result,
-            Err(DecompressSurfaceError::UnexpectedMipmapCount {
+            Err(SurfaceError::UnexpectedMipmapCount {
                 mipmaps: 10,
                 max_mipmaps: 3
             })

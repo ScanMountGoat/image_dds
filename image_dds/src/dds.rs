@@ -2,8 +2,8 @@ use ddsfile::{D3DFormat, Dds, DxgiFormat, FourCC};
 use thiserror::Error;
 
 use crate::{
-    mip_dimension, CompressSurfaceError, CreateImageError, DecompressSurfaceError, ImageFormat,
-    Mipmaps, Quality, Surface, SurfaceRgba8,
+    mip_dimension, CreateImageError, ImageFormat, Mipmaps, Quality, Surface, SurfaceError,
+    SurfaceRgba8,
 };
 
 #[derive(Debug, Error)]
@@ -12,7 +12,7 @@ pub enum CreateDdsError {
     Dds(#[from] ddsfile::Error),
 
     #[error("error compressing surface: {0}")]
-    CompressSurface(#[from] CompressSurfaceError),
+    CompressSurface(#[from] SurfaceError),
 }
 
 #[cfg(feature = "encode")]
@@ -114,13 +114,13 @@ pub fn dds_from_surface_rgba8<T: AsRef<[u8]>>(
 }
 
 /// Converts `dds` to a surface that preserves the underlying format and image data.
-pub fn surface_from_dds(dds: &Dds) -> Result<Surface<&[u8]>, DecompressSurfaceError> {
+pub fn surface_from_dds(dds: &Dds) -> Result<Surface<&[u8]>, SurfaceError> {
     let width = dds.get_width();
     let height = dds.get_height();
     let depth = dds.get_depth();
     let layers = array_layer_count(dds);
     let mipmaps = dds.get_num_mipmap_levels();
-    let image_format = dds_image_format(dds).ok_or(DecompressSurfaceError::UnrecognizedFormat)?;
+    let image_format = dds_image_format(dds).ok_or(SurfaceError::UnrecognizedFormat)?;
 
     Ok(Surface {
         width,
@@ -135,16 +135,14 @@ pub fn surface_from_dds(dds: &Dds) -> Result<Surface<&[u8]>, DecompressSurfaceEr
 
 #[cfg(feature = "decode")]
 /// Decode all layers and mipmaps from `dds` to an RGBA8 surface.
-pub fn decode_surface_rgba8_from_dds(
-    dds: &Dds,
-) -> Result<SurfaceRgba8<Vec<u8>>, DecompressSurfaceError> {
+pub fn decode_surface_rgba8_from_dds(dds: &Dds) -> Result<SurfaceRgba8<Vec<u8>>, SurfaceError> {
     let width = dds.get_width();
     let height = dds.get_height();
     let depth = dds.get_depth();
     let layers = array_layer_count(dds);
     let mipmaps = dds.get_num_mipmap_levels();
 
-    let image_format = dds_image_format(dds).ok_or(DecompressSurfaceError::UnrecognizedFormat)?;
+    let image_format = dds_image_format(dds).ok_or(SurfaceError::UnrecognizedFormat)?;
     crate::decode_surface_rgba8(Surface {
         width,
         height,
