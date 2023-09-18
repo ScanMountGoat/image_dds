@@ -18,10 +18,10 @@ thiserror = "1.0.38"
 arbitrary = { version = "1.2.2", features = ["derive"], optional = true }
 half = { version = "2.2.1", features = ["bytemuck"] }
 bytemuck = "1.13.0"
-strum = { version = "0.24", features = ["derive"] }
+strum = { version = "0.24", features = ["derive"], optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
 
 [features]
-default = ["ddsfile", "image", "encode", "decode"]
+default = ["ddsfile", "image", "encode", "decode", "strum"]
 encode = ["intel_tex_2"]
 decode = ["bcndecode-sys"]
