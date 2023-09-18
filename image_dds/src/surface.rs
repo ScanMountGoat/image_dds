@@ -65,7 +65,6 @@ impl<T: AsRef<[u8]>> Surface<T> {
             });
         }
 
-        // TODO: This should be a specific error for overflow.
         let (block_width, block_height, block_depth) = self.image_format.block_dimensions();
         let block_size_in_bytes = self.image_format.block_size_in_bytes();
         let base_layer_size = mip_size(
@@ -139,11 +138,7 @@ impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
         )
     }
 
-    pub(crate) fn validate_encode(
-        &self,
-        output_format: ImageFormat,
-    ) -> Result<(), CompressSurfaceError> {
-        let (block_width, block_height, block_depth) = output_format.block_dimensions();
+    pub(crate) fn validate(&self) -> Result<(), CompressSurfaceError> {
         let width = self.width;
         let height = self.height;
         let depth = self.depth;
@@ -153,16 +148,6 @@ impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
                 width,
                 height,
                 depth,
-            });
-        }
-
-        if width % block_width != 0 || height % block_height != 0 || depth % block_depth != 0 {
-            return Err(CompressSurfaceError::NonIntegralDimensionsInBlocks {
-                width,
-                height,
-                depth,
-                block_width,
-                block_height,
             });
         }
 
