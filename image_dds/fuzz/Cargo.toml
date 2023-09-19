@@ -39,3 +39,9 @@ name = "decode_surface_rgba8_single_block"
 path = "fuzz_targets/decode_surface_rgba8_single_block.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "decode_surface_rgbaf32"
+path = "fuzz_targets/decode_surface_rgbaf32.rs"
+test = false
+doc = false

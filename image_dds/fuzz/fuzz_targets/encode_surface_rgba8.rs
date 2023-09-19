@@ -11,5 +11,5 @@ type Input = (
 
 fuzz_target!(|input: Input| {
     let (surface, format, quality, mipmaps) = input;
-    let _result = image_dds::encode_surface_rgba8(surface, format, quality, mipmaps);
+    let _result = surface.encode(format, quality, mipmaps);
 });

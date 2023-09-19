@@ -1,6 +1,8 @@
+use bytemuck::Pod;
+
 use crate::{error::SurfaceError, mip_size};
 
-use super::{Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7, Rgba8, BLOCK_HEIGHT, BLOCK_WIDTH};
+use super::{Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7, BLOCK_HEIGHT, BLOCK_WIDTH, CHANNELS};
 
 pub trait BcnDecode<Pixel> {
     type CompressedBlock;
@@ -51,7 +53,7 @@ impl BcnDecode<[u8; 4]> for Bc1 {
             bcndecode_sys::bcdec_bc1(
                 block.0.as_ptr(),
                 decompressed.as_mut_ptr() as _,
-                (BLOCK_WIDTH * Rgba8::BYTES_PER_PIXEL) as i32,
+                (BLOCK_WIDTH * CHANNELS) as i32,
             );
         }
 
@@ -69,7 +71,7 @@ impl BcnDecode<[u8; 4]> for Bc2 {
             bcndecode_sys::bcdec_bc2(
                 block.0.as_ptr(),
                 decompressed.as_mut_ptr() as _,
-                (BLOCK_WIDTH * Rgba8::BYTES_PER_PIXEL) as i32,
+                (BLOCK_WIDTH * CHANNELS) as i32,
             );
         }
 
@@ -87,7 +89,7 @@ impl BcnDecode<[u8; 4]> for Bc3 {
             bcndecode_sys::bcdec_bc3(
                 block.0.as_ptr(),
                 decompressed.as_mut_ptr() as _,
-                (BLOCK_WIDTH * Rgba8::BYTES_PER_PIXEL) as i32,
+                (BLOCK_WIDTH * CHANNELS) as i32,
             );
         }
 
@@ -155,14 +157,10 @@ impl BcnDecode<[u8; 4]> for Bc5 {
     }
 }
 
-impl BcnDecode<[u8; 4]> for Bc6 {
+impl BcnDecode<[f32; 4]> for Bc6 {
     type CompressedBlock = Block16;
 
-    fn decompress_block(block: &Block16) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
-        // TODO: signed vs unsigned?
-        // TODO: Also support exr or radiance hdr under feature flags?
-        // exr or radiance only make sense for bc6
-
+    fn decompress_block(block: &Block16) -> [[[f32; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
         // BC6H uses half precision floating point data.
         // Convert to single precision since f32 is better supported on CPUs.
         let mut decompressed_rgb = [[[0f32; 3]; BLOCK_WIDTH]; BLOCK_HEIGHT];
@@ -174,25 +172,33 @@ impl BcnDecode<[u8; 4]> for Bc6 {
                 block.0.as_ptr(),
                 decompressed_rgb.as_mut_ptr() as _,
                 (BLOCK_WIDTH * 3) as i32,
+                // TODO: signed vs unsigned?
                 0,
             );
         }
 
-        // Truncate to clamp to 0 to 255.
-        // TODO: Add a separate function that returns floats?
-        let float_to_u8 = |x: f32| (x * 255.0) as u8;
-
         // Pad to RGBA with alpha set to white.
-        let mut decompressed = [[[0u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT];
+        let mut decompressed = [[[0.0; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT];
         for y in 0..BLOCK_HEIGHT {
             for x in 0..BLOCK_HEIGHT {
-                // It's convention to zero the blue channel when decompressing BC5.
                 let [r, g, b] = decompressed_rgb[y][x];
-                decompressed[y][x] = [float_to_u8(r), float_to_u8(g), float_to_u8(b), 255u8];
+                decompressed[y][x] = [r, g, b, 1.0];
             }
         }
 
         decompressed
+    }
+}
+
+impl BcnDecode<[u8; 4]> for Bc6 {
+    type CompressedBlock = Block16;
+
+    fn decompress_block(block: &Block16) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
+        let decompressed: [[[f32; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] = Bc6::decompress_block(block);
+
+        // Truncate to clamp to 0 to 255.
+        let float_to_u8 = |x: f32| (x * 255.0) as u8;
+        decompressed.map(|row| row.map(|pixel| pixel.map(float_to_u8)))
     }
 }
 
@@ -206,7 +212,7 @@ impl BcnDecode<[u8; 4]> for Bc7 {
             bcndecode_sys::bcdec_bc7(
                 block.0.as_ptr(),
                 decompressed.as_mut_ptr() as _,
-                (BLOCK_WIDTH * Rgba8::BYTES_PER_PIXEL) as i32,
+                (BLOCK_WIDTH * CHANNELS) as i32,
             );
         }
 
@@ -216,20 +222,18 @@ impl BcnDecode<[u8; 4]> for Bc7 {
 
 // TODO: Make this generic over the pixel type (f32 or u8).
 /// Decompress the bytes in `data` to the uncompressed RGBA8 format.
-pub fn rgba8_from_bcn<T: BcnDecode<[u8; 4]>>(
+pub fn rgba_from_bcn<F, T>(
     width: u32,
     height: u32,
     depth: u32,
     data: &[u8],
-) -> Result<Vec<u8>, SurfaceError>
+) -> Result<Vec<T>, SurfaceError>
 where
-    T::CompressedBlock: ReadBlock,
+    T: Copy + Default + Pod,
+    F: BcnDecode<[T; 4]>,
+    F::CompressedBlock: ReadBlock,
 {
-    // TODO: Add an option to parallelize this using rayon?
-    // Each block can be decoded independently.
-
-    // Surface dimensions are not validated yet and may cause overflow.
-
+    // Validate surface dimensions to check for potential overflow.
     let expected_size = mip_size(
         width as usize,
         height as usize,
@@ -237,7 +241,7 @@ where
         BLOCK_WIDTH,
         BLOCK_HEIGHT,
         1,
-        T::CompressedBlock::SIZE_IN_BYTES,
+        F::CompressedBlock::SIZE_IN_BYTES,
     )
     .ok_or(SurfaceError::PixelCountWouldOverflow {
         width,
@@ -255,8 +259,7 @@ where
         });
     }
 
-    let mut rgba =
-        vec![0u8; width as usize * height as usize * depth as usize * Rgba8::BYTES_PER_PIXEL];
+    let mut rgba = vec![T::default(); width as usize * height as usize * depth as usize * CHANNELS];
 
     // BCN formats lay out blocks in row-major order.
     // TODO: calculate x and y using division and mod?
@@ -266,9 +269,9 @@ where
         for y in (0..height).step_by(BLOCK_HEIGHT) {
             for x in (0..width).step_by(BLOCK_WIDTH) {
                 // Use a special type to enforce alignment.
-                let block = T::CompressedBlock::read_block(data, block_start);
+                let block = F::CompressedBlock::read_block(data, block_start);
                 // TODO: Add rgba8 and rgbaf32 variants for decompress block.
-                let decompressed_block = T::decompress_block(&block);
+                let decompressed_block = F::decompress_block(&block);
 
                 // TODO: This can be generic over the pixel type to also support float.
                 // Each block is 4x4, so we need to update multiple rows.
@@ -282,7 +285,7 @@ where
                     height as usize,
                 );
 
-                block_start += T::CompressedBlock::SIZE_IN_BYTES;
+                block_start += F::CompressedBlock::SIZE_IN_BYTES;
             }
         }
     }
@@ -290,9 +293,9 @@ where
     Ok(rgba)
 }
 
-fn put_rgba_block(
-    surface: &mut [u8],
-    pixels: [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT],
+fn put_rgba_block<T: Pod>(
+    surface: &mut [T],
+    pixels: [[[T; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT],
     x: usize,
     y: usize,
     z: usize,
@@ -303,14 +306,15 @@ fn put_rgba_block(
     // The data from each block will update up to 4 rows of the RGBA surface.
     // Add checks since the edges won't always have full blocks.
     // TODO: potential overflow if x > width or y > height?
-    let bytes_per_row = std::mem::size_of::<[u8; 4]>() * BLOCK_WIDTH.min(width - x);
+    let elements_per_row = CHANNELS * BLOCK_WIDTH.min(width - x);
 
     for (row, row_pixels) in pixels.iter().enumerate().take(BLOCK_HEIGHT.min(height - y)) {
         // Convert pixel coordinates to byte coordinates.
-        let surface_index = ((z * width * height) + (y + row) * width + x) * Rgba8::BYTES_PER_PIXEL;
+        let surface_index = ((z * width * height) + (y + row) * width + x) * CHANNELS;
         // The correct slice length is calculated above.
-        surface[surface_index..surface_index + bytes_per_row]
-            .copy_from_slice(&bytemuck::cast_slice(row_pixels)[..bytes_per_row]);
+        // TODO: Is it really faster to use bytemuck?
+        surface[surface_index..surface_index + elements_per_row]
+            .copy_from_slice(&bytemuck::cast_slice(row_pixels)[..elements_per_row]);
     }
 }
 

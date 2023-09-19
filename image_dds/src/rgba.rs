@@ -2,17 +2,7 @@ use half::f16;
 
 use crate::SurfaceError;
 
-pub fn decode_rgba8_from_rgba8(
-    width: u32,
-    height: u32,
-    depth: u32,
-    data: &[u8],
-) -> Result<Vec<u8>, SurfaceError> {
-    validate_length(width, height, depth, 4, data)?;
-    Ok(data.to_vec())
-}
-
-pub fn encode_rgba8_from_rgba8(
+pub fn rgba8_from_rgba8(
     width: u32,
     height: u32,
     depth: u32,
@@ -61,6 +51,29 @@ pub fn rgbaf32_from_rgba8(
 
     let rgba_f32: Vec<_> = data.iter().map(|u| *u as f32 / 255.0).collect();
     Ok(bytemuck::cast_slice(&rgba_f32).to_vec())
+}
+
+pub fn rgbaf32_from_rgbaf32(
+    width: u32,
+    height: u32,
+    depth: u32,
+    data: &[u8],
+) -> Result<Vec<f32>, SurfaceError> {
+    validate_length(width, height, depth, 16, data)?;
+    Ok(bytemuck::cast_slice(data).to_vec())
+}
+
+pub fn rgbaf32_from_rgbaf16(
+    width: u32,
+    height: u32,
+    depth: u32,
+    data: &[u8],
+) -> Result<Vec<f32>, SurfaceError> {
+    let expected = validate_length(width, height, depth, 8, data)?;
+
+    // Use expected length to ensure the slice is an integral number of floats.
+    let rgba_f16: &[f16] = bytemuck::cast_slice(&data[..expected]);
+    Ok(rgba_f16.iter().copied().map(f16::to_f32).collect())
 }
 
 pub fn rgbaf16_from_rgba8(
@@ -351,16 +364,16 @@ mod tests {
     }
 
     #[test]
-    fn decode_rgba8_from_rgba8_valid() {
+    fn encode_rgba8_from_rgba8_valid() {
         assert_eq!(
             vec![1, 2, 3, 4],
-            decode_rgba8_from_rgba8(1, 1, 1, &[1, 2, 3, 4]).unwrap()
+            rgba8_from_rgba8(1, 1, 1, &[1, 2, 3, 4]).unwrap()
         );
     }
 
     #[test]
-    fn decode_rgba8_from_rgba8_invalid() {
-        let result = decode_rgba8_from_rgba8(1, 1, 1, &[1, 2, 3]);
+    fn encode_rgba8_from_rgba8_invalid() {
+        let result = rgba8_from_rgba8(1, 1, 1, &[1, 2, 3]);
         assert!(matches!(
             result,
             Err(SurfaceError::NotEnoughData {
@@ -371,21 +384,58 @@ mod tests {
     }
 
     #[test]
-    fn encode_rgba8_from_rgba8_valid() {
+    fn encode_rgbaf32_from_rgbaf32_valid() {
         assert_eq!(
-            vec![1, 2, 3, 4],
-            encode_rgba8_from_rgba8(1, 1, 1, &[1, 2, 3, 4]).unwrap()
+            vec![1.0, 2.0, 3.0, 4.0],
+            rgbaf32_from_rgbaf32(
+                1,
+                1,
+                1,
+                bytemuck::cast_slice(&[1.0f32, 2.0f32, 3.0f32, 4.0f32])
+            )
+            .unwrap()
         );
     }
 
     #[test]
-    fn encode_rgba8_from_rgba8_invalid() {
-        let result = encode_rgba8_from_rgba8(1, 1, 1, &[1, 2, 3]);
+    fn encode_rgbaf32_from_rgbaf32_invalid() {
+        let result = rgbaf32_from_rgbaf32(1, 1, 1, &[0; 15]);
         assert!(matches!(
             result,
             Err(SurfaceError::NotEnoughData {
-                expected: 4,
-                actual: 3
+                expected: 16,
+                actual: 15
+            })
+        ));
+    }
+
+    #[test]
+    fn encode_rgbaf32_from_rgbaf16_valid() {
+        assert_eq!(
+            vec![0.0, 0.25, 0.5, 1.0],
+            rgbaf32_from_rgbaf16(
+                1,
+                1,
+                1,
+                bytemuck::cast_slice(&[
+                    f16::from_f32(0.0f32),
+                    f16::from_f32(0.25f32),
+                    f16::from_f32(0.5f32),
+                    f16::from_f32(1.0f32)
+                ])
+            )
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn encode_rgbaf32_from_rgbaf16_invalid() {
+        let result = rgbaf32_from_rgbaf16(1, 1, 1, &[0; 7]);
+        assert!(matches!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 8,
+                actual: 7
             })
         ));
     }

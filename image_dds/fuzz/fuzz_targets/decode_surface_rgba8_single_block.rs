@@ -17,5 +17,5 @@ fuzz_target!(|input: (image_dds::ImageFormat, &[u8])| {
         data,
     };
 
-    let _result = image_dds::decode_surface_rgba8(surface);
+    let _result = surface.decode_rgba8();
 });

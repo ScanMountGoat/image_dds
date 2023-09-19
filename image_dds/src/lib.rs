@@ -49,7 +49,7 @@ mod bcn;
 mod rgba;
 mod surface;
 
-pub use surface::{Surface, SurfaceRgba8};
+pub use surface::{Surface, SurfaceRgba32Float, SurfaceRgba8};
 
 pub mod error;
 use error::*;

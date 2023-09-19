@@ -96,7 +96,7 @@ impl<T: AsRef<[u8]>> Surface<T> {
     }
 }
 
-/// An uncompressed RGBA8 surface with 4 bytes per pixel.
+/// An uncompressed [ImageFormat::R8G8B8A8Unorm] surface with 4 bytes per pixel.
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -196,7 +196,110 @@ impl SurfaceRgba8<Vec<u8>> {
     }
 }
 
+/// An uncompressed [ImageFormat::R32G32B32A32Float] surface with 16 bytes per pixel.
+#[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct SurfaceRgba32Float<T> {
+    /// The width of the surface in pixels.
+    pub width: u32,
+    /// The height of the surface in pixels.
+    pub height: u32,
+    /// The depth of the surface in pixels.
+    /// This should be `1` for 2D surfaces.
+    pub depth: u32,
+    /// The number of array layers in the surface.
+    /// This should be `1` for most surfaces and `6` for cube maps.
+    pub layers: u32,
+    /// The number of mipmaps in the surface.
+    /// This should be `1` if the surface has only the base mip level.
+    /// All array layers are assumed to have the same number of mipmaps.
+    pub mipmaps: u32,
+    /// The combined `f32` image data ordered by layer and then mipmap without additional padding.
+    ///
+    /// A surface with L layers and M mipmaps would have the following layout:
+    /// Layer 0 Mip 0, Layer 0 Mip 1,  ..., Layer L-1 Mip M-1
+    pub data: T,
+}
+
+impl<T: AsRef<[f32]>> SurfaceRgba32Float<T> {
+    /// Get the range of image data corresponding to the specified `layer` and `mipmap`.
+    ///
+    /// The dimensions of the returned data should be calculated using [mip_dimension].
+    /// Returns [None] if the expected range is not fully contained within the buffer.
+    pub fn get(&self, layer: u32, mipmap: u32) -> Option<&[f32]> {
+        // TODO: Is it safe to cast like this?
+        get_mipmap(
+            bytemuck::cast_slice(self.data.as_ref()),
+            (self.width, self.height, self.depth),
+            self.mipmaps,
+            ImageFormat::R32G32B32A32Float,
+            layer,
+            mipmap,
+        )
+        .map(bytemuck::cast_slice)
+    }
+
+    pub(crate) fn validate(&self) -> Result<(), SurfaceError> {
+        Surface {
+            width: self.width,
+            height: self.height,
+            depth: self.depth,
+            layers: self.layers,
+            mipmaps: self.mipmaps,
+            image_format: ImageFormat::R32G32B32A32Float,
+            data: bytemuck::cast_slice(self.data.as_ref()),
+        }
+        .validate()
+    }
+}
+
+#[cfg(feature = "image")]
+impl<'a> SurfaceRgba32Float<&'a [f32]> {
+    /// Create a 2D view over the data in `image` without any copies.
+    pub fn from_image(image: &'a image::Rgba32FImage) -> Self {
+        SurfaceRgba32Float {
+            width: image.width(),
+            height: image.height(),
+            depth: 1,
+            layers: 1,
+            mipmaps: 1,
+            data: image.as_raw(),
+        }
+    }
+}
+
+#[cfg(feature = "image")]
+impl SurfaceRgba32Float<Vec<f32>> {
+    // TODO: Allow configuring the output like cross, horizontal, etc?
+    /// Create an image for all layers and depth slices for the given `mipmap`.
+    ///
+    /// Array layers are arranged vertically from top to bottom.
+    pub fn to_image(&self, mipmap: u32) -> Result<image::Rgba32FImage, CreateImageError> {
+        // Mipmaps have different dimensions.
+        // A single 2D image can only represent data from a single mip level across layers.
+        let image_data: Vec<_> = (0..self.layers)
+            .flat_map(|layer| self.get(layer, mipmap).unwrap())
+            .copied()
+            .collect();
+        let data_length = image_data.len();
+
+        // Arrange depth slices horizontally and array layers vertically.
+        let width = mip_dimension(self.width, mipmap) * mip_dimension(self.depth, mipmap);
+        let height = mip_dimension(self.height, mipmap) * self.layers;
+
+        image::Rgba32FImage::from_raw(width, height, image_data).ok_or(
+            crate::CreateImageError::InvalidSurfaceDimensions {
+                width,
+                height,
+                data_length,
+            },
+        )
+    }
+}
+
 // TODO: Add tests for this.
+// TODO: make this generic over the element type?
 fn get_mipmap(
     data: &[u8],
     dimensions: (u32, u32, u32),
