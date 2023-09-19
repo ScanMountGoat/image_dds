@@ -6,7 +6,7 @@ mod encode;
 #[cfg(feature = "decode")]
 pub use decode::rgba_from_bcn;
 #[cfg(feature = "encode")]
-pub use encode::bcn_from_rgba8;
+pub use encode::bcn_from_rgba;
 
 // All BCN formats use 4x4 pixel blocks.
 const BLOCK_WIDTH: usize = 4;

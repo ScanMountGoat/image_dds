@@ -29,18 +29,17 @@ impl From<Quality> for intel_tex_2::bc7::EncodeSettings {
     }
 }
 
-pub trait BcnEncode<Pixel> {
-    // TODO: Should this take &[Pixel] instead of &[u8]?
+pub trait BcnEncode<T> {
     // TODO: How to handle depth with intel-tex-rs-2?
     fn compress_surface(
         width: u32,
         height: u32,
-        rgba8_data: &[u8],
+        rgba_data: &[T],
         quality: Quality,
     ) -> Result<Vec<u8>, SurfaceError>;
 }
 
-impl BcnEncode<[u8; 4]> for Bc1 {
+impl BcnEncode<u8> for Bc1 {
     fn compress_surface(
         width: u32,
         height: u32,
@@ -59,7 +58,7 @@ impl BcnEncode<[u8; 4]> for Bc1 {
     }
 }
 
-impl BcnEncode<[u8; 4]> for Bc2 {
+impl BcnEncode<u8> for Bc2 {
     fn compress_surface(
         _width: u32,
         _height: u32,
@@ -73,7 +72,7 @@ impl BcnEncode<[u8; 4]> for Bc2 {
     }
 }
 
-impl BcnEncode<[u8; 4]> for Bc3 {
+impl BcnEncode<u8> for Bc3 {
     fn compress_surface(
         width: u32,
         height: u32,
@@ -92,7 +91,7 @@ impl BcnEncode<[u8; 4]> for Bc3 {
     }
 }
 
-impl BcnEncode<[u8; 4]> for Bc4 {
+impl BcnEncode<u8> for Bc4 {
     fn compress_surface(
         width: u32,
         height: u32,
@@ -111,7 +110,7 @@ impl BcnEncode<[u8; 4]> for Bc4 {
     }
 }
 
-impl BcnEncode<[u8; 4]> for Bc5 {
+impl BcnEncode<u8> for Bc5 {
     fn compress_surface(
         width: u32,
         height: u32,
@@ -130,7 +129,32 @@ impl BcnEncode<[u8; 4]> for Bc5 {
     }
 }
 
-impl BcnEncode<[u8; 4]> for Bc6 {
+impl BcnEncode<f32> for Bc6 {
+    fn compress_surface(
+        width: u32,
+        height: u32,
+        rgba8_data: &[f32],
+        quality: Quality,
+    ) -> Result<Vec<u8>, SurfaceError> {
+        // The BC6H encoder expects the data to be in half precision floating point.
+        // This differs from the other formats that expect [u8; 4] for each pixel.
+        let f16_data: Vec<f16> = rgba8_data.iter().copied().map(f16::from_f32).collect();
+
+        let surface = intel_tex_2::RgbaSurface {
+            width,
+            height,
+            stride: width * 4 * std::mem::size_of::<f16>() as u32,
+            data: bytemuck::cast_slice(&f16_data),
+        };
+
+        Ok(intel_tex_2::bc6h::compress_blocks(
+            &quality.into(),
+            &surface,
+        ))
+    }
+}
+
+impl BcnEncode<u8> for Bc6 {
     fn compress_surface(
         width: u32,
         height: u32,
@@ -141,7 +165,7 @@ impl BcnEncode<[u8; 4]> for Bc6 {
         // This differs from the other formats that expect [u8; 4] for each pixel.
         let f16_data: Vec<f16> = rgba8_data
             .iter()
-            .map(|v| half::f16::from_f32(*v as f32 / 255.0))
+            .map(|v| f16::from_f32(*v as f32 / 255.0))
             .collect();
 
         let surface = intel_tex_2::RgbaSurface {
@@ -158,7 +182,7 @@ impl BcnEncode<[u8; 4]> for Bc6 {
     }
 }
 
-impl BcnEncode<[u8; 4]> for Bc7 {
+impl BcnEncode<u8> for Bc7 {
     fn compress_surface(
         width: u32,
         height: u32,
@@ -177,14 +201,16 @@ impl BcnEncode<[u8; 4]> for Bc7 {
     }
 }
 
-/// Compress the uncompressed RGBA8 bytes in `data` to the given format `T`.
-pub fn bcn_from_rgba8<T: BcnEncode<[u8; 4]>>(
+pub fn bcn_from_rgba<F, T>(
     width: u32,
     height: u32,
     depth: u32,
-    data: &[u8],
+    data: &[T],
     quality: Quality,
-) -> Result<Vec<u8>, SurfaceError> {
+) -> Result<Vec<u8>, SurfaceError>
+where
+    F: BcnEncode<T>,
+{
     // Surface dimensions are not validated yet and may cause overflow.
     let expected_size = mip_size(
         width as usize,
@@ -209,23 +235,23 @@ pub fn bcn_from_rgba8<T: BcnEncode<[u8; 4]>>(
         });
     }
 
-    T::compress_surface(width, height, data, quality)
+    F::compress_surface(width, height, data, quality)
 }
 
 // TODO: Rework these tests.
+// TODO: Test encoding from f32.
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use crate::{bcn::encode::bcn_from_rgba8, Quality};
+    use crate::{bcn::encode::bcn_from_rgba, Quality};
 
     // TODO: Create tests for data length since we can't know what the compressed blocks should be?
     // TODO: Test edge cases and type conversions?
     // TODO: Add tests for validating the input length.
     // TODO: Will compression fail for certain pixel values (test with fuzz tests?)
-
-    fn check_compress_bcn<T: BcnEncode<[u8; 4]>>(rgba: &[u8], quality: Quality) {
-        bcn_from_rgba8::<T>(4, 4, 1, &rgba, quality).unwrap();
+    fn check_compress_bcn<T: BcnEncode<u8>>(rgba: &[u8], quality: Quality) {
+        bcn_from_rgba::<T, u8>(4, 4, 1, &rgba, quality).unwrap();
     }
 
     #[test]

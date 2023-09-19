@@ -1,7 +1,6 @@
-use crate::bcn::{self, Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7};
+use crate::bcn::{bcn_from_rgba, Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7};
 use crate::rgba::{
-    bgra8_from_rgba8, rgba8_from_rgba8, r8_from_rgba8, rgbaf16_from_rgba8,
-    rgbaf32_from_rgba8,
+    bgra8_from_rgba8, r8_from_rgba8, rgba8_from_rgba8, rgbaf16_from_rgba8, rgbaf32_from_rgba8,
 };
 use crate::{
     downsample_rgba8, error::SurfaceError, max_mipmap_count, mip_dimension, round_up, ImageFormat,
@@ -64,6 +63,8 @@ impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
     }
 }
 
+// TODO: Find a way to simplify this.
+// TODO: Also support f32.
 fn encode_mipmaps_rgba8<T: AsRef<[u8]>>(
     encoded_data: &mut Vec<u8>,
     surface: &SurfaceRgba8<T>,
@@ -73,128 +74,142 @@ fn encode_mipmaps_rgba8<T: AsRef<[u8]>>(
     use_surface: bool,
     layer: u32,
 ) -> Result<(), SurfaceError> {
-    let (block_width, block_height, block_depth) = format.block_dimensions();
-
-    let width = surface.width;
-    let height = surface.height;
-    let depth = surface.depth;
-
-    // The base mip level is always included.
-    let data = surface.get(layer, 0).unwrap();
-    let (base_width, base_height, base_depth) = physical_dimensions(
-        width,
-        height,
-        depth,
-        block_width,
-        block_height,
-        block_depth,
-        0,
-    );
-    let base_level = pad_mipmap_rgba8(
-        width as usize,
-        height as usize,
-        depth as usize,
-        base_width,
-        base_height,
-        base_depth,
-        data,
-    );
-
-    let base_layer = encode_rgba8(
-        base_width as u32,
-        base_height as u32,
-        base_depth as u32,
-        &base_level,
-        format,
-        quality,
-    )?;
-    encoded_data.extend_from_slice(&base_layer);
+    let block_dimensions = format.block_dimensions();
 
     // Track the previous image data and dimensions.
     // This enables generating mipmaps from a single base layer.
-    let mut mip_image = base_level;
-    let mut previous_width = base_width;
-    let mut previous_height = base_height;
-    let mut previous_depth = base_depth;
+    let mut mip_data = get_mipmap_data(surface, layer, 0, format)?;
 
-    // TODO: Find a cleaner way of writing this.
+    let encoded = mip_data.encode(format, quality)?;
+    encoded_data.extend_from_slice(&encoded);
+
+    // TODO: Error if surface does not have the appropriate number of mipmaps?
     for mipmap in 1..num_mipmaps {
-        // Pad each mipmap based on the block dimensions.
-        let (mip_width, mip_height, mip_depth) = physical_dimensions(
-            width,
-            height,
-            depth,
-            block_width,
-            block_height,
-            block_depth,
-            mipmap,
-        );
-
-        // TODO: Find a simpler way to choose a data source.
-        mip_image = if use_surface {
-            // TODO: Avoid unwrap
-            // TODO: Error if surface does not have the appropriate number of mipmaps?
-            let data = surface.get(layer, mipmap).unwrap();
-            pad_mipmap_rgba8(
-                mip_dimension(width, mipmap) as usize,
-                mip_dimension(height, mipmap) as usize,
-                mip_dimension(depth, mipmap) as usize,
-                mip_width,
-                mip_height,
-                mip_depth,
-                data,
-            )
+        mip_data = if use_surface {
+            get_mipmap_data(surface, layer, mipmap, format)?
         } else {
-            // Downsample the previous mip level.
-            // This also handles padding since the new dimensions are rounded.
-            // TODO: Just get the previous mip's data since this pads already?
-            downsample_rgba8(
-                mip_width,
-                mip_height,
-                mip_depth,
-                previous_width,
-                previous_height,
-                previous_depth,
-                &mip_image,
+            mip_data.downsample(
+                surface.width,
+                surface.height,
+                surface.depth,
+                block_dimensions,
+                mipmap,
             )
         };
 
-        let mip_data = encode_rgba8(
-            mip_width as u32,
-            mip_height as u32,
-            mip_depth as u32,
-            &mip_image,
-            format,
-            quality,
-        )?;
-        encoded_data.extend_from_slice(&mip_data);
-
-        // Update the dimensions for the previous mipmap image data.
-        previous_width = mip_width;
-        previous_height = mip_height;
-        previous_depth = mip_depth;
+        let encoded = mip_data.encode(format, quality)?;
+        encoded_data.extend_from_slice(&encoded);
     }
     Ok(())
+}
+
+struct MipData {
+    width: usize,
+    height: usize,
+    depth: usize,
+    data: Vec<u8>,
+}
+
+impl MipData {
+    fn downsample(
+        &self,
+        base_width: u32,
+        base_height: u32,
+        base_depth: u32,
+        block_dimensions: (u32, u32, u32),
+        mipmap: u32,
+    ) -> MipData {
+        // Mip dimensions are the padded virtual size of the mipmap.
+        // Padding the physical size of the previous mip produces incorrect results.
+        let (width, height, depth) = physical_dimensions(
+            mip_dimension(base_width, mipmap),
+            mip_dimension(base_height, mipmap),
+            mip_dimension(base_depth, mipmap),
+            block_dimensions,
+        );
+
+        // Assume the data is already padded.
+        let data = downsample_rgba8(
+            width,
+            height,
+            depth,
+            self.width,
+            self.height,
+            self.depth,
+            &self.data,
+        );
+
+        MipData {
+            width,
+            height,
+            depth,
+            data,
+        }
+    }
+
+    fn encode(&self, format: ImageFormat, quality: Quality) -> Result<Vec<u8>, SurfaceError> {
+        encode_rgba8(
+            self.width as u32,
+            self.height as u32,
+            self.depth as u32,
+            &self.data,
+            format,
+            quality,
+        )
+    }
+}
+
+fn get_mipmap_data<T: AsRef<[u8]>>(
+    surface: &SurfaceRgba8<T>,
+    layer: u32,
+    mipmap: u32,
+    format: ImageFormat,
+) -> Result<MipData, SurfaceError> {
+    let block_dimensions = format.block_dimensions();
+
+    let mip_width = mip_dimension(surface.width, mipmap);
+    let mip_height = mip_dimension(surface.height, mipmap);
+    let mip_depth = mip_dimension(surface.depth, mipmap);
+
+    let data = surface.get(layer, mipmap).unwrap();
+
+    let (width, height, depth) =
+        physical_dimensions(mip_width, mip_height, mip_depth, block_dimensions);
+
+    // TODO: Just take the block dimensions instead?
+    let data = pad_mipmap_rgba8(
+        mip_width as usize,
+        mip_height as usize,
+        mip_depth as usize,
+        width,
+        height,
+        depth,
+        data,
+    );
+
+    Ok(MipData {
+        width,
+        height,
+        depth,
+        data,
+    })
 }
 
 fn physical_dimensions(
     width: u32,
     height: u32,
     depth: u32,
-    block_width: u32,
-    block_height: u32,
-    block_depth: u32,
-    mipmap: u32,
+    block_dimensions: (u32, u32, u32),
 ) -> (usize, usize, usize) {
     // The physical size must have integral dimensions in blocks.
     // Applications or the GPU will use the smaller virtual size and ignore padding.
     // For example, a 1x1 BCN block still requires 4x4 pixels of data.
     // https://learn.microsoft.com/en-us/windows/win32/direct3d10/d3d10-graphics-programming-guide-resources-block-compression
-    let mip_dimension_rounded = |x, n| round_up(mip_dimension(x, mipmap) as usize, n as usize);
+    let (block_width, block_height, block_depth) = block_dimensions;
     (
-        mip_dimension_rounded(width, block_width),
-        mip_dimension_rounded(height, block_height),
-        mip_dimension_rounded(depth, block_depth),
+        round_up(width as usize, block_width as usize),
+        round_up(height as usize, block_height as usize),
+        round_up(depth as usize, block_depth as usize),
     )
 }
 
@@ -237,23 +252,19 @@ fn encode_rgba8(
     format: ImageFormat,
     quality: Quality,
 ) -> Result<Vec<u8>, SurfaceError> {
-    // TODO: Handle unorm vs srgb for uncompressed or leave the data as is?
-
+    // Unorm and srgb only affect how the data is read.
+    // Use the same conversion code for both.
     use ImageFormat as F;
     match format {
-        F::BC1Unorm | F::BC1Srgb => bcn::bcn_from_rgba8::<Bc1>(width, height, depth, data, quality),
-        F::BC2Unorm | F::BC2Srgb => bcn::bcn_from_rgba8::<Bc2>(width, height, depth, data, quality),
-        F::BC3Unorm | F::BC3Srgb => bcn::bcn_from_rgba8::<Bc3>(width, height, depth, data, quality),
-        F::BC4Unorm | F::BC4Snorm => {
-            bcn::bcn_from_rgba8::<Bc4>(width, height, depth, data, quality)
-        }
-        F::BC5Unorm | F::BC5Snorm => {
-            bcn::bcn_from_rgba8::<Bc5>(width, height, depth, data, quality)
-        }
+        F::BC1Unorm | F::BC1Srgb => bcn_from_rgba::<Bc1, u8>(width, height, depth, data, quality),
+        F::BC2Unorm | F::BC2Srgb => bcn_from_rgba::<Bc2, u8>(width, height, depth, data, quality),
+        F::BC3Unorm | F::BC3Srgb => bcn_from_rgba::<Bc3, u8>(width, height, depth, data, quality),
+        F::BC4Unorm | F::BC4Snorm => bcn_from_rgba::<Bc4, u8>(width, height, depth, data, quality),
+        F::BC5Unorm | F::BC5Snorm => bcn_from_rgba::<Bc5, u8>(width, height, depth, data, quality),
         F::BC6Ufloat | F::BC6Sfloat => {
-            bcn::bcn_from_rgba8::<Bc6>(width, height, depth, data, quality)
+            bcn_from_rgba::<Bc6, u8>(width, height, depth, data, quality)
         }
-        F::BC7Unorm | F::BC7Srgb => bcn::bcn_from_rgba8::<Bc7>(width, height, depth, data, quality),
+        F::BC7Unorm | F::BC7Srgb => bcn_from_rgba::<Bc7, u8>(width, height, depth, data, quality),
         F::R8Unorm => r8_from_rgba8(width, height, depth, data),
         F::R8G8B8A8Unorm => rgba8_from_rgba8(width, height, depth, data),
         F::R8G8B8A8Srgb => rgba8_from_rgba8(width, height, depth, data),
@@ -450,15 +461,14 @@ mod tests {
 
     #[test]
     fn physical_dimensions_padding() {
-        assert_eq!((4, 5, 6), physical_dimensions(2, 3, 1, 4, 5, 6, 0));
-        assert_eq!((4, 5, 6), physical_dimensions(2, 3, 1, 4, 5, 6, 1));
-        assert_eq!((4, 5, 6), physical_dimensions(2, 3, 1, 4, 5, 6, 2));
+        assert_eq!((4, 5, 6), physical_dimensions(2, 3, 1, (4, 5, 6)));
     }
 
     #[test]
     fn physical_dimensions_mipmaps() {
-        assert_eq!((8, 8, 1), physical_dimensions(8, 8, 1, 4, 4, 1, 0));
-        assert_eq!((4, 4, 1), physical_dimensions(4, 4, 1, 4, 4, 1, 1));
-        assert_eq!((4, 4, 1), physical_dimensions(4, 4, 1, 4, 4, 1, 2));
+        assert_eq!((8, 8, 1), physical_dimensions(8, 8, 1, (4, 4, 1)));
+        assert_eq!((4, 4, 1), physical_dimensions(4, 4, 1, (4, 4, 1)));
+        assert_eq!((4, 4, 1), physical_dimensions(2, 2, 1, (4, 4, 1)));
+        assert_eq!((4, 4, 1), physical_dimensions(1, 1, 1, (4, 4, 1)));
     }
 }

@@ -1,5 +1,5 @@
 use crate::{
-    bcn,
+    bcn::{self, rgba_from_bcn},
     error::SurfaceError,
     mip_dimension,
     rgba::{
@@ -53,13 +53,13 @@ fn decode_data_rgba8(
 ) -> Result<Vec<u8>, SurfaceError> {
     use ImageFormat as F;
     match image_format {
-        F::BC1Unorm | F::BC1Srgb => bcn::rgba_from_bcn::<Bc1, u8>(width, height, depth, data),
-        F::BC2Unorm | F::BC2Srgb => bcn::rgba_from_bcn::<Bc2, u8>(width, height, depth, data),
-        F::BC3Unorm | F::BC3Srgb => bcn::rgba_from_bcn::<Bc3, u8>(width, height, depth, data),
-        F::BC4Unorm | F::BC4Snorm => bcn::rgba_from_bcn::<Bc4, u8>(width, height, depth, data),
-        F::BC5Unorm | F::BC5Snorm => bcn::rgba_from_bcn::<Bc5, u8>(width, height, depth, data),
-        F::BC6Ufloat | F::BC6Sfloat => bcn::rgba_from_bcn::<Bc6, u8>(width, height, depth, data),
-        F::BC7Unorm | F::BC7Srgb => bcn::rgba_from_bcn::<Bc7, u8>(width, height, depth, data),
+        F::BC1Unorm | F::BC1Srgb => rgba_from_bcn::<Bc1, u8>(width, height, depth, data),
+        F::BC2Unorm | F::BC2Srgb => rgba_from_bcn::<Bc2, u8>(width, height, depth, data),
+        F::BC3Unorm | F::BC3Srgb => rgba_from_bcn::<Bc3, u8>(width, height, depth, data),
+        F::BC4Unorm | F::BC4Snorm => rgba_from_bcn::<Bc4, u8>(width, height, depth, data),
+        F::BC5Unorm | F::BC5Snorm => rgba_from_bcn::<Bc5, u8>(width, height, depth, data),
+        F::BC6Ufloat | F::BC6Sfloat => rgba_from_bcn::<Bc6, u8>(width, height, depth, data),
+        F::BC7Unorm | F::BC7Srgb => rgba_from_bcn::<Bc7, u8>(width, height, depth, data),
         F::R8Unorm => rgba8_from_r8(width, height, depth, data),
         F::R8G8B8A8Unorm => rgba8_from_rgba8(width, height, depth, data),
         F::R8G8B8A8Srgb => rgba8_from_rgba8(width, height, depth, data),
@@ -115,7 +115,7 @@ fn decode_data_rgbaf32(
 ) -> Result<Vec<f32>, SurfaceError> {
     use ImageFormat as F;
     match image_format {
-        F::BC6Ufloat | F::BC6Sfloat => bcn::rgba_from_bcn::<Bc6, f32>(width, height, depth, data),
+        F::BC6Ufloat | F::BC6Sfloat => rgba_from_bcn::<Bc6, f32>(width, height, depth, data),
         F::R16G16B16A16Float => rgbaf32_from_rgbaf16(width, height, depth, data),
         F::R32G32B32A32Float => rgbaf32_from_rgbaf32(width, height, depth, data),
         _ => {
