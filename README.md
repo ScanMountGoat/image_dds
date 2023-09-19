@@ -30,9 +30,9 @@ Some uncompressed formats are also supported. These formats are supported by DDS
 | --- | --- | --- |
 | R8 | ✔️ | ✔️ |
 | R8G8B8A8 | ✔️ | ✔️ |
-| R8G8B8A8 | ✔️ | ✔️ |
-| R32G32B32A32 | ✔️ | ✔️ |
 | B8G8R8A8 | ✔️ | ✔️ |
+| R16G16B16A16Float | ✔️ | ✔️ |
+| R32G32B32A32Float | ✔️ | ✔️ |
 
 ## Features
 Helper functions for working with the files from the [image](https://crates.io/crates/image) and [ddsfile](https://crates.io/crates/ddsfile) crates are supported under feature flags and enabled by default. The `decoding` and `encoding` features can also be disabled as needed.

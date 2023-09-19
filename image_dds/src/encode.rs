@@ -1,5 +1,8 @@
 use crate::bcn::{self, Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7};
-use crate::rgba::{bgra8_from_rgba8, encode_rgba8_from_rgba8, r8_from_rgba8, rgbaf32_from_rgba8};
+use crate::rgba::{
+    bgra8_from_rgba8, encode_rgba8_from_rgba8, r8_from_rgba8, rgbaf16_from_rgba8,
+    rgbaf32_from_rgba8,
+};
 use crate::{
     downsample_rgba8, error::SurfaceError, max_mipmap_count, mip_dimension, round_up, ImageFormat,
     Mipmaps, Quality, Surface, SurfaceRgba8,
@@ -254,6 +257,7 @@ fn encode_rgba8(
         F::R8Unorm => r8_from_rgba8(width, height, depth, data),
         F::R8G8B8A8Unorm => encode_rgba8_from_rgba8(width, height, depth, data),
         F::R8G8B8A8Srgb => encode_rgba8_from_rgba8(width, height, depth, data),
+        F::R16G16B16A16Float => rgbaf16_from_rgba8(width, height, depth, data),
         F::R32G32B32A32Float => rgbaf32_from_rgba8(width, height, depth, data),
         F::B8G8R8A8Unorm => bgra8_from_rgba8(width, height, depth, data),
         F::B8G8R8A8Srgb => bgra8_from_rgba8(width, height, depth, data),

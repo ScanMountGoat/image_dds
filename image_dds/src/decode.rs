@@ -2,7 +2,10 @@ use crate::{
     bcn,
     error::SurfaceError,
     mip_dimension,
-    rgba::{decode_rgba8_from_rgba8, rgba8_from_bgra8, rgba8_from_r8, rgba8_from_rgbaf32},
+    rgba::{
+        decode_rgba8_from_rgba8, rgba8_from_bgra8, rgba8_from_r8, rgba8_from_rgbaf16,
+        rgba8_from_rgbaf32,
+    },
     ImageFormat, Surface, SurfaceRgba8,
 };
 use bcn::{Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7};
@@ -60,6 +63,7 @@ fn decode_data_rgba8(
         F::R8Unorm => rgba8_from_r8(width, height, depth, data),
         F::R8G8B8A8Unorm => decode_rgba8_from_rgba8(width, height, depth, data),
         F::R8G8B8A8Srgb => decode_rgba8_from_rgba8(width, height, depth, data),
+        F::R16G16B16A16Float => rgba8_from_rgbaf16(width, height, depth, data),
         F::R32G32B32A32Float => rgba8_from_rgbaf32(width, height, depth, data),
         F::B8G8R8A8Unorm => rgba8_from_bgra8(width, height, depth, data),
         F::B8G8R8A8Srgb => rgba8_from_bgra8(width, height, depth, data),

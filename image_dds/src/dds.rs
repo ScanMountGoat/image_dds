@@ -210,6 +210,7 @@ impl From<ImageFormat> for DxgiFormat {
             ImageFormat::R8Unorm => Self::R8_UNorm,
             ImageFormat::R8G8B8A8Unorm => Self::R8G8B8A8_UNorm,
             ImageFormat::R8G8B8A8Srgb => Self::R8G8B8A8_UNorm_sRGB,
+            ImageFormat::R16G16B16A16Float => Self::R16G16B16A16_Float,
             ImageFormat::R32G32B32A32Float => Self::R32G32B32A32_Float,
             ImageFormat::B8G8R8A8Unorm => Self::B8G8R8A8_UNorm,
             ImageFormat::B8G8R8A8Srgb => Self::B8G8R8A8_UNorm_sRGB,

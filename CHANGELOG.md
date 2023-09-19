@@ -7,14 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## unreleased
 ### Added
-* Added `dds_from_surface` function.
-* Added `surface_from_dds` function.
 * Added optional serde support for enums and surfaces.
 * Added optional strum support for enums.
+* Added encode/decode support for the `R16G16B16A16Float` format.
 
 ### Changed
 * Relaxed validation and implemented padding to allow encoding BCN surfaces with non integral dimensions in blocks.
 * Combined `CompressSurfaceError` and `DecompressSurfaceError` into `SurfaceError`.
+* Changed surface conversion functions to be methods instead of functions to support chaining.
 
 ## 0.1.1 - 2023-03-21
 ### Fixed
