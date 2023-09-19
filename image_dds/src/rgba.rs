@@ -76,6 +76,19 @@ pub fn rgbaf32_from_rgbaf16(
     Ok(rgba_f16.iter().copied().map(f16::to_f32).collect())
 }
 
+pub fn rgbaf16_from_rgbaf32(
+    width: u32,
+    height: u32,
+    depth: u32,
+    data: &[u8],
+) -> Result<Vec<f16>, SurfaceError> {
+    let expected = validate_length(width, height, depth, 16, data)?;
+
+    // Use expected length to ensure the slice is an integral number of floats.
+    let rgba_f32: &[f32] = bytemuck::cast_slice(&data[..expected]);
+    Ok(rgba_f32.iter().copied().map(f16::from_f32).collect())
+}
+
 pub fn rgbaf16_from_rgba8(
     width: u32,
     height: u32,

@@ -15,6 +15,8 @@ impl<T: AsRef<[u8]>> Surface<T> {
     pub fn decode_rgba8(&self) -> Result<SurfaceRgba8<Vec<u8>>, SurfaceError> {
         self.validate()?;
 
+        // TODO: Share code with f32 implementation?
+        // TODO: Create a single SurfaceRgba<T> type for u8, f32, etc?
         let mut combined_surface_data = Vec::new();
         for layer in 0..self.layers {
             for mipmap in 0..self.mipmaps {
@@ -28,7 +30,7 @@ impl<T: AsRef<[u8]>> Surface<T> {
                 let depth = mip_dimension(self.depth, mipmap);
 
                 // TODO: Avoid additional copies?
-                let data = decode_data_rgba8(width, height, depth, self.image_format, data)?;
+                let data = decode_rgba8(width, height, depth, self.image_format, data)?;
                 combined_surface_data.extend_from_slice(&data);
             }
         }
@@ -42,9 +44,43 @@ impl<T: AsRef<[u8]>> Surface<T> {
             data: combined_surface_data,
         })
     }
+
+    /// Decode all layers and mipmaps from `surface` to RGBAF32.
+    ///
+    /// Non floating point formats are normalized to the range `0.0` to `1.0`.
+    pub fn decode_rgbaf32(&self) -> Result<SurfaceRgba32Float<Vec<f32>>, SurfaceError> {
+        self.validate()?;
+
+        let mut combined_surface_data = Vec::new();
+        for layer in 0..self.layers {
+            for mipmap in 0..self.mipmaps {
+                let data = self
+                    .get(layer, mipmap)
+                    .ok_or(SurfaceError::MipmapDataOutOfBounds { layer, mipmap })?;
+
+                // The mipmap index is already validated by get above.
+                let width = mip_dimension(self.width, mipmap);
+                let height = mip_dimension(self.height, mipmap);
+                let depth = mip_dimension(self.depth, mipmap);
+
+                // TODO: Avoid additional copies?
+                let data = decode_rgbaf32(width, height, depth, self.image_format, data)?;
+                combined_surface_data.extend_from_slice(&data);
+            }
+        }
+
+        Ok(SurfaceRgba32Float {
+            width: self.width,
+            height: self.height,
+            depth: self.depth,
+            layers: self.layers,
+            mipmaps: self.mipmaps,
+            data: combined_surface_data,
+        })
+    }
 }
 
-fn decode_data_rgba8(
+fn decode_rgba8(
     width: u32,
     height: u32,
     depth: u32,
@@ -70,43 +106,7 @@ fn decode_data_rgba8(
     }
 }
 
-impl<T: AsRef<[u8]>> Surface<T> {
-    /// Decode all layers and mipmaps from `surface` to RGBAF32.
-    ///
-    /// Non floating point formats are normalized to the range `0.0` to `1.0`.
-    pub fn decode_rgbaf32(&self) -> Result<SurfaceRgba32Float<Vec<f32>>, SurfaceError> {
-        self.validate()?;
-
-        let mut combined_surface_data = Vec::new();
-        for layer in 0..self.layers {
-            for mipmap in 0..self.mipmaps {
-                let data = self
-                    .get(layer, mipmap)
-                    .ok_or(SurfaceError::MipmapDataOutOfBounds { layer, mipmap })?;
-
-                // The mipmap index is already validated by get above.
-                let width = mip_dimension(self.width, mipmap);
-                let height = mip_dimension(self.height, mipmap);
-                let depth = mip_dimension(self.depth, mipmap);
-
-                // TODO: Avoid additional copies?
-                let data = decode_data_rgbaf32(width, height, depth, self.image_format, data)?;
-                combined_surface_data.extend_from_slice(&data);
-            }
-        }
-
-        Ok(SurfaceRgba32Float {
-            width: self.width,
-            height: self.height,
-            depth: self.depth,
-            layers: self.layers,
-            mipmaps: self.mipmaps,
-            data: combined_surface_data,
-        })
-    }
-}
-
-fn decode_data_rgbaf32(
+fn decode_rgbaf32(
     width: u32,
     height: u32,
     depth: u32,
@@ -120,7 +120,7 @@ fn decode_data_rgbaf32(
         F::R32G32B32A32Float => rgbaf32_from_rgbaf32(width, height, depth, data),
         _ => {
             // Use existing decoding for formats that don't store floating point data.
-            let rgba8 = decode_data_rgba8(width, height, depth, image_format, data)?;
+            let rgba8 = decode_rgba8(width, height, depth, image_format, data)?;
             Ok(rgba8.into_iter().map(|u| u as f32 / 255.0).collect())
         }
     }

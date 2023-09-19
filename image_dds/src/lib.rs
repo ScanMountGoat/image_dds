@@ -216,18 +216,44 @@ pub fn mip_dimension(base_dimension: u32, mipmap: u32) -> u32 {
     (base_dimension >> mipmap).max(1)
 }
 
-fn downsample_rgba8(
+// TODO: Is this the best way to handle this?
+trait Pixel: Default + Copy {
+    fn from_f32(f: f32) -> Self;
+    fn to_f32(&self) -> f32;
+}
+
+impl Pixel for u8 {
+    fn from_f32(f: f32) -> Self {
+        f as Self
+    }
+
+    fn to_f32(&self) -> f32 {
+        *self as f32
+    }
+}
+
+impl Pixel for f32 {
+    fn from_f32(f: f32) -> Self {
+        f
+    }
+
+    fn to_f32(&self) -> f32 {
+        *self
+    }
+}
+
+fn downsample_rgba<T: Pixel>(
     new_width: usize,
     new_height: usize,
     new_depth: usize,
     width: usize,
     height: usize,
     depth: usize,
-    data: &[u8],
-) -> Vec<u8> {
+    data: &[T],
+) -> Vec<T> {
     // Halve the width and height by averaging pixels.
     // This is faster than resizing using the image crate.
-    let mut new_data = vec![0u8; new_width * new_height * new_depth * 4];
+    let mut new_data = vec![T::default(); new_width * new_height * new_depth * 4];
     for z in 0..new_depth {
         for x in 0..new_width {
             for y in 0..new_height {
@@ -236,8 +262,8 @@ fn downsample_rgba8(
                 // Average a 2x2x2 pixel region from data into a 1x1x1 pixel region.
                 // This is equivalent to a 3D convolution or pooling operation over the pixels.
                 for c in 0..4 {
-                    let mut sum = 0;
-                    let mut count = 0;
+                    let mut sum = 0.0;
+                    let mut count = 0u64;
                     for z2 in 0..2 {
                         let sampled_z = (z * 2) + z2;
                         if sampled_z < depth {
@@ -250,7 +276,7 @@ fn downsample_rgba8(
                                             let index = (sampled_z * width * height)
                                                 + (sampled_y * width)
                                                 + sampled_x;
-                                            sum += data[index * 4 + c] as usize;
+                                            sum += data[index * 4 + c].to_f32();
                                             count += 1;
                                         }
                                     }
@@ -258,8 +284,7 @@ fn downsample_rgba8(
                             }
                         }
                     }
-
-                    new_data[new_index * 4 + c] = (sum as f64 / count as f64) as u8;
+                    new_data[new_index * 4 + c] = T::from_f32(sum / count.max(1) as f32);
                 }
             }
         }
@@ -362,7 +387,7 @@ mod tests {
             .collect();
         assert_eq!(
             vec![127u8; 2 * 2 * 1 * 4],
-            downsample_rgba8(2, 2, 1, 4, 4, 1, &original)
+            downsample_rgba(2, 2, 1, 4, 4, 1, &original)
         );
     }
 
@@ -377,7 +402,7 @@ mod tests {
         .collect();
         assert_eq!(
             vec![127u8; 1 * 1 * 4],
-            downsample_rgba8(1, 1, 1, 3, 3, 1, &original)
+            downsample_rgba(1, 1, 1, 3, 3, 1, &original)
         );
     }
 
@@ -390,13 +415,63 @@ mod tests {
         ];
         assert_eq!(
             vec![127u8; 1 * 1 * 1 * 4],
-            downsample_rgba8(1, 1, 1, 2, 2, 2, &original)
+            downsample_rgba(1, 1, 1, 2, 2, 2, &original)
         );
     }
 
     #[test]
     fn downsample_rgba8_0x0() {
-        assert_eq!(vec![0u8; 4], downsample_rgba8(1, 1, 1, 0, 0, 1, &[]));
+        assert_eq!(vec![0u8; 4], downsample_rgba(1, 1, 1, 0, 0, 1, &[]));
+    }
+
+    #[test]
+    fn downsample_rgbaf32_4x4() {
+        // Test that a checkerboard is averaged.
+        let original: Vec<_> = std::iter::repeat([
+            0.0f32, 0.0f32, 0.0f32, 0.0f32, 1.0f32, 1.0f32, 1.0f32, 1.0f32,
+        ])
+        .take(4 * 4 / 2)
+        .flatten()
+        .collect();
+        assert_eq!(
+            vec![0.5; 2 * 2 * 1 * 4],
+            downsample_rgba(2, 2, 1, 4, 4, 1, &original)
+        );
+    }
+
+    #[test]
+    fn downsample_rgbaf32_3x3() {
+        // Test that a checkerboard is averaged.
+        let original: Vec<_> = std::iter::repeat([
+            0.0f32, 0.0f32, 0.0f32, 0.0f32, 1.0f32, 1.0f32, 1.0f32, 1.0f32, 0.0f32, 0.0f32, 0.0f32,
+            0.0f32,
+        ])
+        .take(3 * 3 / 3)
+        .flatten()
+        .collect();
+        assert_eq!(
+            vec![0.5; 1 * 1 * 4],
+            downsample_rgba(1, 1, 1, 3, 3, 1, &original)
+        );
+    }
+
+    #[test]
+    fn downsample_rgbaf32_2x2x2() {
+        // Test that two slices of 2x2 pixels are averaged.
+        let original = vec![
+            0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32,
+            0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 1.0f32, 1.0f32, 1.0f32, 1.0f32, 1.0f32, 1.0f32,
+            1.0f32, 1.0f32, 1.0f32, 1.0f32, 1.0f32, 1.0f32, 1.0f32, 1.0f32, 1.0f32, 1.0f32,
+        ];
+        assert_eq!(
+            vec![0.5; 1 * 1 * 1 * 4],
+            downsample_rgba(1, 1, 1, 2, 2, 2, &original)
+        );
+    }
+
+    #[test]
+    fn downsample_rgbaf32_0x0() {
+        assert_eq!(vec![0.0f32; 4], downsample_rgba(1, 1, 1, 0, 0, 1, &[]));
     }
 
     #[test]

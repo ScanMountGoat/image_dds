@@ -1,29 +1,25 @@
 use crate::bcn::{bcn_from_rgba, Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7};
 use crate::rgba::{
-    bgra8_from_rgba8, r8_from_rgba8, rgba8_from_rgba8, rgbaf16_from_rgba8, rgbaf32_from_rgba8,
+    bgra8_from_rgba8, r8_from_rgba8, rgba8_from_rgba8, rgbaf16_from_rgba8, rgbaf16_from_rgbaf32,
+    rgbaf32_from_rgba8, rgbaf32_from_rgbaf32,
 };
 use crate::{
-    downsample_rgba8, error::SurfaceError, max_mipmap_count, mip_dimension, round_up, ImageFormat,
+    downsample_rgba, error::SurfaceError, max_mipmap_count, mip_dimension, round_up, ImageFormat,
     Mipmaps, Quality, Surface, SurfaceRgba8,
 };
+use crate::{Pixel, SurfaceRgba32Float};
 
 impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
     // TODO: Add documentation showing how to use this.
     /// Encode an RGBA8 surface to the given `format`.
     ///
     /// The number of mipmaps generated depends on the `mipmaps` parameter.
-    /// The `rgba8_data` only needs to contain enough data for the base mip level of `width` x `height` pixels.
     pub fn encode(
         &self,
         format: ImageFormat,
         quality: Quality,
         mipmaps: Mipmaps,
     ) -> Result<Surface<Vec<u8>>, SurfaceError> {
-        let width = self.width;
-        let height = self.height;
-        let depth = self.depth;
-        let layers = self.layers;
-
         self.validate()?;
 
         // TODO: Encode the correct number of array layers.
@@ -31,7 +27,9 @@ impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
             Mipmaps::Disabled => 1,
             Mipmaps::FromSurface => self.mipmaps,
             Mipmaps::GeneratedExact(count) => count,
-            Mipmaps::GeneratedAutomatic => max_mipmap_count(width.max(height).max(depth)),
+            Mipmaps::GeneratedAutomatic => {
+                max_mipmap_count(self.width.max(self.height).max(self.depth))
+            }
         };
 
         let use_surface = mipmaps == Mipmaps::FromSurface;
@@ -39,7 +37,7 @@ impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
         // TODO: Does this work if the base mip level is smaller than 4x4?
         let mut surface_data = Vec::new();
 
-        for layer in 0..layers {
+        for layer in 0..self.layers {
             encode_mipmaps_rgba8(
                 &mut surface_data,
                 self,
@@ -52,10 +50,10 @@ impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
         }
 
         Ok(Surface {
-            width,
-            height,
-            depth,
-            layers,
+            width: self.width,
+            height: self.height,
+            depth: self.depth,
+            layers: self.layers,
             mipmaps: num_mipmaps,
             image_format: format,
             data: surface_data,
@@ -66,7 +64,7 @@ impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
 // TODO: Find a way to simplify this.
 // TODO: Also support f32.
 fn encode_mipmaps_rgba8<T: AsRef<[u8]>>(
-    encoded_data: &mut Vec<u8>,
+    surface_data: &mut Vec<u8>,
     surface: &SurfaceRgba8<T>,
     format: ImageFormat,
     quality: Quality,
@@ -78,15 +76,15 @@ fn encode_mipmaps_rgba8<T: AsRef<[u8]>>(
 
     // Track the previous image data and dimensions.
     // This enables generating mipmaps from a single base layer.
-    let mut mip_data = get_mipmap_data(surface, layer, 0, format)?;
+    let mut mip_data = get_mipmap_data(surface, layer, 0, block_dimensions)?;
 
     let encoded = mip_data.encode(format, quality)?;
-    encoded_data.extend_from_slice(&encoded);
+    surface_data.extend_from_slice(&encoded);
 
-    // TODO: Error if surface does not have the appropriate number of mipmaps?
     for mipmap in 1..num_mipmaps {
         mip_data = if use_surface {
-            get_mipmap_data(surface, layer, mipmap, format)?
+            // TODO: Error if surface does not have the appropriate number of mipmaps?
+            get_mipmap_data(surface, layer, mipmap, block_dimensions)?
         } else {
             mip_data.downsample(
                 surface.width,
@@ -98,19 +96,57 @@ fn encode_mipmaps_rgba8<T: AsRef<[u8]>>(
         };
 
         let encoded = mip_data.encode(format, quality)?;
-        encoded_data.extend_from_slice(&encoded);
+        surface_data.extend_from_slice(&encoded);
     }
     Ok(())
 }
 
-struct MipData {
+fn encode_mipmaps_rgbaf32<T: AsRef<[f32]>>(
+    surface_data: &mut Vec<u8>,
+    surface: &SurfaceRgba32Float<T>,
+    format: ImageFormat,
+    quality: Quality,
+    num_mipmaps: u32,
+    use_surface: bool,
+    layer: u32,
+) -> Result<(), SurfaceError> {
+    let block_dimensions = format.block_dimensions();
+
+    // Track the previous image data and dimensions.
+    // This enables generating mipmaps from a single base layer.
+    let mut mip_data = get_mipmap_data_f32(surface, layer, 0, block_dimensions)?;
+
+    let encoded = mip_data.encode(format, quality)?;
+    surface_data.extend_from_slice(&encoded);
+
+    for mipmap in 1..num_mipmaps {
+        mip_data = if use_surface {
+            // TODO: Error if surface does not have the appropriate number of mipmaps?
+            get_mipmap_data_f32(surface, layer, mipmap, block_dimensions)?
+        } else {
+            mip_data.downsample(
+                surface.width,
+                surface.height,
+                surface.depth,
+                block_dimensions,
+                mipmap,
+            )
+        };
+
+        let encoded = mip_data.encode(format, quality)?;
+        surface_data.extend_from_slice(&encoded);
+    }
+    Ok(())
+}
+
+struct MipData<T> {
     width: usize,
     height: usize,
     depth: usize,
-    data: Vec<u8>,
+    data: Vec<T>,
 }
 
-impl MipData {
+impl<T: Pixel> MipData<T> {
     fn downsample(
         &self,
         base_width: u32,
@@ -118,7 +154,7 @@ impl MipData {
         base_depth: u32,
         block_dimensions: (u32, u32, u32),
         mipmap: u32,
-    ) -> MipData {
+    ) -> MipData<T> {
         // Mip dimensions are the padded virtual size of the mipmap.
         // Padding the physical size of the previous mip produces incorrect results.
         let (width, height, depth) = physical_dimensions(
@@ -129,7 +165,7 @@ impl MipData {
         );
 
         // Assume the data is already padded.
-        let data = downsample_rgba8(
+        let data = downsample_rgba(
             width,
             height,
             depth,
@@ -146,9 +182,24 @@ impl MipData {
             data,
         }
     }
+}
 
+impl MipData<u8> {
     fn encode(&self, format: ImageFormat, quality: Quality) -> Result<Vec<u8>, SurfaceError> {
         encode_rgba8(
+            self.width as u32,
+            self.height as u32,
+            self.depth as u32,
+            &self.data,
+            format,
+            quality,
+        )
+    }
+}
+
+impl MipData<f32> {
+    fn encode(&self, format: ImageFormat, quality: Quality) -> Result<Vec<u8>, SurfaceError> {
+        encode_rgbaf32(
             self.width as u32,
             self.height as u32,
             self.depth as u32,
@@ -163,10 +214,8 @@ fn get_mipmap_data<T: AsRef<[u8]>>(
     surface: &SurfaceRgba8<T>,
     layer: u32,
     mipmap: u32,
-    format: ImageFormat,
-) -> Result<MipData, SurfaceError> {
-    let block_dimensions = format.block_dimensions();
-
+    block_dimensions: (u32, u32, u32),
+) -> Result<MipData<u8>, SurfaceError> {
     let mip_width = mip_dimension(surface.width, mipmap);
     let mip_height = mip_dimension(surface.height, mipmap);
     let mip_depth = mip_dimension(surface.depth, mipmap);
@@ -177,7 +226,41 @@ fn get_mipmap_data<T: AsRef<[u8]>>(
         physical_dimensions(mip_width, mip_height, mip_depth, block_dimensions);
 
     // TODO: Just take the block dimensions instead?
-    let data = pad_mipmap_rgba8(
+    let data = pad_mipmap_rgba(
+        mip_width as usize,
+        mip_height as usize,
+        mip_depth as usize,
+        width,
+        height,
+        depth,
+        data,
+    );
+
+    Ok(MipData {
+        width,
+        height,
+        depth,
+        data,
+    })
+}
+
+fn get_mipmap_data_f32<T: AsRef<[f32]>>(
+    surface: &SurfaceRgba32Float<T>,
+    layer: u32,
+    mipmap: u32,
+    block_dimensions: (u32, u32, u32),
+) -> Result<MipData<f32>, SurfaceError> {
+    let mip_width = mip_dimension(surface.width, mipmap);
+    let mip_height = mip_dimension(surface.height, mipmap);
+    let mip_depth = mip_dimension(surface.depth, mipmap);
+
+    let data = surface.get(layer, mipmap).unwrap();
+
+    let (width, height, depth) =
+        physical_dimensions(mip_width, mip_height, mip_depth, block_dimensions);
+
+    // TODO: Just take the block dimensions instead?
+    let data = pad_mipmap_rgba(
         mip_width as usize,
         mip_height as usize,
         mip_depth as usize,
@@ -213,20 +296,25 @@ fn physical_dimensions(
     )
 }
 
-fn pad_mipmap_rgba8(
+// TODO: Make generic over element type.
+fn pad_mipmap_rgba<T>(
     width: usize,
     height: usize,
     depth: usize,
     new_width: usize,
     new_height: usize,
     new_depth: usize,
-    data: &[u8],
-) -> Vec<u8> {
+    data: &[T],
+) -> Vec<T>
+where
+    T: Default + Copy,
+{
+    // TODO: replace magic numbers with constants.
     let new_size = new_width * new_height * new_depth * 4;
 
     if data.len() < new_size {
         // Zero pad the data to the appropriate size.
-        let mut padded_data = vec![0u8; new_size];
+        let mut padded_data = vec![T::default(); new_size];
         // Copy the original data row by row.
         for z in 0..depth {
             for y in 0..height {
@@ -272,6 +360,91 @@ fn encode_rgba8(
         F::R32G32B32A32Float => rgbaf32_from_rgba8(width, height, depth, data),
         F::B8G8R8A8Unorm => bgra8_from_rgba8(width, height, depth, data),
         F::B8G8R8A8Srgb => bgra8_from_rgba8(width, height, depth, data),
+    }
+}
+
+// TODO: Tests for this?
+// TODO: reduce repeated code with u8 implementation.
+impl<T: AsRef<[f32]>> SurfaceRgba32Float<T> {
+    // TODO: Add documentation showing how to use this.
+    /// Encode an RGBAF32 surface to the given `format`.
+    ///
+    /// The number of mipmaps generated depends on the `mipmaps` parameter.
+    pub fn encode(
+        &self,
+        format: ImageFormat,
+        quality: Quality,
+        mipmaps: Mipmaps,
+    ) -> Result<Surface<Vec<u8>>, SurfaceError> {
+        self.validate()?;
+
+        // TODO: Encode the correct number of array layers.
+        let num_mipmaps = match mipmaps {
+            Mipmaps::Disabled => 1,
+            Mipmaps::FromSurface => self.mipmaps,
+            Mipmaps::GeneratedExact(count) => count,
+            Mipmaps::GeneratedAutomatic => {
+                max_mipmap_count(self.width.max(self.height).max(self.depth))
+            }
+        };
+
+        let use_surface = mipmaps == Mipmaps::FromSurface;
+
+        // TODO: Does this work if the base mip level is smaller than 4x4?
+        let mut surface_data = Vec::new();
+
+        for layer in 0..self.layers {
+            encode_mipmaps_rgbaf32(
+                &mut surface_data,
+                self,
+                format,
+                quality,
+                num_mipmaps,
+                use_surface,
+                layer,
+            )?;
+        }
+
+        Ok(Surface {
+            width: self.width,
+            height: self.height,
+            depth: self.depth,
+            layers: self.layers,
+            mipmaps: num_mipmaps,
+            image_format: format,
+            data: surface_data,
+        })
+    }
+}
+
+fn encode_rgbaf32(
+    width: u32,
+    height: u32,
+    depth: u32,
+    data: &[f32],
+    format: ImageFormat,
+    quality: Quality,
+) -> Result<Vec<u8>, SurfaceError> {
+    // Unorm and srgb only affect how the data is read.
+    // Use the same conversion code for both.
+    use ImageFormat as F;
+    match format {
+        F::BC6Ufloat | F::BC6Sfloat => {
+            bcn_from_rgba::<Bc6, f32>(width, height, depth, data, quality)
+        }
+        F::R16G16B16A16Float => {
+            // TODO: Create conversion functions that don't require a cast?
+            rgbaf16_from_rgbaf32(width, height, depth, bytemuck::cast_slice(data))
+                .map(bytemuck::cast_vec)
+        }
+        F::R32G32B32A32Float => {
+            rgbaf32_from_rgbaf32(width, height, depth, bytemuck::cast_slice(data))
+                .map(bytemuck::cast_vec)
+        }
+        _ => {
+            let rgba8: Vec<_> = data.iter().map(|f| (f * 255.0) as u8).collect();
+            encode_rgba8(width, height, depth, &rgba8, format, quality)
+        }
     }
 }
 
@@ -436,7 +609,7 @@ mod tests {
     fn pad_1x1_to_2x2() {
         assert_eq!(
             vec![1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            pad_mipmap_rgba8(1, 1, 1, 2, 2, 1, &[1, 2, 3, 4])
+            pad_mipmap_rgba(1, 1, 1, 2, 2, 1, &[1, 2, 3, 4])
         );
     }
 
@@ -447,7 +620,7 @@ mod tests {
                 1, 2, 3, 4, 5, 6, 7, 8, 0, 0, 0, 0, 9, 10, 11, 12, 13, 14, 15, 16, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ],
-            pad_mipmap_rgba8(
+            pad_mipmap_rgba(
                 2,
                 2,
                 1,
