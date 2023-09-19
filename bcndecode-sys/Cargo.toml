@@ -2,7 +2,7 @@
 name = "bcndecode-sys"
 version = "0.1.0"
 authors = ["ScanMountGoat <>"]
-description = "Rust bindings to bcndecode"
+description = "Rust bindings to bcdec"
 license = "MIT"
 documentation = "https://docs.rs/bcndecode-sys"
 repository = "https://github.com/ScanMountGoat/image_dds"
