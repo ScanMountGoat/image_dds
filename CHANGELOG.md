@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added optional serde support for enums and surfaces.
 * Added optional strum support for enums.
 * Added encode/decode support for the `R16G16B16A16Float` format.
+* Added support for HDR floating point images like EXR.
 
 ### Changed
 * Relaxed validation and implemented padding to allow encoding BCN surfaces with non integral dimensions in blocks.
