@@ -7,9 +7,13 @@ A library for converting uncompressed image data to and from compressed formats.
 ## Examples
 The provided example projects demonstrate basic usage of the conversion functions. 
 The library also provides functions for working directly with the raw bytes of a surface instead of a dds or image file.
+Floating point data like EXR files or BC6 DDS files is also supported.  
 
 `cargo run --release --example img2dds image.png out.dds BC3Unorm`  
 `cargo run --release --example dds2img out.dds out.tiff`  
+
+`cargo run --release --example img2ddsf32 image.exr out.dds`  
+`cargo run --release --example dds2imgf32 out.dds out.exr`  
 
 ## Supported Formats
 The only compressed formats supported at this time are BCN formats since these are the formats commonly used by DDS files and compressed GPU textures. This library does not support other compressed formats used for GPU textures like ETC1. Compression is handled using [intel-tex-rs-2](https://github.com/Traverse-Research/intel-tex-rs-2) for bindings to Intel's ISPC texture compressor in C++. Decompression is handled using bindings to the [bcdec](https://github.com/iOrange/bcdec) library in C.

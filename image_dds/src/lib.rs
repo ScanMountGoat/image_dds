@@ -22,7 +22,7 @@
 //!
 //! # Usage
 //! The main conversion functions [image_from_dds] and [dds_from_image] convert between [ddsfile] and [image].
-//! For working with floating point images like HDR or EXR files, use [imagef32_from_dds] and [dds_from_imagef32].
+//! For working with floating point images like EXR files, use [imagef32_from_dds] and [dds_from_imagef32].
 //!
 //! These functions are wrappers over conversion methods for [Surface], [SurfaceRgba8], and [SurfaceRgba32Float].
 //! These methods are ideal for internal conversions in libraries
