@@ -1,7 +1,10 @@
 use ddsfile::{D3DFormat, Dds, DxgiFormat, FourCC};
 use thiserror::Error;
 
-use crate::{CreateImageError, ImageFormat, Mipmaps, Quality, Surface, SurfaceError, SurfaceRgba8};
+use crate::{
+    CreateImageError, ImageFormat, Mipmaps, Quality, Surface, SurfaceError, SurfaceRgba32Float,
+    SurfaceRgba8,
+};
 
 #[derive(Debug, Error)]
 pub enum CreateDdsError {
@@ -30,12 +33,38 @@ pub fn dds_from_image(
         .to_dds()
 }
 
+#[cfg(feature = "encode")]
+/// Encode `image` to a DDS file with the given `format`.
+///
+/// The number of mipmaps generated depends on the `mipmaps` parameter.
+#[cfg(feature = "image")]
+pub fn dds_from_imagef32(
+    image: &image::Rgba32FImage,
+    format: ImageFormat,
+    quality: Quality,
+    mipmaps: Mipmaps,
+) -> Result<Dds, CreateDdsError> {
+    // Assume all images are 2D for now.
+    // TODO: 3d and cube map support in separate functions?
+    SurfaceRgba32Float::from_image(image)
+        .encode(format, quality, mipmaps)?
+        .to_dds()
+}
+
 #[cfg(feature = "decode")]
 #[cfg(feature = "image")]
 /// Decode the given mip level from `dds` to an RGBA8 image.
 /// Array layers are arranged vertically from top to bottom.
 pub fn image_from_dds(dds: &Dds, mipmap: u32) -> Result<image::RgbaImage, CreateImageError> {
     SurfaceRgba8::decode_dds(dds)?.to_image(mipmap)
+}
+
+#[cfg(feature = "decode")]
+#[cfg(feature = "image")]
+/// Decode the given mip level from `dds` to an RGBAF32 image.
+/// Array layers are arranged vertically from top to bottom.
+pub fn imagef32_from_dds(dds: &Dds, mipmap: u32) -> Result<image::Rgba32FImage, CreateImageError> {
+    SurfaceRgba32Float::decode_dds(dds)?.to_image(mipmap)
 }
 
 impl<T: AsRef<[u8]>> Surface<T> {
@@ -110,6 +139,14 @@ impl SurfaceRgba8<Vec<u8>> {
     /// Decode all layers and mipmaps from `dds` to an RGBA8 surface.
     pub fn decode_dds(dds: &Dds) -> Result<SurfaceRgba8<Vec<u8>>, SurfaceError> {
         Surface::from_dds(dds)?.decode_rgba8()
+    }
+}
+
+#[cfg(feature = "decode")]
+impl SurfaceRgba32Float<Vec<f32>> {
+    /// Decode all layers and mipmaps from `dds` to an RGBA8 surface.
+    pub fn decode_dds(dds: &Dds) -> Result<SurfaceRgba32Float<Vec<f32>>, SurfaceError> {
+        Surface::from_dds(dds)?.decode_rgbaf32()
     }
 }
 

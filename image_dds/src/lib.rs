@@ -22,10 +22,11 @@
 //!
 //! # Usage
 //! The main conversion functions [image_from_dds] and [dds_from_image] convert between [ddsfile] and [image].
+//! For working with floating point images like HDR or EXR files, use [imagef32_from_dds] and [dds_from_imagef32].
 //!
-//! These functions are wrappers over conversion methods for the [Surface] and [SurfaceRgba8] types.
-//! These lower level functions are ideal for internal conversions in libraries
-//! or applications that want to skip intermediate formats like DDS.
+//! These functions are wrappers over conversion methods for [Surface], [SurfaceRgba8], and [SurfaceRgba32Float].
+//! These methods are ideal for internal conversions in libraries
+//! or applications that want to use [Surface] instead of DDS as an intermediate format.
 // TODO: example code
 //!
 //! # Features
@@ -40,10 +41,8 @@
 //! This format is very rarely used in practice.
 //! Not all targets will compile by default due to intel-tex-rs-2 using the Intel ISPC compiler.
 //! Precompiled kernels aren't available for all targets but can be compiled from source if needed.
-//! 3D textures as well as cube map and array layers are not supported but will be added in a future update.
-//! Creating DDS files with custom mipmaps or extracting mipmap data is not yet supported.
-//! Supporting for floating point data will also be added in a future update.
-//! This mostly impacts BC6H compression since it encodes half precision floating point data.
+//! Support for creating 3D textures as well as cube map and array layers from images will be added in a future update.
+//! Creating DDS files with custom mipmaps is not yet supported.
 
 mod bcn;
 mod rgba;
