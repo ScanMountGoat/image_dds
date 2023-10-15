@@ -230,7 +230,7 @@ impl<T: AsRef<[f32]>> SurfaceRgba32Float<T> {
     pub fn get(&self, layer: u32, mipmap: u32) -> Option<&[f32]> {
         // TODO: Is it safe to cast like this?
         get_mipmap(
-            bytemuck::cast_slice(self.data.as_ref()),
+            self.data.as_ref(),
             (self.width, self.height, self.depth),
             self.mipmaps,
             ImageFormat::R32G32B32A32Float,
@@ -299,22 +299,21 @@ impl SurfaceRgba32Float<Vec<f32>> {
 }
 
 // TODO: Add tests for this.
-// TODO: make this generic over the element type?
-fn get_mipmap(
-    data: &[u8],
+fn get_mipmap<T>(
+    data: &[T],
     dimensions: (u32, u32, u32),
     mipmaps: u32,
     format: ImageFormat,
     layer: u32,
     mipmap: u32,
-) -> Option<&[u8]> {
+) -> Option<&[T]> {
     let (width, height, depth) = dimensions;
 
     let block_size_in_bytes = format.block_size_in_bytes();
     let block_dimensions = format.block_dimensions();
 
     // TODO: Create an error for failed offset calculations?
-    let offset = calculate_offset(
+    let offset_in_bytes = calculate_offset(
         layer,
         mipmap,
         (width, height, depth),
@@ -328,7 +327,7 @@ fn get_mipmap(
     let mip_depth = mip_dimension(depth, mipmap);
 
     // TODO: Create an error for overflow?
-    let size = mip_size(
+    let size_in_bytes = mip_size(
         mip_width as usize,
         mip_height as usize,
         mip_depth as usize,
@@ -338,5 +337,7 @@ fn get_mipmap(
         block_size_in_bytes,
     )?;
 
-    data.get(offset..offset + size)
+    let start = offset_in_bytes / std::mem::size_of::<T>();
+    let count = size_in_bytes / std::mem::size_of::<T>();
+    data.get(start..start + count)
 }

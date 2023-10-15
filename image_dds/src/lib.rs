@@ -27,7 +27,6 @@
 //! These functions are wrappers over conversion methods for [Surface], [SurfaceRgba8], and [SurfaceRgba32Float].
 //! These methods are ideal for internal conversions in libraries
 //! or applications that want to use [Surface] instead of DDS as an intermediate format.
-// TODO: example code
 //!
 //! # Features
 //! Despite the name, neither the `ddsfile` nor `image` crates are required

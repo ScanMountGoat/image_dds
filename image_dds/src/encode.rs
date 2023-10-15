@@ -210,6 +210,7 @@ impl MipData<f32> {
     }
 }
 
+// TODO: make this generic?
 fn get_mipmap_data<T: AsRef<[u8]>>(
     surface: &SurfaceRgba8<T>,
     layer: u32,
@@ -309,8 +310,8 @@ fn pad_mipmap_rgba<T>(
 where
     T: Default + Copy,
 {
-    // TODO: replace magic numbers with constants.
-    let new_size = new_width * new_height * new_depth * 4;
+    let channels = 4;
+    let new_size = new_width * new_height * new_depth * channels;
 
     if data.len() < new_size {
         // Zero pad the data to the appropriate size.
@@ -319,10 +320,10 @@ where
         for z in 0..depth {
             for y in 0..height {
                 // Assume padded dimensions are larger than the dimensions.
-                let in_base = ((z * width * height) + y * width) * 4;
-                let out_base = ((z * new_width * new_height) + y * new_width) * 4;
-                padded_data[out_base..out_base + width * 4]
-                    .copy_from_slice(&data[in_base..in_base + width * 4]);
+                let in_base = ((z * width * height) + y * width) * channels;
+                let out_base = ((z * new_width * new_height) + y * new_width) * channels;
+                padded_data[out_base..out_base + width * channels]
+                    .copy_from_slice(&data[in_base..in_base + width * channels]);
             }
         }
 
@@ -366,7 +367,6 @@ fn encode_rgba8(
 // TODO: Tests for this?
 // TODO: reduce repeated code with u8 implementation.
 impl<T: AsRef<[f32]>> SurfaceRgba32Float<T> {
-    // TODO: Add documentation showing how to use this.
     /// Encode an RGBAF32 surface to the given `format`.
     ///
     /// The number of mipmaps generated depends on the `mipmaps` parameter.
