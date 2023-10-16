@@ -28,7 +28,7 @@ The only compressed formats supported at this time are BCN formats since these a
 | BC6 | ✔️ | ✔️ |
 | BC7 | ✔️ | ✔️ |
 
-Some uncompressed formats are also supported. These formats are supported by DDS but are rarely used with DDS files in practice. Uncompressed formats are often used for small textures or textures used for window surfaces and UI elements. Like compressed formats, uncompressed formats can be encoded and decoded to and from RGBA8.
+Some uncompressed formats are also supported. These formats are supported by DDS but are rarely used with DDS files in practice. Uncompressed formats are often used for small textures or textures used for window surfaces and UI elements.
 
 | Format | Encode | Decode |
 | --- | --- | --- |
