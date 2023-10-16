@@ -315,7 +315,6 @@ fn physical_dimensions(
     )
 }
 
-// TODO: Make generic over element type.
 fn pad_mipmap_rgba<T>(
     width: usize,
     height: usize,
@@ -444,7 +443,6 @@ impl Encode for f32 {
 mod tests {
     use super::*;
 
-    // TODO: Also test SurfaceRgba32Float
     #[test]
     fn encode_surface_integral_dimensions() {
         // It's ok for mipmaps to not be divisible by the block width.
@@ -582,6 +580,159 @@ mod tests {
             layers: 1,
             mipmaps: 1,
             data: &[0u8; 0],
+        }
+        .encode(
+            ImageFormat::BC7Srgb,
+            Quality::Fast,
+            Mipmaps::GeneratedAutomatic,
+        );
+        assert!(matches!(
+            result,
+            Err(SurfaceError::ZeroSizedSurface {
+                width: 0,
+                height: 0,
+                depth: 0,
+            })
+        ));
+    }
+
+    #[test]
+    fn encode_surface_float32_integral_dimensions() {
+        // It's ok for mipmaps to not be divisible by the block width.
+        let surface = SurfaceRgba32Float {
+            width: 12,
+            height: 12,
+            depth: 1,
+            layers: 1,
+            mipmaps: 1,
+            data: &[0.0; 12 * 12 * 4],
+        }
+        .encode(
+            ImageFormat::BC7Srgb,
+            Quality::Fast,
+            Mipmaps::GeneratedAutomatic,
+        )
+        .unwrap();
+
+        assert_eq!(12, surface.width);
+        assert_eq!(12, surface.height);
+        assert_eq!(1, surface.depth);
+        assert_eq!(1, surface.layers);
+        assert_eq!(4, surface.mipmaps);
+        assert_eq!(ImageFormat::BC7Srgb, surface.image_format);
+        // Each mipmap must be at least 1 block in size.
+        assert_eq!((9 + 4 + 1 + 1) * 16, surface.data.len());
+    }
+
+    #[test]
+    fn encode_surface_float32_cube_mipmaps() {
+        // It's ok for mipmaps to not be divisible by the block width.
+        let surface = SurfaceRgba32Float {
+            width: 4,
+            height: 4,
+            depth: 1,
+            layers: 6,
+            mipmaps: 3,
+            data: &[0.0; (4 * 4 + 2 * 2 + 1 * 1) * 6 * 4],
+        }
+        .encode(
+            ImageFormat::BC7Srgb,
+            Quality::Fast,
+            Mipmaps::GeneratedAutomatic,
+        )
+        .unwrap();
+
+        assert_eq!(4, surface.width);
+        assert_eq!(4, surface.height);
+        assert_eq!(1, surface.depth);
+        assert_eq!(6, surface.layers);
+        assert_eq!(3, surface.mipmaps);
+        assert_eq!(ImageFormat::BC7Srgb, surface.image_format);
+        // Each mipmap must be at least 1 block in size.
+        assert_eq!(3 * 16 * 6, surface.data.len());
+    }
+
+    #[test]
+    fn encode_surface_float32_disabled_mipmaps() {
+        let surface = SurfaceRgba32Float {
+            width: 4,
+            height: 4,
+            depth: 1,
+            layers: 1,
+            mipmaps: 3,
+            data: &[0.0; 64 + 16 + 4],
+        }
+        .encode(ImageFormat::BC7Srgb, Quality::Fast, Mipmaps::Disabled)
+        .unwrap();
+
+        assert_eq!(4, surface.width);
+        assert_eq!(4, surface.height);
+        assert_eq!(1, surface.depth);
+        assert_eq!(1, surface.layers);
+        assert_eq!(1, surface.mipmaps);
+        assert_eq!(ImageFormat::BC7Srgb, surface.image_format);
+        assert_eq!(16, surface.data.len());
+    }
+
+    #[test]
+    fn encode_surface_float32_mipmaps_from_surface() {
+        let surface = SurfaceRgba32Float {
+            width: 4,
+            height: 4,
+            depth: 1,
+            layers: 1,
+            mipmaps: 2,
+            data: &[0.0; 64 + 16],
+        }
+        .encode(ImageFormat::BC7Srgb, Quality::Fast, Mipmaps::FromSurface)
+        .unwrap();
+
+        assert_eq!(4, surface.width);
+        assert_eq!(4, surface.height);
+        assert_eq!(1, surface.depth);
+        assert_eq!(1, surface.layers);
+        assert_eq!(2, surface.mipmaps);
+        assert_eq!(ImageFormat::BC7Srgb, surface.image_format);
+        assert_eq!(16 * 2, surface.data.len());
+    }
+
+    #[test]
+    fn encode_surface_float32_non_integral_dimensions() {
+        // This should succeed with appropriate padding.
+        let surface = SurfaceRgba32Float {
+            width: 3,
+            height: 5,
+            depth: 1,
+            layers: 1,
+            mipmaps: 1,
+            data: &[0.0; 256],
+        }
+        .encode(
+            ImageFormat::BC7Srgb,
+            Quality::Fast,
+            Mipmaps::GeneratedAutomatic,
+        )
+        .unwrap();
+
+        assert_eq!(3, surface.width);
+        assert_eq!(5, surface.height);
+        assert_eq!(1, surface.depth);
+        assert_eq!(1, surface.layers);
+        assert_eq!(3, surface.mipmaps);
+        assert_eq!(ImageFormat::BC7Srgb, surface.image_format);
+        // Each mipmap must have an integral size in blocks.
+        assert_eq!((2 + 2) * 16, surface.data.len());
+    }
+
+    #[test]
+    fn encode_surface_float32_zero_size() {
+        let result = SurfaceRgba32Float {
+            width: 0,
+            height: 0,
+            depth: 0,
+            layers: 1,
+            mipmaps: 1,
+            data: &[0.0; 0],
         }
         .encode(
             ImageFormat::BC7Srgb,

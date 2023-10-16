@@ -15,7 +15,7 @@ impl<T: AsRef<[u8]>> Surface<T> {
     pub fn decode_rgba8(&self) -> Result<SurfaceRgba8<Vec<u8>>, SurfaceError> {
         self.validate()?;
 
-        let data = decode_surface(&self)?;
+        let data = decode_surface(self)?;
 
         Ok(SurfaceRgba8 {
             width: self.width,
@@ -33,7 +33,7 @@ impl<T: AsRef<[u8]>> Surface<T> {
     pub fn decode_rgbaf32(&self) -> Result<SurfaceRgba32Float<Vec<f32>>, SurfaceError> {
         self.validate()?;
 
-        let data = decode_surface(&self)?;
+        let data = decode_surface(self)?;
 
         Ok(SurfaceRgba32Float {
             width: self.width,
