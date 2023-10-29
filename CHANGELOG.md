@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added optional strum support for enums.
 * Added encode/decode support for the `R16G16B16A16Float` format.
 * Added support for HDR floating point images like EXR.
+* Added support for creating a 3D surface from a vertically stacked image.
+* Added support for creating a cube map surface from a vertically stacked image.
 
 ### Changed
 * Relaxed validation and implemented padding to allow encoding BCN surfaces with non integral dimensions in blocks.
