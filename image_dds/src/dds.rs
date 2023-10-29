@@ -16,10 +16,10 @@ pub enum CreateDdsError {
 }
 
 #[cfg(feature = "encode")]
-/// Encode `image` to a DDS file with the given `format`.
+#[cfg(feature = "image")]
+/// Encode `image` to a 2D DDS file with the given `format`.
 ///
 /// The number of mipmaps generated depends on the `mipmaps` parameter.
-#[cfg(feature = "image")]
 pub fn dds_from_image(
     image: &image::RgbaImage,
     format: ImageFormat,
@@ -27,17 +27,16 @@ pub fn dds_from_image(
     mipmaps: Mipmaps,
 ) -> Result<Dds, CreateDdsError> {
     // Assume all images are 2D for now.
-    // TODO: 3d and cube map support in separate functions?
     SurfaceRgba8::from_image(image)
         .encode(format, quality, mipmaps)?
         .to_dds()
 }
 
 #[cfg(feature = "encode")]
-/// Encode `image` to a DDS file with the given `format`.
+#[cfg(feature = "image")]
+/// Encode `image` to a 2D DDS file with the given `format`.
 ///
 /// The number of mipmaps generated depends on the `mipmaps` parameter.
-#[cfg(feature = "image")]
 pub fn dds_from_imagef32(
     image: &image::Rgba32FImage,
     format: ImageFormat,
@@ -45,7 +44,6 @@ pub fn dds_from_imagef32(
     mipmaps: Mipmaps,
 ) -> Result<Dds, CreateDdsError> {
     // Assume all images are 2D for now.
-    // TODO: 3d and cube map support in separate functions?
     SurfaceRgba32Float::from_image(image)
         .encode(format, quality, mipmaps)?
         .to_dds()

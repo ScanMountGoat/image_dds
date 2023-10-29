@@ -28,6 +28,9 @@
 //! These methods are ideal for internal conversions in libraries
 //! or applications that want to use [Surface] instead of DDS as an intermediate format.
 //!
+//! Surfaces may use owned or borrowed data depending on whether the operation is lossless or not.
+//! A [SurfaceRgba8] can represent a view over an [image::RgbaImage] without any copies, for example.
+//!
 //! # Features
 //! Despite the name, neither the `ddsfile` nor `image` crates are required
 //! and can be disabled in the Cargo.toml by setting `default-features = false`.
@@ -303,6 +306,7 @@ fn round_up(x: usize, n: usize) -> usize {
 
 fn calculate_offset(
     layer: u32,
+    depth_level: u32,
     mipmap: u32,
     dimensions: (u32, u32, u32),
     block_dimensions: (u32, u32, u32),
@@ -332,6 +336,19 @@ fn calculate_offset(
         })
         .collect::<Option<Vec<_>>>()?;
 
+    // Each depth level adds another rounded 2D slice.
+    let mip_width = mip_dimension(width, mipmap) as usize;
+    let mip_height = mip_dimension(height, mipmap) as usize;
+    let mip_size2d = mip_size(
+        mip_width,
+        mip_height,
+        1,
+        block_width as usize,
+        block_height as usize,
+        block_depth as usize,
+        block_size_in_bytes,
+    )?;
+
     // Assume mipmaps are tightly packed.
     // This is the case for DDS surface data.
     let layer_size: usize = mip_sizes.iter().sum();
@@ -339,7 +356,8 @@ fn calculate_offset(
     // Each layer should have the same number of mipmaps.
     let layer_offset = layer as usize * layer_size;
     let mip_offset: usize = mip_sizes.get(0..mipmap as usize)?.iter().sum();
-    Some(layer_offset + mip_offset)
+    let depth_offset = mip_size2d * depth_level as usize;
+    Some(layer_offset + mip_offset + depth_offset)
 }
 
 fn mip_size(
@@ -476,7 +494,7 @@ mod tests {
     fn calculate_offset_layer0_mip0() {
         assert_eq!(
             0,
-            calculate_offset(0, 0, (8, 8, 8), (4, 4, 4), 16, 4).unwrap()
+            calculate_offset(0, 0, 0, (8, 8, 8), (4, 4, 4), 16, 4).unwrap()
         );
     }
 
@@ -485,7 +503,7 @@ mod tests {
         // The sum of the first 2 mipmaps.
         assert_eq!(
             128 + 16,
-            calculate_offset(0, 2, (8, 8, 8), (4, 4, 4), 16, 4).unwrap()
+            calculate_offset(0, 0, 2, (8, 8, 8), (4, 4, 4), 16, 4).unwrap()
         );
     }
 
@@ -495,7 +513,7 @@ mod tests {
         // Each mipmap must have at least a full block of data.
         assert_eq!(
             (128 + 16 + 16 + 16) * 2,
-            calculate_offset(2, 0, (8, 8, 8), (4, 4, 4), 16, 4).unwrap()
+            calculate_offset(2, 0, 0, (8, 8, 8), (4, 4, 4), 16, 4).unwrap()
         );
     }
 
@@ -505,7 +523,25 @@ mod tests {
         // Each mipmap must have at least a full block of data.
         assert_eq!(
             (128 + 16 + 16 + 16) * 2 + 128 + 16,
-            calculate_offset(2, 2, (8, 8, 8), (4, 4, 4), 16, 4).unwrap()
+            calculate_offset(2, 0, 2, (8, 8, 8), (4, 4, 4), 16, 4).unwrap()
+        );
+    }
+
+    #[test]
+    fn calculate_offset_level2() {
+        // Each 2D level is rounded up to 16x16 pixels.
+        assert_eq!(
+            16 * 16 * 2,
+            calculate_offset(0, 2, 0, (15, 15, 15), (4, 4, 4), 16, 1).unwrap()
+        );
+    }
+
+    #[test]
+    fn calculate_offset_level3() {
+        // Each 2D level is 16x16 pixels.
+        assert_eq!(
+            16 * 16 * 3 * 4,
+            calculate_offset(0, 3, 0, (16, 16, 16), (1, 1, 1), 4, 1).unwrap()
         );
     }
 }

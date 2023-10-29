@@ -32,17 +32,18 @@ pub struct Surface<T> {
 }
 
 impl<T: AsRef<[u8]>> Surface<T> {
-    /// Get the range of image data corresponding to the specified `layer` and `mipmap`.
+    /// Get the range of image data corresponding to the specified `layer`, `depth_level`, and `mipmap`.
     ///
     /// The dimensions of the returned data should be calculated using [mip_dimension].
     /// Returns [None] if the expected range is not fully contained within the buffer.
-    pub fn get(&self, layer: u32, mipmap: u32) -> Option<&[u8]> {
+    pub fn get(&self, layer: u32, depth_level: u32, mipmap: u32) -> Option<&[u8]> {
         get_mipmap(
             self.data.as_ref(),
             (self.width, self.height, self.depth),
             self.mipmaps,
             self.image_format,
             layer,
+            depth_level,
             mipmap,
         )
     }
@@ -123,17 +124,18 @@ pub struct SurfaceRgba8<T> {
 }
 
 impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
-    /// Get the range of image data corresponding to the specified `layer` and `mipmap`.
+    /// Get the range of 2D image data corresponding to the specified `layer`, `depth_level`, and `mipmap`.
     ///
     /// The dimensions of the returned data should be calculated using [mip_dimension].
     /// Returns [None] if the expected range is not fully contained within the buffer.
-    pub fn get(&self, layer: u32, mipmap: u32) -> Option<&[u8]> {
+    pub fn get(&self, layer: u32, depth_level: u32, mipmap: u32) -> Option<&[u8]> {
         get_mipmap(
             self.data.as_ref(),
             (self.width, self.height, self.depth),
             self.mipmaps,
             ImageFormat::R8G8B8A8Unorm,
             layer,
+            depth_level,
             mipmap,
         )
     }
@@ -165,26 +167,57 @@ impl<'a> SurfaceRgba8<&'a [u8]> {
             data: image.as_raw(),
         }
     }
+
+    /// Create a 2D view with layers over the data in `image` without any copies.
+    ///
+    /// Array layers should be stacked vertically in `image` with an overall height `height*layers`.
+    pub fn from_image_layers(image: &'a image::RgbaImage, layers: u32) -> Self {
+        SurfaceRgba8 {
+            width: image.width(),
+            height: image.height() / layers,
+            depth: 1,
+            layers,
+            mipmaps: 1,
+            data: image.as_raw(),
+        }
+    }
+
+    /// Create a 3D view over the data in `image` without any copies.
+    ///
+    /// Depth slices should be stacked vertically in `image` with an overall height `height*depth`.
+    pub fn from_image_depth(image: &'a image::RgbaImage, depth: u32) -> Self {
+        SurfaceRgba8 {
+            width: image.width(),
+            height: image.height() / depth,
+            depth,
+            layers: 1,
+            mipmaps: 1,
+            data: image.as_raw(),
+        }
+    }
 }
 
 #[cfg(feature = "image")]
 impl SurfaceRgba8<Vec<u8>> {
-    // TODO: Allow configuring the output like cross, horizontal, etc?
     /// Create an image for all layers and depth slices for the given `mipmap`.
     ///
-    /// Array layers are arranged vertically from top to bottom.
+    /// Array layers and depth slices are arranged vertically from top to bottom.
     pub fn to_image(&self, mipmap: u32) -> Result<image::RgbaImage, CreateImageError> {
         // Mipmaps have different dimensions.
         // A single 2D image can only represent data from a single mip level across layers.
         let image_data: Vec<_> = (0..self.layers)
-            .flat_map(|layer| self.get(layer, mipmap).unwrap())
+            .flat_map(|layer| {
+                (0..self.depth).flat_map(move |level| self.get(layer, level, mipmap).unwrap())
+            })
             .copied()
             .collect();
         let data_length = image_data.len();
 
-        // Arrange depth slices horizontally and array layers vertically.
-        let width = mip_dimension(self.width, mipmap) * mip_dimension(self.depth, mipmap);
-        let height = mip_dimension(self.height, mipmap) * self.layers;
+        // Arrange depth and array layers vertically.
+        // This layout allows copyless conversions to an RGBA8 surface.
+        let width = mip_dimension(self.width, mipmap);
+        let height =
+            mip_dimension(self.height, mipmap) * mip_dimension(self.depth, mipmap) * self.layers;
 
         image::RgbaImage::from_raw(width, height, image_data).ok_or(
             crate::CreateImageError::InvalidSurfaceDimensions {
@@ -223,11 +256,11 @@ pub struct SurfaceRgba32Float<T> {
 }
 
 impl<T: AsRef<[f32]>> SurfaceRgba32Float<T> {
-    /// Get the range of image data corresponding to the specified `layer` and `mipmap`.
+    /// Get the range of 2D image data corresponding to the specified `layer`, `depth_level`, and `mipmap`.
     ///
     /// The dimensions of the returned data should be calculated using [mip_dimension].
     /// Returns [None] if the expected range is not fully contained within the buffer.
-    pub fn get(&self, layer: u32, mipmap: u32) -> Option<&[f32]> {
+    pub fn get(&self, layer: u32, depth_level: u32, mipmap: u32) -> Option<&[f32]> {
         // TODO: Is it safe to cast like this?
         get_mipmap(
             self.data.as_ref(),
@@ -235,6 +268,7 @@ impl<T: AsRef<[f32]>> SurfaceRgba32Float<T> {
             self.mipmaps,
             ImageFormat::R32G32B32A32Float,
             layer,
+            depth_level,
             mipmap,
         )
         .map(bytemuck::cast_slice)
@@ -267,6 +301,34 @@ impl<'a> SurfaceRgba32Float<&'a [f32]> {
             data: image.as_raw(),
         }
     }
+
+    /// Create a 2D view with layers over the data in `image` without any copies.
+    ///
+    /// Array layers should be stacked vertically in `image` with an overall height `height*layers`.
+    pub fn from_image_layers(image: &'a image::Rgba32FImage, layers: u32) -> Self {
+        SurfaceRgba32Float {
+            width: image.width(),
+            height: image.height() / layers,
+            depth: 1,
+            layers,
+            mipmaps: 1,
+            data: image.as_raw(),
+        }
+    }
+
+    /// Create a 3D view over the data in `image` without any copies.
+    ///
+    /// Depth slices should be stacked vertically in `image` with an overall height `height*depth`.
+    pub fn from_image_depth(image: &'a image::Rgba32FImage, depth: u32) -> Self {
+        SurfaceRgba32Float {
+            width: image.width(),
+            height: image.height() / depth,
+            depth,
+            layers: 1,
+            mipmaps: 1,
+            data: image.as_raw(),
+        }
+    }
 }
 
 #[cfg(feature = "image")]
@@ -279,7 +341,9 @@ impl SurfaceRgba32Float<Vec<f32>> {
         // Mipmaps have different dimensions.
         // A single 2D image can only represent data from a single mip level across layers.
         let image_data: Vec<_> = (0..self.layers)
-            .flat_map(|layer| self.get(layer, mipmap).unwrap())
+            .flat_map(|layer| {
+                (0..self.depth).flat_map(move |level| self.get(layer, level, mipmap).unwrap())
+            })
             .copied()
             .collect();
         let data_length = image_data.len();
@@ -305,6 +369,7 @@ fn get_mipmap<T>(
     mipmaps: u32,
     format: ImageFormat,
     layer: u32,
+    depth_level: u32,
     mipmap: u32,
 ) -> Option<&[T]> {
     let (width, height, depth) = dimensions;
@@ -315,6 +380,7 @@ fn get_mipmap<T>(
     // TODO: Create an error for failed offset calculations?
     let offset_in_bytes = calculate_offset(
         layer,
+        depth_level,
         mipmap,
         (width, height, depth),
         block_dimensions,
@@ -322,15 +388,15 @@ fn get_mipmap<T>(
         mipmaps,
     )?;
 
+    // The returned slice is always 2D.
     let mip_width = mip_dimension(width, mipmap);
     let mip_height = mip_dimension(height, mipmap);
-    let mip_depth = mip_dimension(depth, mipmap);
 
     // TODO: Create an error for overflow?
     let size_in_bytes = mip_size(
         mip_width as usize,
         mip_height as usize,
-        mip_depth as usize,
+        1,
         block_dimensions.0 as usize,
         block_dimensions.1 as usize,
         block_dimensions.2 as usize,

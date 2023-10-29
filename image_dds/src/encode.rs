@@ -66,6 +66,7 @@ where
     let mut surface_data = Vec::new();
 
     for layer in 0..surface.layers() {
+        // Encode 2D or 3D data for this layer.
         encode_mipmaps_rgba(
             &mut surface_data,
             surface,
@@ -104,37 +105,33 @@ where
 {
     let block_dimensions = format.block_dimensions();
 
-    // Track the previous image data and dimensions.
-    // This enables generating mipmaps from a single base layer.
-    let mut mip_data = get_mipmap_data(surface, layer, 0, block_dimensions)?;
-
-    let encoded = mip_data.encode(format, quality)?;
-    surface_data.extend_from_slice(&encoded);
-
-    for mipmap in 1..num_mipmaps {
-        mip_data = if use_surface {
-            // TODO: Error if surface does not have the appropriate number of mipmaps?
-            get_mipmap_data(surface, layer, mipmap, block_dimensions)?
-        } else {
-            mip_data.downsample(
-                surface.width(),
-                surface.height(),
-                surface.depth(),
-                block_dimensions,
-                mipmap,
-            )
-        };
+    for level in 0..surface.depth() {
+        // Track the previous image data and dimensions.
+        // This enables generating mipmaps from a single base layer.
+        let mut mip_data = get_mipmap_data(surface, layer, level, 0, block_dimensions)?;
 
         let encoded = mip_data.encode(format, quality)?;
         surface_data.extend_from_slice(&encoded);
+
+        for mipmap in 1..num_mipmaps {
+            mip_data = if use_surface {
+                // TODO: Error if surface does not have the appropriate number of mipmaps?
+                get_mipmap_data(surface, layer, level, mipmap, block_dimensions)?
+            } else {
+                mip_data.downsample(surface.width(), surface.height(), block_dimensions, mipmap)
+            };
+
+            let encoded = mip_data.encode(format, quality)?;
+            surface_data.extend_from_slice(&encoded);
+        }
     }
+
     Ok(())
 }
 
 struct MipData<T> {
     width: usize,
     height: usize,
-    depth: usize,
     data: Vec<T>,
 }
 
@@ -143,7 +140,6 @@ impl<T: Pixel> MipData<T> {
         &self,
         base_width: u32,
         base_height: u32,
-        base_depth: u32,
         block_dimensions: (u32, u32, u32),
         mipmap: u32,
     ) -> MipData<T> {
@@ -152,25 +148,16 @@ impl<T: Pixel> MipData<T> {
         let (width, height, depth) = physical_dimensions(
             mip_dimension(base_width, mipmap),
             mip_dimension(base_height, mipmap),
-            mip_dimension(base_depth, mipmap),
+            1,
             block_dimensions,
         );
 
         // Assume the data is already padded.
-        let data = downsample_rgba(
-            width,
-            height,
-            depth,
-            self.width,
-            self.height,
-            self.depth,
-            &self.data,
-        );
+        let data = downsample_rgba(width, height, depth, self.width, self.height, 1, &self.data);
 
         MipData {
             width,
             height,
-            depth,
             data,
         }
     }
@@ -184,7 +171,6 @@ where
         T::encode(
             self.width as u32,
             self.height as u32,
-            self.depth as u32,
             &self.data,
             format,
             quality,
@@ -198,7 +184,7 @@ trait GetMipmap<P> {
     fn depth(&self) -> u32;
     fn layers(&self) -> u32;
     fn mipmaps(&self) -> u32;
-    fn get(&self, layer: u32, mipmap: u32) -> Option<&[P]>;
+    fn get(&self, layer: u32, depth_level: u32, mipmap: u32) -> Option<&[P]>;
 }
 
 impl<T> GetMipmap<u8> for SurfaceRgba8<T>
@@ -225,8 +211,8 @@ where
         self.mipmaps
     }
 
-    fn get(&self, layer: u32, mipmap: u32) -> Option<&[u8]> {
-        self.get(layer, mipmap)
+    fn get(&self, layer: u32, depth_level: u32, mipmap: u32) -> Option<&[u8]> {
+        self.get(layer, depth_level, mipmap)
     }
 }
 
@@ -254,14 +240,15 @@ where
         self.mipmaps
     }
 
-    fn get(&self, layer: u32, mipmap: u32) -> Option<&[f32]> {
-        self.get(layer, mipmap)
+    fn get(&self, layer: u32, depth_level: u32, mipmap: u32) -> Option<&[f32]> {
+        self.get(layer, depth_level, mipmap)
     }
 }
 
 fn get_mipmap_data<S, P>(
     surface: &S,
     layer: u32,
+    depth_level: u32,
     mipmap: u32,
     block_dimensions: (u32, u32, u32),
 ) -> Result<MipData<P>, SurfaceError>
@@ -271,28 +258,24 @@ where
 {
     let mip_width = mip_dimension(surface.width(), mipmap);
     let mip_height = mip_dimension(surface.height(), mipmap);
-    let mip_depth = mip_dimension(surface.depth(), mipmap);
 
-    let data = surface.get(layer, mipmap).unwrap();
+    let data = surface.get(layer, depth_level, mipmap).unwrap();
 
-    let (width, height, depth) =
-        physical_dimensions(mip_width, mip_height, mip_depth, block_dimensions);
+    let (width, height, _) = physical_dimensions(mip_width, mip_height, 1, block_dimensions);
 
-    // TODO: Just take the block dimensions instead?
     let data = pad_mipmap_rgba(
         mip_width as usize,
         mip_height as usize,
-        mip_depth as usize,
+        1,
         width,
         height,
-        depth,
+        1,
         data,
     );
 
     Ok(MipData {
         width,
         height,
-        depth,
         data,
     })
 }
@@ -350,11 +333,11 @@ where
     }
 }
 
+// Encoding only works on 2D surfaces.
 trait Encode: Sized {
     fn encode(
         width: u32,
         height: u32,
-        depth: u32,
         data: &[Self],
         format: ImageFormat,
         quality: Quality,
@@ -365,7 +348,6 @@ impl Encode for u8 {
     fn encode(
         width: u32,
         height: u32,
-        depth: u32,
         data: &[Self],
         format: ImageFormat,
         quality: Quality,
@@ -374,34 +356,20 @@ impl Encode for u8 {
         // Use the same conversion code for both.
         use ImageFormat as F;
         match format {
-            F::BC1Unorm | F::BC1Srgb => {
-                bcn_from_rgba::<Bc1, u8>(width, height, depth, data, quality)
-            }
-            F::BC2Unorm | F::BC2Srgb => {
-                bcn_from_rgba::<Bc2, u8>(width, height, depth, data, quality)
-            }
-            F::BC3Unorm | F::BC3Srgb => {
-                bcn_from_rgba::<Bc3, u8>(width, height, depth, data, quality)
-            }
-            F::BC4Unorm | F::BC4Snorm => {
-                bcn_from_rgba::<Bc4, u8>(width, height, depth, data, quality)
-            }
-            F::BC5Unorm | F::BC5Snorm => {
-                bcn_from_rgba::<Bc5, u8>(width, height, depth, data, quality)
-            }
-            F::BC6Ufloat | F::BC6Sfloat => {
-                bcn_from_rgba::<Bc6, u8>(width, height, depth, data, quality)
-            }
-            F::BC7Unorm | F::BC7Srgb => {
-                bcn_from_rgba::<Bc7, u8>(width, height, depth, data, quality)
-            }
-            F::R8Unorm => r8_from_rgba8(width, height, depth, data),
-            F::R8G8B8A8Unorm => rgba8_from_rgba8(width, height, depth, data),
-            F::R8G8B8A8Srgb => rgba8_from_rgba8(width, height, depth, data),
-            F::R16G16B16A16Float => rgbaf16_from_rgba8(width, height, depth, data),
-            F::R32G32B32A32Float => rgbaf32_from_rgba8(width, height, depth, data),
-            F::B8G8R8A8Unorm => bgra8_from_rgba8(width, height, depth, data),
-            F::B8G8R8A8Srgb => bgra8_from_rgba8(width, height, depth, data),
+            F::BC1Unorm | F::BC1Srgb => bcn_from_rgba::<Bc1, u8>(width, height, data, quality),
+            F::BC2Unorm | F::BC2Srgb => bcn_from_rgba::<Bc2, u8>(width, height, data, quality),
+            F::BC3Unorm | F::BC3Srgb => bcn_from_rgba::<Bc3, u8>(width, height, data, quality),
+            F::BC4Unorm | F::BC4Snorm => bcn_from_rgba::<Bc4, u8>(width, height, data, quality),
+            F::BC5Unorm | F::BC5Snorm => bcn_from_rgba::<Bc5, u8>(width, height, data, quality),
+            F::BC6Ufloat | F::BC6Sfloat => bcn_from_rgba::<Bc6, u8>(width, height, data, quality),
+            F::BC7Unorm | F::BC7Srgb => bcn_from_rgba::<Bc7, u8>(width, height, data, quality),
+            F::R8Unorm => r8_from_rgba8(width, height, data),
+            F::R8G8B8A8Unorm => rgba8_from_rgba8(width, height, data),
+            F::R8G8B8A8Srgb => rgba8_from_rgba8(width, height, data),
+            F::R16G16B16A16Float => rgbaf16_from_rgba8(width, height, data),
+            F::R32G32B32A32Float => rgbaf32_from_rgba8(width, height, data),
+            F::B8G8R8A8Unorm => bgra8_from_rgba8(width, height, data),
+            F::B8G8R8A8Srgb => bgra8_from_rgba8(width, height, data),
         }
     }
 }
@@ -410,7 +378,6 @@ impl Encode for f32 {
     fn encode(
         width: u32,
         height: u32,
-        depth: u32,
         data: &[Self],
         format: ImageFormat,
         quality: Quality,
@@ -419,21 +386,17 @@ impl Encode for f32 {
         // Use the same conversion code for both.
         use ImageFormat as F;
         match format {
-            F::BC6Ufloat | F::BC6Sfloat => {
-                bcn_from_rgba::<Bc6, f32>(width, height, depth, data, quality)
-            }
+            F::BC6Ufloat | F::BC6Sfloat => bcn_from_rgba::<Bc6, f32>(width, height, data, quality),
             F::R16G16B16A16Float => {
                 // TODO: Create conversion functions that don't require a cast?
-                rgbaf16_from_rgbaf32(width, height, depth, bytemuck::cast_slice(data))
+                rgbaf16_from_rgbaf32(width, height, bytemuck::cast_slice(data))
                     .map(bytemuck::cast_vec)
             }
-            F::R32G32B32A32Float => {
-                rgbaf32_from_rgbaf32(width, height, depth, bytemuck::cast_slice(data))
-                    .map(bytemuck::cast_vec)
-            }
+            F::R32G32B32A32Float => rgbaf32_from_rgbaf32(width, height, bytemuck::cast_slice(data))
+                .map(bytemuck::cast_vec),
             _ => {
                 let rgba8: Vec<_> = data.iter().map(|f| (f * 255.0) as u8).collect();
-                u8::encode(width, height, depth, &rgba8, format, quality)
+                u8::encode(width, height, &rgba8, format, quality)
             }
         }
     }

@@ -222,12 +222,7 @@ impl BcnDecode<[u8; 4]> for Bc7 {
 
 // TODO: Make this generic over the pixel type (f32 or u8).
 /// Decompress the bytes in `data` to the uncompressed RGBA8 format.
-pub fn rgba_from_bcn<F, T>(
-    width: u32,
-    height: u32,
-    depth: u32,
-    data: &[u8],
-) -> Result<Vec<T>, SurfaceError>
+pub fn rgba_from_bcn<F, T>(width: u32, height: u32, data: &[u8]) -> Result<Vec<T>, SurfaceError>
 where
     T: Copy + Default + Pod,
     F: BcnDecode<[T; 4]>,
@@ -237,7 +232,7 @@ where
     let expected_size = mip_size(
         width as usize,
         height as usize,
-        depth as usize,
+        1,
         BLOCK_WIDTH,
         BLOCK_HEIGHT,
         1,
@@ -246,7 +241,7 @@ where
     .ok_or(SurfaceError::PixelCountWouldOverflow {
         width,
         height,
-        depth,
+        depth: 1,
     })?;
 
     // Mipmap dimensions do not need to be multiples of the block dimensions.
@@ -259,34 +254,31 @@ where
         });
     }
 
-    let mut rgba = vec![T::default(); width as usize * height as usize * depth as usize * CHANNELS];
+    let mut rgba = vec![T::default(); width as usize * height as usize as usize * CHANNELS];
 
     // BCN formats lay out blocks in row-major order.
     // TODO: calculate x and y using division and mod?
     // TODO: Add an outer loop for depth?
     let mut block_start = 0;
-    for z in 0..depth {
-        for y in (0..height).step_by(BLOCK_HEIGHT) {
-            for x in (0..width).step_by(BLOCK_WIDTH) {
-                // Use a special type to enforce alignment.
-                let block = F::CompressedBlock::read_block(data, block_start);
-                // TODO: Add rgba8 and rgbaf32 variants for decompress block.
-                let decompressed_block = F::decompress_block(&block);
+    for y in (0..height).step_by(BLOCK_HEIGHT) {
+        for x in (0..width).step_by(BLOCK_WIDTH) {
+            // Use a special type to enforce alignment.
+            let block = F::CompressedBlock::read_block(data, block_start);
+            // TODO: Add rgba8 and rgbaf32 variants for decompress block.
+            let decompressed_block = F::decompress_block(&block);
 
-                // TODO: This can be generic over the pixel type to also support float.
-                // Each block is 4x4, so we need to update multiple rows.
-                put_rgba_block(
-                    &mut rgba,
-                    decompressed_block,
-                    x as usize,
-                    y as usize,
-                    z as usize,
-                    width as usize,
-                    height as usize,
-                );
+            // TODO: This can be generic over the pixel type to also support float.
+            // Each block is 4x4, so we need to update multiple rows.
+            put_rgba_block(
+                &mut rgba,
+                decompressed_block,
+                x as usize,
+                y as usize,
+                width as usize,
+                height as usize,
+            );
 
-                block_start += F::CompressedBlock::SIZE_IN_BYTES;
-            }
+            block_start += F::CompressedBlock::SIZE_IN_BYTES;
         }
     }
 
@@ -298,7 +290,6 @@ fn put_rgba_block<T: Pod>(
     pixels: [[[T; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT],
     x: usize,
     y: usize,
-    z: usize,
     width: usize,
     height: usize,
 ) {
@@ -310,7 +301,7 @@ fn put_rgba_block<T: Pod>(
 
     for (row, row_pixels) in pixels.iter().enumerate().take(BLOCK_HEIGHT.min(height - y)) {
         // Convert pixel coordinates to byte coordinates.
-        let surface_index = ((z * width * height) + (y + row) * width + x) * CHANNELS;
+        let surface_index = ((y + row) * width + x) * CHANNELS;
         // The correct slice length is calculated above.
         // TODO: Is it really faster to use bytemuck?
         surface[surface_index..surface_index + elements_per_row]
@@ -333,7 +324,6 @@ mod tests {
             [[[1u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT],
             0,
             0,
-            0,
             4,
             4,
         );
@@ -350,7 +340,6 @@ mod tests {
             [[[1u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT],
             0,
             0,
-            0,
             5,
             5,
         );
@@ -359,7 +348,6 @@ mod tests {
             [[[2u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT],
             1,
             1,
-            0,
             5,
             5,
         );

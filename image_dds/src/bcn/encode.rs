@@ -204,7 +204,6 @@ impl BcnEncode<u8> for Bc7 {
 pub fn bcn_from_rgba<F, T>(
     width: u32,
     height: u32,
-    depth: u32,
     data: &[T],
     quality: Quality,
 ) -> Result<Vec<u8>, SurfaceError>
@@ -215,7 +214,7 @@ where
     let expected_size = mip_size(
         width as usize,
         height as usize,
-        depth as usize,
+        1,
         BLOCK_WIDTH,
         BLOCK_HEIGHT,
         1,
@@ -224,7 +223,7 @@ where
     .ok_or(SurfaceError::PixelCountWouldOverflow {
         width,
         height,
-        depth,
+        depth: 1,
     })?;
 
     // The surface must be a multiple of the block dimensions for safety.
@@ -251,7 +250,7 @@ mod tests {
     // TODO: Add tests for validating the input length.
     // TODO: Will compression fail for certain pixel values (test with fuzz tests?)
     fn check_compress_bcn<T: BcnEncode<u8>>(rgba: &[u8], quality: Quality) {
-        bcn_from_rgba::<T, u8>(4, 4, 1, &rgba, quality).unwrap();
+        bcn_from_rgba::<T, u8>(4, 4, &rgba, quality).unwrap();
     }
 
     #[test]

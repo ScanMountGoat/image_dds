@@ -53,30 +53,31 @@ where
 {
     let mut combined_surface_data = Vec::new();
     for layer in 0..surface.layers {
-        for mipmap in 0..surface.mipmaps {
-            let data = surface
-                .get(layer, mipmap)
-                .ok_or(SurfaceError::MipmapDataOutOfBounds { layer, mipmap })?;
+        for level in 0..surface.depth {
+            for mipmap in 0..surface.mipmaps {
+                let data = surface
+                    .get(layer, level, mipmap)
+                    .ok_or(SurfaceError::MipmapDataOutOfBounds { layer, mipmap })?;
 
-            // The mipmap index is already validated by get above.
-            let width = mip_dimension(surface.width, mipmap);
-            let height = mip_dimension(surface.height, mipmap);
-            let depth = mip_dimension(surface.depth, mipmap);
+                // The mipmap index is already validated by get above.
+                let width = mip_dimension(surface.width, mipmap);
+                let height = mip_dimension(surface.height, mipmap);
 
-            // TODO: Avoid additional copies?
-            let data = P::decode(width, height, depth, surface.image_format, data)?;
-            combined_surface_data.extend_from_slice(&data);
+                // TODO: Avoid additional copies?
+                let data = P::decode(width, height, surface.image_format, data)?;
+                combined_surface_data.extend_from_slice(&data);
+            }
         }
     }
 
     Ok(combined_surface_data)
 }
 
+// Decoding only works on 2D surfaces.
 trait Decode: Sized {
     fn decode(
         width: u32,
         height: u32,
-        depth: u32,
         image_format: ImageFormat,
         data: &[u8],
     ) -> Result<Vec<Self>, SurfaceError>;
@@ -86,26 +87,25 @@ impl Decode for u8 {
     fn decode(
         width: u32,
         height: u32,
-        depth: u32,
         image_format: ImageFormat,
         data: &[u8],
     ) -> Result<Vec<Self>, SurfaceError> {
         use ImageFormat as F;
         match image_format {
-            F::BC1Unorm | F::BC1Srgb => rgba_from_bcn::<Bc1, u8>(width, height, depth, data),
-            F::BC2Unorm | F::BC2Srgb => rgba_from_bcn::<Bc2, u8>(width, height, depth, data),
-            F::BC3Unorm | F::BC3Srgb => rgba_from_bcn::<Bc3, u8>(width, height, depth, data),
-            F::BC4Unorm | F::BC4Snorm => rgba_from_bcn::<Bc4, u8>(width, height, depth, data),
-            F::BC5Unorm | F::BC5Snorm => rgba_from_bcn::<Bc5, u8>(width, height, depth, data),
-            F::BC6Ufloat | F::BC6Sfloat => rgba_from_bcn::<Bc6, u8>(width, height, depth, data),
-            F::BC7Unorm | F::BC7Srgb => rgba_from_bcn::<Bc7, u8>(width, height, depth, data),
-            F::R8Unorm => rgba8_from_r8(width, height, depth, data),
-            F::R8G8B8A8Unorm => rgba8_from_rgba8(width, height, depth, data),
-            F::R8G8B8A8Srgb => rgba8_from_rgba8(width, height, depth, data),
-            F::R16G16B16A16Float => rgba8_from_rgbaf16(width, height, depth, data),
-            F::R32G32B32A32Float => rgba8_from_rgbaf32(width, height, depth, data),
-            F::B8G8R8A8Unorm => rgba8_from_bgra8(width, height, depth, data),
-            F::B8G8R8A8Srgb => rgba8_from_bgra8(width, height, depth, data),
+            F::BC1Unorm | F::BC1Srgb => rgba_from_bcn::<Bc1, u8>(width, height, data),
+            F::BC2Unorm | F::BC2Srgb => rgba_from_bcn::<Bc2, u8>(width, height, data),
+            F::BC3Unorm | F::BC3Srgb => rgba_from_bcn::<Bc3, u8>(width, height, data),
+            F::BC4Unorm | F::BC4Snorm => rgba_from_bcn::<Bc4, u8>(width, height, data),
+            F::BC5Unorm | F::BC5Snorm => rgba_from_bcn::<Bc5, u8>(width, height, data),
+            F::BC6Ufloat | F::BC6Sfloat => rgba_from_bcn::<Bc6, u8>(width, height, data),
+            F::BC7Unorm | F::BC7Srgb => rgba_from_bcn::<Bc7, u8>(width, height, data),
+            F::R8Unorm => rgba8_from_r8(width, height, data),
+            F::R8G8B8A8Unorm => rgba8_from_rgba8(width, height, data),
+            F::R8G8B8A8Srgb => rgba8_from_rgba8(width, height, data),
+            F::R16G16B16A16Float => rgba8_from_rgbaf16(width, height, data),
+            F::R32G32B32A32Float => rgba8_from_rgbaf32(width, height, data),
+            F::B8G8R8A8Unorm => rgba8_from_bgra8(width, height, data),
+            F::B8G8R8A8Srgb => rgba8_from_bgra8(width, height, data),
         }
     }
 }
@@ -114,18 +114,17 @@ impl Decode for f32 {
     fn decode(
         width: u32,
         height: u32,
-        depth: u32,
         image_format: ImageFormat,
         data: &[u8],
     ) -> Result<Vec<Self>, SurfaceError> {
         use ImageFormat as F;
         match image_format {
-            F::BC6Ufloat | F::BC6Sfloat => rgba_from_bcn::<Bc6, f32>(width, height, depth, data),
-            F::R16G16B16A16Float => rgbaf32_from_rgbaf16(width, height, depth, data),
-            F::R32G32B32A32Float => rgbaf32_from_rgbaf32(width, height, depth, data),
+            F::BC6Ufloat | F::BC6Sfloat => rgba_from_bcn::<Bc6, f32>(width, height, data),
+            F::R16G16B16A16Float => rgbaf32_from_rgbaf16(width, height, data),
+            F::R32G32B32A32Float => rgbaf32_from_rgbaf32(width, height, data),
             _ => {
                 // Use existing decoding for formats that don't store floating point data.
-                let rgba8 = u8::decode(width, height, depth, image_format, data)?;
+                let rgba8 = u8::decode(width, height, image_format, data)?;
                 Ok(rgba8.into_iter().map(|u| u as f32 / 255.0).collect())
             }
         }
