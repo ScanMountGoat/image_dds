@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use crate::bcn::{bcn_from_rgba, Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7};
 use crate::rgba::{
     bgra4_from_rgba8, bgra8_from_rgba8, r8_from_rgba8, rgba8_from_rgba8, rgbaf16_from_rgba8,
@@ -271,7 +273,8 @@ where
         height,
         1,
         data,
-    );
+    )
+    .to_vec();
 
     Ok(MipData {
         width,
@@ -306,7 +309,7 @@ fn pad_mipmap_rgba<T>(
     new_height: usize,
     new_depth: usize,
     data: &[T],
-) -> Vec<T>
+) -> Cow<[T]>
 where
     T: Default + Copy,
 {
@@ -327,9 +330,9 @@ where
             }
         }
 
-        padded_data
+        Cow::Owned(padded_data)
     } else {
-        data.to_vec()
+        Cow::Borrowed(data)
     }
 }
 
@@ -714,9 +717,17 @@ mod tests {
     }
 
     #[test]
+    fn pad_1x1_to_1x1() {
+        assert_eq!(
+            Cow::<[u8]>::Borrowed(&[1, 2, 3, 4]),
+            pad_mipmap_rgba(1, 1, 1, 2, 2, 1, &[1, 2, 3, 4])
+        );
+    }
+
+    #[test]
     fn pad_1x1_to_2x2() {
         assert_eq!(
-            vec![1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            Cow::<[u8]>::Owned(vec![1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
             pad_mipmap_rgba(1, 1, 1, 2, 2, 1, &[1, 2, 3, 4])
         );
     }
@@ -724,10 +735,10 @@ mod tests {
     #[test]
     fn pad_2x2_to_3x3() {
         assert_eq!(
-            vec![
+            Cow::<[u8]>::Owned(vec![
                 1, 2, 3, 4, 5, 6, 7, 8, 0, 0, 0, 0, 9, 10, 11, 12, 13, 14, 15, 16, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            ],
+            ]),
             pad_mipmap_rgba(
                 2,
                 2,
