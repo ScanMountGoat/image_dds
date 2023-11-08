@@ -21,6 +21,17 @@ bytemuck = "1.13.0"
 strum = { version = "0.24", features = ["derive"], optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
 
+[dev-dependencies]
+criterion = { version = "0.5.1", features = ["html_reports"] }
+
+[[bench]]
+name = "dds_from_image"
+harness = false
+
+[[bench]]
+name = "image_from_dds"
+harness = false
+
 [features]
 default = ["ddsfile", "image", "encode", "decode", "strum"]
 encode = ["intel_tex_2"]
