@@ -254,7 +254,7 @@ where
         });
     }
 
-    let mut rgba = vec![T::default(); width as usize * height as usize as usize * CHANNELS];
+    let mut rgba = vec![T::default(); width as usize * height as usize * CHANNELS];
 
     // BCN formats lay out blocks in row-major order.
     // TODO: calculate x and y using division and mod?

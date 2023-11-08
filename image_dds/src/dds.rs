@@ -165,8 +165,9 @@ pub fn dds_image_format(dds: &Dds) -> Option<ImageFormat> {
     let d3d = dds.get_d3d_format();
     let fourcc = dds.header.spf.fourcc.as_ref();
 
-    dxgi.and_then(image_format_from_dxgi)
-        .or_else(|| d3d.and_then(image_format_from_d3d))
+    // TODO: include the above in an error?
+    d3d.and_then(image_format_from_d3d)
+        .or_else(|| dxgi.and_then(image_format_from_dxgi))
         .or_else(|| fourcc.and_then(image_format_from_fourcc))
 }
 
@@ -193,6 +194,7 @@ fn image_format_from_dxgi(format: DxgiFormat) -> Option<ImageFormat> {
         DxgiFormat::BC6H_UF16 => Some(ImageFormat::BC6Ufloat),
         DxgiFormat::BC7_UNorm => Some(ImageFormat::BC7Unorm),
         DxgiFormat::BC7_UNorm_sRGB => Some(ImageFormat::BC7Srgb),
+        DxgiFormat::B4G4R4A4_UNorm => Some(ImageFormat::B4G4R4A4Unorm),
         _ => None,
     }
 }
@@ -204,6 +206,8 @@ fn image_format_from_d3d(format: D3DFormat) -> Option<ImageFormat> {
         D3DFormat::DXT3 => Some(ImageFormat::BC2Unorm),
         D3DFormat::DXT4 => Some(ImageFormat::BC3Unorm),
         D3DFormat::DXT5 => Some(ImageFormat::BC3Unorm),
+        // BGRA is also ARGB depending on how we look at the bytes.
+        D3DFormat::A4R4G4B4 => Some(ImageFormat::B4G4R4A4Unorm),
         _ => None,
     }
 }
@@ -250,6 +254,7 @@ impl From<ImageFormat> for DxgiFormat {
             ImageFormat::R32G32B32A32Float => Self::R32G32B32A32_Float,
             ImageFormat::B8G8R8A8Unorm => Self::B8G8R8A8_UNorm,
             ImageFormat::B8G8R8A8Srgb => Self::B8G8R8A8_UNorm_sRGB,
+            ImageFormat::B4G4R4A4Unorm => Self::B4G4R4A4_UNorm,
         }
     }
 }

@@ -135,6 +135,7 @@ pub enum ImageFormat {
     R32G32B32A32Float,
     B8G8R8A8Unorm,
     B8G8R8A8Srgb,
+    B4G4R4A4Unorm,
     BC1Unorm,
     BC1Srgb,
     BC2Unorm,
@@ -176,6 +177,7 @@ impl ImageFormat {
             ImageFormat::R32G32B32A32Float => (1, 1, 1),
             ImageFormat::B8G8R8A8Unorm => (1, 1, 1),
             ImageFormat::B8G8R8A8Srgb => (1, 1, 1),
+            ImageFormat::B4G4R4A4Unorm => (1, 1, 1),
         }
     }
 
@@ -202,6 +204,7 @@ impl ImageFormat {
             ImageFormat::BC6Sfloat => 16,
             ImageFormat::BC7Unorm => 16,
             ImageFormat::BC7Srgb => 16,
+            ImageFormat::B4G4R4A4Unorm => 2,
         }
     }
 }

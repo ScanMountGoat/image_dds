@@ -105,6 +105,44 @@ pub fn bgra8_from_rgba8(width: u32, height: u32, data: &[u8]) -> Result<Vec<u8>,
     Ok(bgra)
 }
 
+pub fn rgba8_from_bgra4(width: u32, height: u32, data: &[u8]) -> Result<Vec<u8>, SurfaceError> {
+    validate_length(width, height, 2, data)?;
+
+    // TODO: How to implement this efficiently?
+    // Expand 4 bit input channels to 8 bit output channels.
+    // Most significant bit -> ARGB -> least significant bit.
+    let rgba = data
+        .chunks_exact(2)
+        .flat_map(|c| {
+            [
+                (c[1] & 0xF) * 17,
+                (c[0] >> 4) * 17,
+                (c[0] & 0xF) * 17,
+                (c[1] >> 4) * 17,
+            ]
+        })
+        .collect();
+    Ok(rgba)
+}
+
+pub fn bgra4_from_rgba8(width: u32, height: u32, data: &[u8]) -> Result<Vec<u8>, SurfaceError> {
+    validate_length(width, height, 4, data)?;
+
+    // TODO: How to implement this efficiently?
+    // Pack each channel into 4 bits.
+    // Most significant bit -> ARGB -> least significant bit.
+    let bgra = data
+        .chunks_exact(4)
+        .flat_map(|c| {
+            [
+                ((c[1] / 17) << 4) | (c[2] / 17),
+                ((c[3] / 17) << 4) | (c[0] / 17),
+            ]
+        })
+        .collect();
+    Ok(bgra)
+}
+
 fn swap_red_blue(width: u32, height: u32, rgba: &mut [u8]) {
     for i in 0..(width as usize * height as usize) {
         // RGBA -> BGRA.
@@ -326,7 +364,7 @@ mod tests {
     }
 
     #[test]
-    fn encode_rgba8_from_rgba8_valid() {
+    fn rgba8_from_rgba8_valid() {
         assert_eq!(
             vec![1, 2, 3, 4],
             rgba8_from_rgba8(1, 1, &[1, 2, 3, 4]).unwrap()
@@ -334,7 +372,7 @@ mod tests {
     }
 
     #[test]
-    fn encode_rgba8_from_rgba8_invalid() {
+    fn rgba8_from_rgba8_invalid() {
         let result = rgba8_from_rgba8(1, 1, &[1, 2, 3]);
         assert!(matches!(
             result,
@@ -346,7 +384,7 @@ mod tests {
     }
 
     #[test]
-    fn encode_rgbaf32_from_rgbaf32_valid() {
+    fn rgbaf32_from_rgbaf32_valid() {
         assert_eq!(
             vec![1.0, 2.0, 3.0, 4.0],
             rgbaf32_from_rgbaf32(
@@ -359,7 +397,7 @@ mod tests {
     }
 
     #[test]
-    fn encode_rgbaf32_from_rgbaf32_invalid() {
+    fn rgbaf32_from_rgbaf32_invalid() {
         let result = rgbaf32_from_rgbaf32(1, 1, &[0; 15]);
         assert!(matches!(
             result,
@@ -371,7 +409,7 @@ mod tests {
     }
 
     #[test]
-    fn encode_rgbaf32_from_rgbaf16_valid() {
+    fn rgbaf32_from_rgbaf16_valid() {
         assert_eq!(
             vec![0.0, 0.25, 0.5, 1.0],
             rgbaf32_from_rgbaf16(
@@ -389,13 +427,53 @@ mod tests {
     }
 
     #[test]
-    fn encode_rgbaf32_from_rgbaf16_invalid() {
+    fn rgbaf32_from_rgbaf16_invalid() {
         let result = rgbaf32_from_rgbaf16(1, 1, &[0; 7]);
         assert!(matches!(
             result,
             Err(SurfaceError::NotEnoughData {
                 expected: 8,
                 actual: 7
+            })
+        ));
+    }
+
+    #[test]
+    fn bgra4_from_rgba8_valid() {
+        assert_eq!(
+            vec![0x30, 0xCF],
+            bgra4_from_rgba8(1, 1, &[255, 51, 0, 204]).unwrap()
+        );
+    }
+
+    #[test]
+    fn bgra4_from_rgba8_invalid() {
+        let result = bgra4_from_rgba8(1, 1, &[1, 2, 3]);
+        assert!(matches!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 4,
+                actual: 3
+            })
+        ));
+    }
+
+    #[test]
+    fn rgba8_from_bgra4_valid() {
+        assert_eq!(
+            vec![255, 51, 0, 204],
+            rgba8_from_bgra4(1, 1, &[0x30, 0xCF]).unwrap()
+        );
+    }
+
+    #[test]
+    fn rgba8_from_bgra4_invalid() {
+        let result = rgba8_from_bgra4(1, 1, &[1]);
+        assert!(matches!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 2,
+                actual: 1
             })
         ));
     }

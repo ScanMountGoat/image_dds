@@ -1,7 +1,7 @@
 use crate::bcn::{bcn_from_rgba, Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7};
 use crate::rgba::{
-    bgra8_from_rgba8, r8_from_rgba8, rgba8_from_rgba8, rgbaf16_from_rgba8, rgbaf16_from_rgbaf32,
-    rgbaf32_from_rgba8, rgbaf32_from_rgbaf32,
+    bgra4_from_rgba8, bgra8_from_rgba8, r8_from_rgba8, rgba8_from_rgba8, rgbaf16_from_rgba8,
+    rgbaf16_from_rgbaf32, rgbaf32_from_rgba8, rgbaf32_from_rgbaf32,
 };
 use crate::{
     downsample_rgba, error::SurfaceError, max_mipmap_count, mip_dimension, round_up, ImageFormat,
@@ -370,6 +370,7 @@ impl Encode for u8 {
             F::R32G32B32A32Float => rgbaf32_from_rgba8(width, height, data),
             F::B8G8R8A8Unorm => bgra8_from_rgba8(width, height, data),
             F::B8G8R8A8Srgb => bgra8_from_rgba8(width, height, data),
+            F::B4G4R4A4Unorm => bgra4_from_rgba8(width, height, data),
         }
     }
 }
