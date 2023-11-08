@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use ddsfile::{D3DFormat, Dds, DxgiFormat, FourCC};
 use thiserror::Error;
 
@@ -54,7 +56,8 @@ pub fn dds_from_imagef32(
 /// Decode the given mip level from `dds` to an RGBA8 image.
 /// Array layers are arranged vertically from top to bottom.
 pub fn image_from_dds(dds: &Dds, mipmap: u32) -> Result<image::RgbaImage, CreateImageError> {
-    SurfaceRgba8::decode_dds(dds)?.to_image(mipmap)
+    let layers = array_layer_count(dds);
+    SurfaceRgba8::decode_layers_mipmaps_dds(dds, 0..layers, mipmap..mipmap + 1)?.into_image()
 }
 
 #[cfg(feature = "decode")]
@@ -62,7 +65,8 @@ pub fn image_from_dds(dds: &Dds, mipmap: u32) -> Result<image::RgbaImage, Create
 /// Decode the given mip level from `dds` to an RGBAF32 image.
 /// Array layers are arranged vertically from top to bottom.
 pub fn imagef32_from_dds(dds: &Dds, mipmap: u32) -> Result<image::Rgba32FImage, CreateImageError> {
-    SurfaceRgba32Float::decode_dds(dds)?.to_image(mipmap)
+    let layers = array_layer_count(dds);
+    SurfaceRgba32Float::decode_layers_mipmaps_dds(dds, 0..layers, mipmap..mipmap + 1)?.into_image()
 }
 
 impl<T: AsRef<[u8]>> Surface<T> {
@@ -138,13 +142,31 @@ impl SurfaceRgba8<Vec<u8>> {
     pub fn decode_dds(dds: &Dds) -> Result<SurfaceRgba8<Vec<u8>>, SurfaceError> {
         Surface::from_dds(dds)?.decode_rgba8()
     }
+
+    /// Decode a specific range of layers and mipmaps from `dds` to an RGBA8 surface.
+    pub fn decode_layers_mipmaps_dds(
+        dds: &Dds,
+        layers: Range<u32>,
+        mipmaps: Range<u32>,
+    ) -> Result<SurfaceRgba8<Vec<u8>>, SurfaceError> {
+        Surface::from_dds(dds)?.decode_layers_mipmaps_rgba8(layers, mipmaps)
+    }
 }
 
 #[cfg(feature = "decode")]
 impl SurfaceRgba32Float<Vec<f32>> {
-    /// Decode all layers and mipmaps from `dds` to an RGBA8 surface.
+    /// Decode all layers and mipmaps from `dds` to an RGBAF32 surface.
     pub fn decode_dds(dds: &Dds) -> Result<SurfaceRgba32Float<Vec<f32>>, SurfaceError> {
         Surface::from_dds(dds)?.decode_rgbaf32()
+    }
+
+    /// Decode a specific range of layers and mipmaps from `dds` to an RGBAF32 surface.
+    pub fn decode_layers_mipmaps_dds(
+        dds: &Dds,
+        layers: Range<u32>,
+        mipmaps: Range<u32>,
+    ) -> Result<SurfaceRgba32Float<Vec<f32>>, SurfaceError> {
+        Surface::from_dds(dds)?.decode_layers_mipmaps_rgbaf32(layers, mipmaps)
     }
 }
 

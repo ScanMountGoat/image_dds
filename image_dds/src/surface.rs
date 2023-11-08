@@ -227,6 +227,33 @@ impl SurfaceRgba8<Vec<u8>> {
             },
         )
     }
+
+    /// Create an image for all layers and depth slices without copying.
+    ///
+    /// Fails if the surface has more than one mipmap.
+    /// Array layers and depth slices are arranged vertically from top to bottom.
+    pub fn into_image(self) -> Result<image::RgbaImage, CreateImageError> {
+        // Arrange depth and array layers vertically.
+        // This layout allows copyless conversions to an RGBA8 surface.
+        let width = self.width;
+        let height = self.height * self.depth * self.layers;
+
+        if self.mipmaps > 1 {
+            return Err(CreateImageError::UnexpectedMipmapCount {
+                mipmaps: self.mipmaps,
+                max_mipmaps: 1,
+            });
+        }
+
+        let data_length = self.data.len();
+        image::RgbaImage::from_raw(width, height, self.data).ok_or(
+            crate::CreateImageError::InvalidSurfaceDimensions {
+                width,
+                height,
+                data_length,
+            },
+        )
+    }
 }
 
 /// An uncompressed [ImageFormat::R32G32B32A32Float] surface with 16 bytes per pixel.
@@ -333,7 +360,6 @@ impl<'a> SurfaceRgba32Float<&'a [f32]> {
 
 #[cfg(feature = "image")]
 impl SurfaceRgba32Float<Vec<f32>> {
-    // TODO: Allow configuring the output like cross, horizontal, etc?
     /// Create an image for all layers and depth slices for the given `mipmap`.
     ///
     /// Array layers are arranged vertically from top to bottom.
@@ -353,6 +379,33 @@ impl SurfaceRgba32Float<Vec<f32>> {
         let height = mip_dimension(self.height, mipmap) * self.layers;
 
         image::Rgba32FImage::from_raw(width, height, image_data).ok_or(
+            crate::CreateImageError::InvalidSurfaceDimensions {
+                width,
+                height,
+                data_length,
+            },
+        )
+    }
+
+    /// Create an image for all layers and depth slices without copying.
+    ///
+    /// Fails if the surface has more than one mipmap.
+    /// Array layers and depth slices are arranged vertically from top to bottom.
+    pub fn into_image(self) -> Result<image::Rgba32FImage, CreateImageError> {
+        // Arrange depth and array layers vertically.
+        // This layout allows copyless conversions to an RGBA8 surface.
+        let width = self.width;
+        let height = self.height * self.depth * self.layers;
+
+        if self.mipmaps > 1 {
+            return Err(CreateImageError::UnexpectedMipmapCount {
+                mipmaps: self.mipmaps,
+                max_mipmaps: 1,
+            });
+        }
+
+        let data_length = self.data.len();
+        image::Rgba32FImage::from_raw(width, height, self.data).ok_or(
             crate::CreateImageError::InvalidSurfaceDimensions {
                 width,
                 height,

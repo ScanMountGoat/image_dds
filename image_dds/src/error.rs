@@ -13,6 +13,9 @@ pub enum CreateImageError {
 
     #[error("error decompressing surface: {0}")]
     DecompressSurface(#[from] SurfaceError),
+
+    #[error("{mipmaps} mipmaps exceeds the maximum expected mipmap count of {max_mipmaps}")]
+    UnexpectedMipmapCount { mipmaps: u32, max_mipmaps: u32 },
 }
 
 #[derive(Debug, Error)]

@@ -32,6 +32,10 @@ harness = false
 name = "image_from_dds"
 harness = false
 
+[[bench]]
+name = "imagef32_from_dds"
+harness = false
+
 [features]
 default = ["ddsfile", "image", "encode", "decode", "strum"]
 encode = ["intel_tex_2"]

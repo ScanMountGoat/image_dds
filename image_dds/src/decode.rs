@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use crate::{
     bcn::{self, rgba_from_bcn},
     error::SurfaceError,
@@ -13,16 +15,25 @@ use bcn::{Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7};
 impl<T: AsRef<[u8]>> Surface<T> {
     /// Decode all layers and mipmaps from `surface` to RGBA8.
     pub fn decode_rgba8(&self) -> Result<SurfaceRgba8<Vec<u8>>, SurfaceError> {
+        self.decode_layers_mipmaps_rgba8(0..self.layers, 0..self.mipmaps)
+    }
+
+    /// Decode a specific range of layers and mipmaps from `surface` to RGBA8.
+    pub fn decode_layers_mipmaps_rgba8(
+        &self,
+        layers: Range<u32>,
+        mipmaps: Range<u32>,
+    ) -> Result<SurfaceRgba8<Vec<u8>>, SurfaceError> {
         self.validate()?;
 
-        let data = decode_surface(self)?;
+        let data = decode_surface(self, layers.clone(), mipmaps.clone())?;
 
         Ok(SurfaceRgba8 {
-            width: self.width,
-            height: self.height,
-            depth: self.depth,
-            layers: self.layers,
-            mipmaps: self.mipmaps,
+            width: mip_dimension(self.width, mipmaps.start),
+            height: mip_dimension(self.height, mipmaps.start),
+            depth: mip_dimension(self.depth, mipmaps.start),
+            layers: (layers.end - layers.start).max(1),
+            mipmaps: (mipmaps.end - mipmaps.start).max(1),
             data,
         })
     }
@@ -31,30 +42,45 @@ impl<T: AsRef<[u8]>> Surface<T> {
     ///
     /// Non floating point formats are normalized to the range `0.0` to `1.0`.
     pub fn decode_rgbaf32(&self) -> Result<SurfaceRgba32Float<Vec<f32>>, SurfaceError> {
+        self.decode_layers_mipmaps_rgbaf32(0..self.layers, 0..self.mipmaps)
+    }
+
+    /// Decode a specific range of layers and mipmaps from `surface` to RGBAF32.
+    ///
+    /// Non floating point formats are normalized to the range `0.0` to `1.0`.
+    pub fn decode_layers_mipmaps_rgbaf32(
+        &self,
+        layers: Range<u32>,
+        mipmaps: Range<u32>,
+    ) -> Result<SurfaceRgba32Float<Vec<f32>>, SurfaceError> {
         self.validate()?;
 
-        let data = decode_surface(self)?;
+        let data = decode_surface(self, layers.clone(), mipmaps.clone())?;
 
         Ok(SurfaceRgba32Float {
-            width: self.width,
-            height: self.height,
-            depth: self.depth,
-            layers: self.layers,
-            mipmaps: self.mipmaps,
+            width: mip_dimension(self.width, mipmaps.start),
+            height: mip_dimension(self.height, mipmaps.start),
+            depth: mip_dimension(self.depth, mipmaps.start),
+            layers: (layers.end - layers.start).max(1),
+            mipmaps: (mipmaps.end - mipmaps.start).max(1),
             data,
         })
     }
 }
 
-fn decode_surface<T, P>(surface: &Surface<T>) -> Result<Vec<P>, SurfaceError>
+fn decode_surface<T, P>(
+    surface: &Surface<T>,
+    layers: Range<u32>,
+    mipmaps: Range<u32>,
+) -> Result<Vec<P>, SurfaceError>
 where
     T: AsRef<[u8]>,
     P: Decode + Copy,
 {
     let mut combined_surface_data = Vec::new();
-    for layer in 0..surface.layers {
+    for layer in layers {
         for level in 0..surface.depth {
-            for mipmap in 0..surface.mipmaps {
+            for mipmap in mipmaps.clone() {
                 let data = surface
                     .get(layer, level, mipmap)
                     .ok_or(SurfaceError::MipmapDataOutOfBounds { layer, mipmap })?;
@@ -65,6 +91,7 @@ where
 
                 // TODO: Avoid additional copies?
                 let data = P::decode(width, height, surface.image_format, data)?;
+
                 combined_surface_data.extend_from_slice(&data);
             }
         }
@@ -202,5 +229,117 @@ mod tests {
                 max_mipmaps: 3
             })
         ));
+    }
+
+    // TODO: decode_layers_mipmaps_rgba8
+    // TODO: decode_layers_mipmaps_rgbaf32
+    #[test]
+    fn decode_layers_mipmaps_rgba8_single_mipmap() {
+        let rgba8 = Surface {
+            width: 4,
+            height: 4,
+            depth: 1,
+            layers: 1,
+            mipmaps: 3,
+            image_format: ImageFormat::R8G8B8A8Srgb,
+            data: &[0u8; 512],
+        }
+        .decode_layers_mipmaps_rgba8(0..1, 1..2)
+        .unwrap();
+
+        assert_eq!(
+            SurfaceRgba8 {
+                width: 2,
+                height: 2,
+                depth: 1,
+                layers: 1,
+                mipmaps: 1,
+                data: vec![0u8; 2 * 2 * 4]
+            },
+            rgba8
+        );
+    }
+
+    #[test]
+    fn decode_layers_mipmaps_rgba8_no_mipmaps() {
+        // TODO: How to handle this?
+        let rgba8 = Surface {
+            width: 4,
+            height: 4,
+            depth: 1,
+            layers: 1,
+            mipmaps: 1,
+            image_format: ImageFormat::R8G8B8A8Srgb,
+            data: &[0u8; 4 * 4 * 4],
+        }
+        .decode_layers_mipmaps_rgba8(0..1, 0..0)
+        .unwrap();
+
+        assert_eq!(
+            SurfaceRgba8 {
+                width: 4,
+                height: 4,
+                depth: 1,
+                layers: 1,
+                mipmaps: 1,
+                data: Vec::new()
+            },
+            rgba8
+        );
+    }
+
+    #[test]
+    fn decode_layers_mipmaps_rgbaf32_single_mipmap() {
+        let rgbaf32 = Surface {
+            width: 4,
+            height: 4,
+            depth: 1,
+            layers: 1,
+            mipmaps: 3,
+            image_format: ImageFormat::R8G8B8A8Srgb,
+            data: &[0u8; 512],
+        }
+        .decode_layers_mipmaps_rgbaf32(0..1, 1..2)
+        .unwrap();
+
+        assert_eq!(
+            SurfaceRgba32Float {
+                width: 2,
+                height: 2,
+                depth: 1,
+                layers: 1,
+                mipmaps: 1,
+                data: vec![0.0; 2 * 2 * 4]
+            },
+            rgbaf32
+        );
+    }
+
+    #[test]
+    fn decode_layers_mipmaps_rgbaf32_no_mipmaps() {
+        // TODO: How to handle this?
+        let rgbaf32 = Surface {
+            width: 4,
+            height: 4,
+            depth: 1,
+            layers: 1,
+            mipmaps: 1,
+            image_format: ImageFormat::R8G8B8A8Srgb,
+            data: &[0u8; 4 * 4 * 4],
+        }
+        .decode_layers_mipmaps_rgbaf32(0..1, 0..0)
+        .unwrap();
+
+        assert_eq!(
+            SurfaceRgba32Float {
+                width: 4,
+                height: 4,
+                depth: 1,
+                layers: 1,
+                mipmaps: 1,
+                data: Vec::new()
+            },
+            rgbaf32
+        );
     }
 }
