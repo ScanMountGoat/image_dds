@@ -231,8 +231,6 @@ mod tests {
         ));
     }
 
-    // TODO: decode_layers_mipmaps_rgba8
-    // TODO: decode_layers_mipmaps_rgbaf32
     #[test]
     fn decode_layers_mipmaps_rgba8_single_mipmap() {
         let rgba8 = Surface {
