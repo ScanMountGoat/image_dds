@@ -5,9 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## unreleased
+## 0.3.0 - 2023-11-22
 ### Added
 * Added `Surface::decode_layers_mipmaps_rgba8` and `Surface::decode_layers_mipmaps_rgbaf32`.
+* Added support for the `B4G4R4A4Unorm` format.
+
+### Changed
+* Improved performance for `image_from_dds` by reducing copies.
 
 ## 0.2.0 - 2023-10-29
 ### Added
