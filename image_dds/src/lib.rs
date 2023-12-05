@@ -120,6 +120,7 @@ pub enum Mipmaps {
 ///
 /// Not all DDS formats are supported,
 /// but all current variants for [ImageFormat] are supported by some version of DDS.
+#[non_exhaustive]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
