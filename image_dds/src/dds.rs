@@ -107,7 +107,8 @@ impl<'a> Surface<&'a [u8]> {
         let depth = dds.get_depth();
         let layers = array_layer_count(dds);
         let mipmaps = dds.get_num_mipmap_levels();
-        let image_format = dds_image_format(dds).ok_or(SurfaceError::UnrecognizedFormat)?;
+        let image_format =
+            dds_image_format(dds).map_err(|e| SurfaceError::UnsupportedDdsFormat(e))?;
 
         Ok(Surface {
             width,
@@ -180,17 +181,24 @@ fn array_layer_count(dds: &Dds) -> u32 {
     }
 }
 
+#[derive(Debug)]
+pub struct DdsFormatInfo {
+    pub dxgi: Option<DxgiFormat>,
+    pub d3d: Option<D3DFormat>,
+    pub fourcc: Option<FourCC>,
+}
+
 /// Returns the format of `dds` or `None` if the format is unrecognized.
-pub fn dds_image_format(dds: &Dds) -> Option<ImageFormat> {
+pub fn dds_image_format(dds: &Dds) -> Result<ImageFormat, DdsFormatInfo> {
     // The format can be DXGI, D3D, or specified in the FOURCC.
     let dxgi = dds.get_dxgi_format();
     let d3d = dds.get_d3d_format();
-    let fourcc = dds.header.spf.fourcc.as_ref();
+    let fourcc = dds.header.spf.fourcc.clone();
 
-    // TODO: include the above in an error?
     d3d.and_then(image_format_from_d3d)
         .or_else(|| dxgi.and_then(image_format_from_dxgi))
-        .or_else(|| fourcc.and_then(image_format_from_fourcc))
+        .or_else(|| fourcc.clone().and_then(image_format_from_fourcc))
+        .ok_or(DdsFormatInfo { dxgi, d3d, fourcc })
 }
 
 fn image_format_from_dxgi(format: DxgiFormat) -> Option<ImageFormat> {
@@ -237,7 +245,7 @@ fn image_format_from_d3d(format: D3DFormat) -> Option<ImageFormat> {
 const BC5U: u32 = u32::from_le_bytes(*b"BC5U");
 const ATI2: u32 = u32::from_le_bytes(*b"ATI2");
 
-fn image_format_from_fourcc(fourcc: &FourCC) -> Option<ImageFormat> {
+fn image_format_from_fourcc(fourcc: FourCC) -> Option<ImageFormat> {
     match fourcc.0 {
         FourCC::DXT1 => Some(ImageFormat::BC1Unorm),
         FourCC::DXT2 => Some(ImageFormat::BC2Unorm),

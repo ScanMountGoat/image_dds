@@ -1,2 +1,3 @@
 [workspace]
 members = ["image_dds", "bcndecode-sys"]
+resolver = "2"

@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::ImageFormat;
+use crate::{DdsFormatInfo, ImageFormat};
 
 #[derive(Debug, Error)]
 pub enum CreateImageError {
@@ -38,8 +38,8 @@ pub enum SurfaceError {
     #[error("expected surface to have at least {expected} bytes but found {actual}")]
     NotEnoughData { expected: usize, actual: usize },
 
-    #[error("compressing data to format {format:?} is not supported")]
-    UnsupportedFormat { format: ImageFormat },
+    #[error("encoding data to format {format:?} is not supported")]
+    UnsupportedEncodeFormat { format: ImageFormat },
 
     #[error("mipmap count {mipmaps} exceeds the maximum value of {max_total_mipmaps}")]
     InvalidMipmapCount {
@@ -51,8 +51,8 @@ pub enum SurfaceError {
     #[error("failed to get image data for layer {layer} mipmap {mipmap}")]
     MipmapDataOutOfBounds { layer: u32, mipmap: u32 },
 
-    #[error("the image format of the surface can not be determined")]
-    UnrecognizedFormat,
+    #[error("DDS image format {0:?} is not supported")]
+    UnsupportedDdsFormat(DdsFormatInfo),
 
     #[error("{mipmaps} mipmaps exceeds the maximum expected mipmap count of {max_mipmaps}")]
     UnexpectedMipmapCount { mipmaps: u32, max_mipmaps: u32 },
