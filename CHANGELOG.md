@@ -5,14 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-### unreleased
+### 0.4.0 - 2023-12-23
+### Added
+* Added support for `D3DFormat::A8R8G8B8`.
+
+### Changed
 * Marked `ImageFormat` as `#[non_exhaustive]` to limit future breaking changes.
+* Adjusted DDS unsupported format error to include relevant DDS format type information.
 
 ## 0.3.0 - 2023-11-22
 ### Added
 * Added `Surface::decode_layers_mipmaps_rgba8` and `Surface::decode_layers_mipmaps_rgbaf32`.
 * Added support for the `B4G4R4A4Unorm` format.
-* Added support for `D3DFormat::A8R8G8B8`.
 
 ### Changed
 * Improved performance for `image_from_dds` by reducing copies.
