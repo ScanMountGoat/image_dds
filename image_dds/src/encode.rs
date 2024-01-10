@@ -720,7 +720,7 @@ mod tests {
     fn pad_1x1_to_1x1() {
         assert_eq!(
             Cow::<[u8]>::Borrowed(&[1, 2, 3, 4]),
-            pad_mipmap_rgba(1, 1, 1, 2, 2, 1, &[1, 2, 3, 4])
+            pad_mipmap_rgba(1, 1, 1, 1, 1, 1, &[1, 2, 3, 4])
         );
     }
 

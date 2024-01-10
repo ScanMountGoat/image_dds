@@ -107,8 +107,7 @@ impl<'a> Surface<&'a [u8]> {
         let depth = dds.get_depth();
         let layers = array_layer_count(dds);
         let mipmaps = dds.get_num_mipmap_levels();
-        let image_format =
-            dds_image_format(dds).map_err(|e| SurfaceError::UnsupportedDdsFormat(e))?;
+        let image_format = dds_image_format(dds).map_err(SurfaceError::UnsupportedDdsFormat)?;
 
         Ok(Surface {
             width,
