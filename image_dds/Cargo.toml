@@ -38,5 +38,5 @@ harness = false
 
 [features]
 default = ["ddsfile", "image", "encode", "decode", "strum"]
-encode = ["intel_tex_2"]
-decode = ["bcndecode-sys"]
+encode = ["dep:intel_tex_2"]
+decode = ["dep:bcndecode-sys"]
