@@ -32,3 +32,21 @@ name = "bc2"
 path = "fuzz_targets/bc2.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "bc3"
+path = "fuzz_targets/bc3.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "bc4"
+path = "fuzz_targets/bc4.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "bc5"
+path = "fuzz_targets/bc5.rs"
+test = false
+doc = false

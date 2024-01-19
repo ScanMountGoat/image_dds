@@ -28,15 +28,32 @@ pub fn bc2(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
 }
 
 pub fn bc3(compressed_block: &[u8], decompressed_block: &mut [u8], destination_pitch: usize) {
-    todo!()
+    color_block(
+        &compressed_block[8..],
+        decompressed_block,
+        destination_pitch,
+        true,
+    );
+    smooth_alpha_block(
+        compressed_block,
+        &mut decompressed_block[3..],
+        destination_pitch,
+        4,
+    );
 }
 
 pub fn bc4(compressed_block: &[u8], decompressed_block: &mut [u8], destination_pitch: usize) {
-    todo!()
+    smooth_alpha_block(compressed_block, decompressed_block, destination_pitch, 1);
 }
 
 pub fn bc5(compressed_block: &[u8], decompressed_block: &mut [u8], destination_pitch: usize) {
-    todo!()
+    smooth_alpha_block(compressed_block, decompressed_block, destination_pitch, 2);
+    smooth_alpha_block(
+        &compressed_block[8..],
+        &mut decompressed_block[1..],
+        destination_pitch,
+        2,
+    );
 }
 
 pub fn bc6h_float(
@@ -132,6 +149,47 @@ fn sharp_alpha_block(
             let index = i * destination_pitch + j * 4 + 3;
             let alpha = u16::from_le_bytes(compressed_block[i * 2..i * 2 + 2].try_into().unwrap());
             decompressed_block[index] = ((alpha >> (4 * j)) & 0x0F) as u8 * 17;
+        }
+    }
+}
+
+fn smooth_alpha_block(
+    compressed_block: &[u8],
+    decompressed_block: &mut [u8],
+    destination_pitch: usize,
+    pixel_size: usize,
+) {
+    let mut alpha = [0u32; 8];
+
+    alpha[0] = compressed_block[0] as u32;
+    alpha[1] = compressed_block[1] as u32;
+
+    if alpha[0] > alpha[1] {
+        // 6 interpolated alpha values.
+        alpha[2] = (6 * alpha[0] + alpha[1] + 1) / 7; // 6/7*alpha_0 + 1/7*alpha_1
+        alpha[3] = (5 * alpha[0] + 2 * alpha[1] + 1) / 7; // 5/7*alpha_0 + 2/7*alpha_1
+        alpha[4] = (4 * alpha[0] + 3 * alpha[1] + 1) / 7; // 4/7*alpha_0 + 3/7*alpha_1
+        alpha[5] = (3 * alpha[0] + 4 * alpha[1] + 1) / 7; // 3/7*alpha_0 + 4/7*alpha_1
+        alpha[6] = (2 * alpha[0] + 5 * alpha[1] + 1) / 7; // 2/7*alpha_0 + 5/7*alpha_1
+        alpha[7] = (alpha[0] + 6 * alpha[1] + 1) / 7; // 1/7*alpha_0 + 6/7*alpha_1
+    } else {
+        // 4 interpolated alpha values.
+        alpha[2] = (4 * alpha[0] + alpha[1] + 1) / 5; // 4/5*alpha_0 + 1/5*alpha_1
+        alpha[3] = (3 * alpha[0] + 2 * alpha[1] + 1) / 5; // 3/5*alpha_0 + 2/5*alpha_1
+        alpha[4] = (2 * alpha[0] + 3 * alpha[1] + 1) / 5; // 2/5*alpha_0 + 3/5*alpha_1
+        alpha[5] = (alpha[0] + 4 * alpha[1] + 1) / 5; // 1/5*alpha_0 + 4/5*alpha_1
+        alpha[6] = 0x00;
+        alpha[7] = 0xFF;
+    }
+
+    let block = u64::from_le_bytes(compressed_block[..8].try_into().unwrap());
+    let mut indices = block >> 16;
+    for i in 0..4 {
+        for j in 0..4 {
+            // TODO: Function for indexing?
+            let index = i * destination_pitch + j * pixel_size;
+            decompressed_block[index] = alpha[(indices & 0x07) as usize] as u8;
+            indices >>= 3;
         }
     }
 }
