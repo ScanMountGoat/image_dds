@@ -220,7 +220,6 @@ impl BcnDecode<[u8; 4]> for Bc7 {
     }
 }
 
-// TODO: Make this generic over the pixel type (f32 or u8).
 /// Decompress the bytes in `data` to the uncompressed RGBA8 format.
 pub fn rgba_from_bcn<F, T>(width: u32, height: u32, data: &[u8]) -> Result<Vec<T>, SurfaceError>
 where
@@ -258,7 +257,6 @@ where
 
     // BCN formats lay out blocks in row-major order.
     // TODO: calculate x and y using division and mod?
-    // TODO: Add an outer loop for depth?
     let mut block_start = 0;
     for y in (0..height).step_by(BLOCK_HEIGHT) {
         for x in (0..width).step_by(BLOCK_WIDTH) {
