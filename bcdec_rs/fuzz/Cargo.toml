@@ -50,3 +50,9 @@ name = "bc5"
 path = "fuzz_targets/bc5.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "bc7"
+path = "fuzz_targets/bc7.rs"
+test = false
+doc = false
