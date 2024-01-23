@@ -1,7 +1,5 @@
-//! A pure Rust port of [bcdec](https://github.com/iOrange/bcdec) using only safe code.
-
-// TODO: make this nostd?
-
+#![no_std]
+//! A safe, no_std, pure Rust port of [bcdec](https://github.com/iOrange/bcdec).
 // A mostly 1:1 translation of the code and comments found here:
 // https://github.com/iOrange/bcdec/blob/main/bcdec.h
 // Names are shortened and pointer arithmetic is converted to more idiomatic Rust.
@@ -524,15 +522,15 @@ pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
             match rotation {
                 1 => {
                     // 01 – Block format is Scalar(R) Vector(AGB) - swap A and R
-                    std::mem::swap(&mut a, &mut r);
+                    core::mem::swap(&mut a, &mut r);
                 }
                 2 => {
                     // 10 – Block format is Scalar(G) Vector(RAB) - swap A and G
-                    std::mem::swap(&mut a, &mut g);
+                    core::mem::swap(&mut a, &mut g);
                 }
                 3 => {
                     // 11 - Block format is Scalar(B) Vector(RGA) - swap A and B
-                    std::mem::swap(&mut a, &mut b);
+                    core::mem::swap(&mut a, &mut b);
                 }
                 _ => (),
             }
