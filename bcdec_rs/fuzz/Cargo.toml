@@ -56,3 +56,15 @@ name = "bc7"
 path = "fuzz_targets/bc7.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "bc6h_signed"
+path = "fuzz_targets/bc6h_signed.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "bc6h_unsigned"
+path = "fuzz_targets/bc6h_unsigned.rs"
+test = false
+doc = false
