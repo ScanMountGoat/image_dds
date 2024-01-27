@@ -41,8 +41,8 @@
 //! # Limitations
 //! BC2 data can be decoded but not encoded due to limitations in intel-tex-rs-2.
 //! This format is very rarely used in practice.
-//! Not all targets will compile by default due to intel-tex-rs-2 using the Intel ISPC compiler.
-//! Precompiled kernels aren't available for all targets but can be compiled from source if needed.
+//! Not all targets will compile by default due to intel-tex-rs-2 using the Intel ISPC compiler
+//! and lacking precompiled kernels for all targets.
 
 mod bcn;
 mod rgba;
