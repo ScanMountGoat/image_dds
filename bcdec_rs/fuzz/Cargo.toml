@@ -68,3 +68,15 @@ name = "bc6h_unsigned"
 path = "fuzz_targets/bc6h_unsigned.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "bc6h_float_signed"
+path = "fuzz_targets/bc6h_float_signed.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "bc6h_float_unsigned"
+path = "fuzz_targets/bc6h_float_unsigned.rs"
+test = false
+doc = false

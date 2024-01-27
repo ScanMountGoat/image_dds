@@ -598,9 +598,31 @@ pub fn bc6h_float(
     compressed_block: &[u8],
     decompressed_block: &mut [u8],
     destination_pitch: usize,
-    is_signed: usize,
+    is_signed: bool,
 ) {
-    todo!()
+    let input_pitch = 4 * 3;
+    let mut block = [0u8; 4 * 4 * 6];
+    bc6h_half(compressed_block, &mut block, input_pitch, is_signed);
+
+    let float_bytes = |bytes: &[u8]| {
+        half_to_float_quick(u16::from_le_bytes(bytes.try_into().unwrap())).to_le_bytes()
+    };
+
+    for i in 0..4 {
+        for j in 0..4 {
+            // TODO: function for indexing?
+            // The input is f16 but the output is f32.
+            let in_index = (i * input_pitch + j * 3) * 2;
+            let out_index = (i * destination_pitch + j * 3) * 4;
+
+            decompressed_block[out_index..out_index + 4]
+                .copy_from_slice(&float_bytes(&block[in_index..in_index + 2]));
+            decompressed_block[out_index + 4..out_index + 8]
+                .copy_from_slice(&float_bytes(&block[in_index + 2..in_index + 4]));
+            decompressed_block[out_index + 8..out_index + 12]
+                .copy_from_slice(&float_bytes(&block[in_index + 4..in_index + 6]));
+        }
+    }
 }
 
 pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_pitch: usize) {
@@ -1317,4 +1339,28 @@ fn finish_unquantize(val: i32, is_signed: bool) -> u16 {
         }
         (s | val) as u16
     }
+}
+
+// modified half_to_float_fast4 from https://gist.github.com/rygorous/2144712
+// modified for Rust port to avoid unsafe unions and transmutes
+fn half_to_float_quick(half: u16) -> f32 {
+    let magic = f32::from_bits(113 << 23);
+    let shifted_exp = 0x7c00 << 13; // exponent mask after shift
+
+    let mut o = (half as u32 & 0x7fff) << 13; // exponent/mantissa bits
+    let exp = shifted_exp & o; // just the exponent
+    o += (127 - 15) << 23; // exponent adjust
+
+    // handle exponent special cases
+    if exp == shifted_exp {
+        // Inf/NaN?
+        o += (128 - 16) << 23; // extra exp adjust
+    } else if exp == 0 {
+        // Zero/Denormal?
+        o += 1 << 23; // extra exp adjust
+        o = (f32::from_bits(o) - magic).to_bits(); // renormalize
+    }
+
+    o |= (half as u32 & 0x8000) << 16; // sign bit
+    f32::from_bits(o)
 }
