@@ -35,16 +35,14 @@
 //! Despite the name, neither the `ddsfile` nor `image` crates are required
 //! and can be disabled in the Cargo.toml by setting `default-features = false`.
 //! The `"ddsfile"` and `"image"` features can then be enabled individually.
-//! The `"encode"` and `"decode"` features are enabled by default but can be disabled
-//! to resolve compiliation errors on some targets at the cost of reduced functionality.
+//! The `"encode"` feature is enabled by default but can be disabled
+//! to resolve compiliation errors on some targets if not needed.
 //!
 //! # Limitations
 //! BC2 data can be decoded but not encoded due to limitations in intel-tex-rs-2.
 //! This format is very rarely used in practice.
 //! Not all targets will compile by default due to intel-tex-rs-2 using the Intel ISPC compiler.
 //! Precompiled kernels aren't available for all targets but can be compiled from source if needed.
-//! Support for creating 3D textures as well as cube map and array layers from images will be added in a future update.
-//! Creating DDS files with custom mipmaps is not yet supported.
 
 mod bcn;
 mod rgba;
@@ -61,7 +59,6 @@ pub use ddsfile;
 #[cfg(feature = "image")]
 pub use image;
 
-#[cfg(feature = "decode")]
 mod decode;
 
 #[cfg(feature = "encode")]

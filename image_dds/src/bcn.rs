@@ -1,9 +1,7 @@
-#[cfg(feature = "decode")]
 mod decode;
 #[cfg(feature = "encode")]
 mod encode;
 
-#[cfg(feature = "decode")]
 pub use decode::rgba_from_bcn;
 #[cfg(feature = "encode")]
 pub use encode::bcn_from_rgba;

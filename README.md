@@ -6,8 +6,7 @@ A library for converting uncompressed image data to and from compressed formats.
 
 ## Examples
 The provided example projects demonstrate basic usage of the conversion functions. 
-The library also provides functions for working directly with the raw bytes of a surface instead of a dds or image file.
-Floating point data like EXR files or BC6 DDS files is also supported.
+The library also provides functions for working directly with the raw bytes of a surface instead of a dds or image file. Floating point data like EXR files or BC6 DDS files is also supported.
 
 `cargo run --release --example img2dds image.png out.dds BC3Unorm`  
 `cargo run --release --example dds2img out.dds out.tiff`  
@@ -25,7 +24,7 @@ This enables surface creation to avoid making additional copies since the RGBA d
 `cargo run --release --example img2ddsf32 cube.exr out.dds layers`  
 
 ## Supported Formats
-The only compressed formats supported at this time are BCN formats since these are the formats commonly used by DDS files and compressed GPU textures. This library does not support other compressed formats used for GPU textures like ETC1. Compression is handled using [intel-tex-rs-2](https://github.com/Traverse-Research/intel-tex-rs-2) for bindings to Intel's ISPC texture compressor in C++. Decompression is handled using bindings to the [bcdec](https://github.com/iOrange/bcdec) library in C.
+The only compressed formats supported at this time are BCN formats since these are the formats commonly used by DDS files and compressed GPU textures. This library does not support other compressed formats used for GPU textures like ETC1. Compression is handled using [intel-tex-rs-2](https://github.com/Traverse-Research/intel-tex-rs-2) for bindings to Intel's ISPC texture compressor in C++. Decompression is handled using a safe Rust port of the [bcdec](https://github.com/iOrange/bcdec) library in C.
 
 | Format | Encode | Decode |
 | --- | --- | --- |
@@ -48,8 +47,7 @@ Some uncompressed formats are also supported. These formats are supported by DDS
 | R32G32B32A32Float | ✔️ | ✔️ |
 
 ## Features
-Helper functions for working with the files from the [image](https://crates.io/crates/image) and [ddsfile](https://crates.io/crates/ddsfile) crates are supported under feature flags and enabled by default. 
-The `decoding` and `encoding` features are enabled by default. Disabling the `encoding` feature may resolve compilation issues on certain targets if not needed.
+Helper functions for working with the files from the [image](https://crates.io/crates/image) and [ddsfile](https://crates.io/crates/ddsfile) crates are supported under feature flags and enabled by default. The `encoding` feature is enabled by default but can be disabled to resolve compilation issues on certain targets if not needed.
 
 ## Building
 Build the projects using `cargo build --release` with a newer version of the Rust toolchain installed. Builds support Windows, Linux, and MacOS. Some targets may not build properly due to a lack of precompiled ISP kernels in intel-tex-rs-2.

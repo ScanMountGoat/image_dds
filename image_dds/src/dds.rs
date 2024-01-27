@@ -51,7 +51,6 @@ pub fn dds_from_imagef32(
         .to_dds()
 }
 
-#[cfg(feature = "decode")]
 #[cfg(feature = "image")]
 /// Decode the given mip level from `dds` to an RGBA8 image.
 /// Array layers are arranged vertically from top to bottom.
@@ -60,7 +59,6 @@ pub fn image_from_dds(dds: &Dds, mipmap: u32) -> Result<image::RgbaImage, Create
     SurfaceRgba8::decode_layers_mipmaps_dds(dds, 0..layers, mipmap..mipmap + 1)?.into_image()
 }
 
-#[cfg(feature = "decode")]
 #[cfg(feature = "image")]
 /// Decode the given mip level from `dds` to an RGBAF32 image.
 /// Array layers are arranged vertically from top to bottom.
@@ -136,7 +134,6 @@ impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
     }
 }
 
-#[cfg(feature = "decode")]
 impl SurfaceRgba8<Vec<u8>> {
     /// Decode all layers and mipmaps from `dds` to an RGBA8 surface.
     pub fn decode_dds(dds: &Dds) -> Result<SurfaceRgba8<Vec<u8>>, SurfaceError> {
@@ -153,7 +150,6 @@ impl SurfaceRgba8<Vec<u8>> {
     }
 }
 
-#[cfg(feature = "decode")]
 impl SurfaceRgba32Float<Vec<f32>> {
     /// Decode all layers and mipmaps from `dds` to an RGBAF32 surface.
     pub fn decode_dds(dds: &Dds) -> Result<SurfaceRgba32Float<Vec<f32>>, SurfaceError> {
