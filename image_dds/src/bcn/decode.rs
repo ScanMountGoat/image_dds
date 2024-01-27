@@ -19,98 +19,82 @@ pub trait ReadBlock {
     fn read_block(data: &[u8], offset: usize) -> Self;
 }
 
-// The underlying C/C++ code may cast the array pointer.
-// Use a generous alignment to avoid alignment issues.
-#[repr(align(8))]
-pub struct Block8([u8; 8]);
-
-impl ReadBlock for Block8 {
+impl ReadBlock for [u8; 8] {
     const SIZE_IN_BYTES: usize = 8;
 
     fn read_block(data: &[u8], offset: usize) -> Self {
-        Self(data[offset..offset + 8].try_into().unwrap())
+        data[offset..offset + 8].try_into().unwrap()
     }
 }
 
-#[repr(align(16))]
-pub struct Block16([u8; 16]);
-
-impl ReadBlock for Block16 {
+impl ReadBlock for [u8; 16] {
     const SIZE_IN_BYTES: usize = 16;
 
     fn read_block(data: &[u8], offset: usize) -> Self {
-        Self(data[offset..offset + 16].try_into().unwrap())
+        data[offset..offset + 16].try_into().unwrap()
     }
 }
 
 impl BcnDecode<[u8; 4]> for Bc1 {
-    type CompressedBlock = Block8;
+    type CompressedBlock = [u8; 8];
 
-    fn decompress_block(block: &Block8) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
+    fn decompress_block(block: &[u8; 8]) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
         let mut decompressed = [[[0u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT];
 
-        unsafe {
-            bcndecode_sys::bcdec_bc1(
-                block.0.as_ptr(),
-                decompressed.as_mut_ptr() as _,
-                (BLOCK_WIDTH * CHANNELS) as i32,
-            );
-        }
+        bcdec_rs::bc1(
+            block,
+            bytemuck::cast_slice_mut(&mut decompressed),
+            BLOCK_WIDTH * CHANNELS,
+        );
 
         decompressed
     }
 }
 
 impl BcnDecode<[u8; 4]> for Bc2 {
-    type CompressedBlock = Block16;
+    type CompressedBlock = [u8; 16];
 
-    fn decompress_block(block: &Block16) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
+    fn decompress_block(block: &[u8; 16]) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
         let mut decompressed = [[[0u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT];
 
-        unsafe {
-            bcndecode_sys::bcdec_bc2(
-                block.0.as_ptr(),
-                decompressed.as_mut_ptr() as _,
-                (BLOCK_WIDTH * CHANNELS) as i32,
-            );
-        }
+        bcdec_rs::bc2(
+            block,
+            bytemuck::cast_slice_mut(&mut decompressed),
+            BLOCK_WIDTH * CHANNELS,
+        );
 
         decompressed
     }
 }
 
 impl BcnDecode<[u8; 4]> for Bc3 {
-    type CompressedBlock = Block16;
+    type CompressedBlock = [u8; 16];
 
-    fn decompress_block(block: &Block16) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
+    fn decompress_block(block: &[u8; 16]) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
         let mut decompressed = [[[0u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT];
 
-        unsafe {
-            bcndecode_sys::bcdec_bc3(
-                block.0.as_ptr(),
-                decompressed.as_mut_ptr() as _,
-                (BLOCK_WIDTH * CHANNELS) as i32,
-            );
-        }
+        bcdec_rs::bc3(
+            block,
+            bytemuck::cast_slice_mut(&mut decompressed),
+            BLOCK_WIDTH * CHANNELS,
+        );
 
         decompressed
     }
 }
 
 impl BcnDecode<[u8; 4]> for Bc4 {
-    type CompressedBlock = Block8;
+    type CompressedBlock = [u8; 8];
 
-    fn decompress_block(block: &Block8) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
+    fn decompress_block(block: &[u8; 8]) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
         // BC4 stores grayscale data, so each decompressed pixel is 1 byte.
         let mut decompressed_r = [[0u8; BLOCK_WIDTH]; BLOCK_HEIGHT];
 
-        unsafe {
-            bcndecode_sys::bcdec_bc4(
-                block.0.as_ptr(),
-                decompressed_r.as_mut_ptr() as _,
-                (BLOCK_WIDTH) as i32,
-            );
-        }
+        bcdec_rs::bc4(
+            block,
+            bytemuck::cast_slice_mut(&mut decompressed_r),
+            BLOCK_WIDTH,
+        );
 
         // Pad to RGBA with alpha set to white.
         let mut decompressed = [[[0u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT];
@@ -129,19 +113,17 @@ impl BcnDecode<[u8; 4]> for Bc4 {
 }
 
 impl BcnDecode<[u8; 4]> for Bc5 {
-    type CompressedBlock = Block16;
+    type CompressedBlock = [u8; 16];
 
-    fn decompress_block(block: &Block16) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
+    fn decompress_block(block: &[u8; 16]) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
         // BC5 stores RG data, so each decompressed pixel is 2 bytes.
         let mut decompressed_rg = [[[0u8; 2]; BLOCK_WIDTH]; BLOCK_HEIGHT];
 
-        unsafe {
-            bcndecode_sys::bcdec_bc5(
-                block.0.as_ptr(),
-                decompressed_rg.as_mut_ptr() as _,
-                (BLOCK_WIDTH * 2) as i32,
-            );
-        }
+        bcdec_rs::bc5(
+            block,
+            bytemuck::cast_slice_mut(&mut decompressed_rg),
+            BLOCK_WIDTH * 2,
+        );
 
         // Pad to RGBA with alpha set to white.
         let mut decompressed = [[[0u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT];
@@ -158,24 +140,22 @@ impl BcnDecode<[u8; 4]> for Bc5 {
 }
 
 impl BcnDecode<[f32; 4]> for Bc6 {
-    type CompressedBlock = Block16;
+    type CompressedBlock = [u8; 16];
 
-    fn decompress_block(block: &Block16) -> [[[f32; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
+    fn decompress_block(block: &[u8; 16]) -> [[[f32; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
         // BC6H uses half precision floating point data.
         // Convert to single precision since f32 is better supported on CPUs.
         let mut decompressed_rgb = [[[0f32; 3]; BLOCK_WIDTH]; BLOCK_HEIGHT];
 
-        unsafe {
-            // Cast the pointer to a less strictly aligned type.
-            // The pitch is in terms of floats rather than bytes.
-            bcndecode_sys::bcdec_bc6h_float(
-                block.0.as_ptr(),
-                decompressed_rgb.as_mut_ptr() as _,
-                (BLOCK_WIDTH * 3) as i32,
-                // TODO: signed vs unsigned?
-                0,
-            );
-        }
+        // Cast the pointer to a less strictly aligned type.
+        // The pitch is in terms of floats rather than bytes.
+        bcdec_rs::bc6h_float(
+            block,
+            bytemuck::cast_slice_mut(&mut decompressed_rgb),
+            BLOCK_WIDTH * 3,
+            // TODO: signed vs unsigned?
+            false,
+        );
 
         // Pad to RGBA with alpha set to white.
         let mut decompressed = [[[0.0; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT];
@@ -191,9 +171,9 @@ impl BcnDecode<[f32; 4]> for Bc6 {
 }
 
 impl BcnDecode<[u8; 4]> for Bc6 {
-    type CompressedBlock = Block16;
+    type CompressedBlock = [u8; 16];
 
-    fn decompress_block(block: &Block16) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
+    fn decompress_block(block: &[u8; 16]) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
         let decompressed: [[[f32; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] = Bc6::decompress_block(block);
 
         // Truncate to clamp to 0 to 255.
@@ -203,18 +183,16 @@ impl BcnDecode<[u8; 4]> for Bc6 {
 }
 
 impl BcnDecode<[u8; 4]> for Bc7 {
-    type CompressedBlock = Block16;
+    type CompressedBlock = [u8; 16];
 
-    fn decompress_block(block: &Block16) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
+    fn decompress_block(block: &[u8; 16]) -> [[[u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
         let mut decompressed = [[[0u8; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT];
 
-        unsafe {
-            bcndecode_sys::bcdec_bc7(
-                block.0.as_ptr(),
-                decompressed.as_mut_ptr() as _,
-                (BLOCK_WIDTH * CHANNELS) as i32,
-            );
-        }
+        bcdec_rs::bc7(
+            block,
+            bytemuck::cast_slice_mut(&mut decompressed),
+            BLOCK_WIDTH * CHANNELS,
+        );
 
         decompressed
     }

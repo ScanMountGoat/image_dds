@@ -13,7 +13,7 @@ edition = "2021"
 intel_tex_2 = { version = "0.3.0", optional = true }
 image = { version = "0.24.5", optional = true }
 ddsfile = { version = "0.5.1", optional = true }
-bcndecode-sys = { version = "0.1.0", path = "../bcndecode-sys", optional = true }
+bcdec_rs = { version = "0.1.0", path = "../bcdec_rs", optional = true }
 thiserror = "1.0.38"
 arbitrary = { version = "1.2.2", features = ["derive"], optional = true }
 half = { version = "2.2.1", features = ["bytemuck"] }
@@ -39,4 +39,4 @@ harness = false
 [features]
 default = ["ddsfile", "image", "encode", "decode", "strum"]
 encode = ["dep:intel_tex_2"]
-decode = ["dep:bcndecode-sys"]
+decode = ["dep:bcdec_rs"]
