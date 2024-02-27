@@ -563,6 +563,7 @@ pub fn bc6h_half(
             partition_set &= 0x01;
 
             let index = bstream.read_bits(index_bits);
+            let weight = weights[index as usize];
 
             let ep_i = partition_set * 2;
 
@@ -570,25 +571,16 @@ pub fn bc6h_half(
             // Convert u16 indices to u8 indices.
             let out = (i * destination_pitch + j * 3) * 2;
             decompressed_block[out..out + 2].copy_from_slice(
-                &finish_unquantize(
-                    interpolate_i32(r[ep_i], r[ep_i + 1], weights, index as usize),
-                    is_signed,
-                )
-                .to_le_bytes(),
+                &finish_unquantize(interpolate_i32(r[ep_i], r[ep_i + 1], weight), is_signed)
+                    .to_le_bytes(),
             );
             decompressed_block[out + 2..out + 4].copy_from_slice(
-                &finish_unquantize(
-                    interpolate_i32(g[ep_i], g[ep_i + 1], weights, index as usize),
-                    is_signed,
-                )
-                .to_le_bytes(),
+                &finish_unquantize(interpolate_i32(g[ep_i], g[ep_i + 1], weight), is_signed)
+                    .to_le_bytes(),
             );
             decompressed_block[out + 4..out + 6].copy_from_slice(
-                &finish_unquantize(
-                    interpolate_i32(b[ep_i], b[ep_i + 1], weights, index as usize),
-                    is_signed,
-                )
-                .to_le_bytes(),
+                &finish_unquantize(interpolate_i32(b[ep_i], b[ep_i + 1], weight), is_signed)
+                    .to_le_bytes(),
             );
         }
     }
@@ -785,9 +777,6 @@ pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
     let mut endpoints = [[0; 4]; 6];
     let mut indices = [[0u8; 4]; 4];
 
-    let mut index;
-    let mut index2;
-
     let mut mode = 0;
     while mode < 8 && (0 == bstream.read_bit()) {
         mode += 1;
@@ -826,24 +815,24 @@ pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
     // Extract endpoints
     // RGB
     for i in 0..3 {
-        for j in 0..num_endpoints {
-            endpoints[j][i] = bstream.read_bits(actual_bits_count[0][mode] as u32);
+        for endpoint in endpoints.iter_mut().take(num_endpoints) {
+            endpoint[i] = bstream.read_bits(actual_bits_count[0][mode] as u32);
         }
     }
     // Alpha (if any)
     if actual_bits_count[1][mode] > 0 {
-        for j in 0..num_endpoints {
-            endpoints[j][3] = bstream.read_bits(actual_bits_count[1][mode] as u32);
+        for endpoint in endpoints.iter_mut().take(num_endpoints) {
+            endpoint[3] = bstream.read_bits(actual_bits_count[1][mode] as u32);
         }
     }
 
     // Fully decode endpoints
     // First handle modes that have P-bits
     if mode == 0 || mode == 1 || mode == 3 || mode == 6 || mode == 7 {
-        for i in 0..num_endpoints {
+        for endpoint in endpoints.iter_mut().take(num_endpoints) {
             // component-wise left-shift
-            for j in 0..4 {
-                endpoints[i][j] <<= 1;
+            for endpoint in endpoint.iter_mut().take(4) {
+                *endpoint <<= 1;
             }
         }
 
@@ -861,40 +850,40 @@ pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
             }
         } else if (s_mode_has_pbits & (1 << mode)) != 0 {
             // unique P-bit per endpoint
-            for i in 0..num_endpoints {
+            for endpoint in endpoints.iter_mut().take(num_endpoints) {
                 let j = bstream.read_bit();
-                for k in 0..4 {
-                    endpoints[i][k] |= j;
+                for endpoint in endpoint.iter_mut().take(4) {
+                    *endpoint |= j;
                 }
             }
         }
     }
 
-    for i in 0..num_endpoints {
+    for endpoint in endpoints.iter_mut().take(num_endpoints) {
         // get color components precision including pbit
         let j = actual_bits_count[0][mode] + ((s_mode_has_pbits >> mode) & 1);
 
-        for k in 0..3 {
+        for endpoint in endpoint.iter_mut().take(3) {
             // left shift endpoint components so that their MSB lies in bit 7
-            endpoints[i][k] <<= 8 - j;
+            *endpoint <<= 8 - j;
             // Replicate each component's MSB into the LSBs revealed by the left-shift operation above
-            endpoints[i][k] |= endpoints[i][k] >> j;
+            *endpoint |= *endpoint >> j;
         }
 
         // get alpha component precision including pbit
         let j = actual_bits_count[1][mode] + ((s_mode_has_pbits >> mode) & 1);
 
         // left shift endpoint components so that their MSB lies in bit 7
-        endpoints[i][3] <<= 8 - j;
+        endpoint[3] <<= 8 - j;
         // Replicate each component's MSB into the LSBs revealed by the left-shift operation above
-        endpoints[i][3] |= endpoints[i][3] >> j;
+        endpoint[3] |= endpoint[3] >> j;
     }
 
     // If this mode does not explicitly define the alpha component
     // set alpha equal to 1.0
     if actual_bits_count[1][mode] == 0 {
-        for j in 0..num_endpoints {
-            endpoints[j][3] = 0xFF;
+        for endpoint in endpoints.iter_mut().take(num_endpoints) {
+            endpoint[3] = 0xFF;
         }
     }
 
@@ -928,8 +917,8 @@ pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
 
     // Quite inconvenient that indices aren't interleaved so we have to make 2 passes here
     // Pass #1: collecting color indices
-    for i in 0..4 {
-        for j in 0..4 {
+    for (i, indices) in indices.iter_mut().enumerate() {
+        for (j, index) in indices.iter_mut().enumerate() {
             let partition_set = if num_partitions == 1 {
                 if i | j != 0 {
                     0
@@ -953,15 +942,15 @@ pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
                 index_bits -= 1;
             }
 
-            indices[i][j] = bstream.read_bits(index_bits) as u8;
+            *index = bstream.read_bits(index_bits) as u8;
         }
     }
 
     // Pass #2: reading alpha indices (if any) and interpolating & rotating
-    for i in 0..4 {
+    for (i, indices) in indices.iter().enumerate() {
         assert!(decompressed_block.len() >= i * destination_pitch + 4 * 4);
 
-        for j in 0..4 {
+        for (j, index) in indices.iter().enumerate() {
             let mut partition_set = if num_partitions == 1 {
                 if i | j != 0 {
                     0usize
@@ -973,7 +962,7 @@ pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
             };
             partition_set &= 0x03;
 
-            index = indices[i][j];
+            let weight = weights[*index as usize];
 
             let mut r;
             let mut g;
@@ -983,33 +972,31 @@ pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
                 r = interpolate(
                     endpoints[partition_set * 2][0],
                     endpoints[partition_set * 2 + 1][0],
-                    weights,
-                    index as usize,
+                    weight,
                 );
                 g = interpolate(
                     endpoints[partition_set * 2][1],
                     endpoints[partition_set * 2 + 1][1],
-                    weights,
-                    index as usize,
+                    weight,
                 );
                 b = interpolate(
                     endpoints[partition_set * 2][2],
                     endpoints[partition_set * 2 + 1][2],
-                    weights,
-                    index as usize,
+                    weight,
                 );
                 a = interpolate(
                     endpoints[partition_set * 2][3],
                     endpoints[partition_set * 2 + 1][3],
-                    weights,
-                    index as usize,
+                    weight,
                 );
             } else {
-                index2 = bstream.read_bits(if i | j != 0 {
+                let index2 = bstream.read_bits(if i | j != 0 {
                     index_bits2
                 } else {
                     index_bits2 - 1
                 });
+                let weight2 = weights2[index2 as usize];
+
                 // The index value for interpolating color comes from the secondary index bits for the texel
                 // if the mode has an index selection bit and its value is one, and from the primary index bits otherwise.
                 // The alpha index comes from the secondary index bits if the block has a secondary index and
@@ -1018,51 +1005,43 @@ pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
                     r = interpolate(
                         endpoints[partition_set * 2][0],
                         endpoints[partition_set * 2 + 1][0],
-                        weights,
-                        index as usize,
+                        weight,
                     );
                     g = interpolate(
                         endpoints[partition_set * 2][1],
                         endpoints[partition_set * 2 + 1][1],
-                        weights,
-                        index as usize,
+                        weight,
                     );
                     b = interpolate(
                         endpoints[partition_set * 2][2],
                         endpoints[partition_set * 2 + 1][2],
-                        weights,
-                        index as usize,
+                        weight,
                     );
                     a = interpolate(
                         endpoints[partition_set * 2][3],
                         endpoints[partition_set * 2 + 1][3],
-                        weights2,
-                        index2 as usize,
+                        weight2,
                     );
                 } else {
                     r = interpolate(
                         endpoints[partition_set * 2][0],
                         endpoints[partition_set * 2 + 1][0],
-                        weights2,
-                        index2 as usize,
+                        weight2,
                     );
                     g = interpolate(
                         endpoints[partition_set * 2][1],
                         endpoints[partition_set * 2 + 1][1],
-                        weights2,
-                        index2 as usize,
+                        weight2,
                     );
                     b = interpolate(
                         endpoints[partition_set * 2][2],
                         endpoints[partition_set * 2 + 1][2],
-                        weights2,
-                        index2 as usize,
+                        weight2,
                     );
                     a = interpolate(
                         endpoints[partition_set * 2][3],
                         endpoints[partition_set * 2 + 1][3],
-                        weights,
-                        index as usize,
+                        weight,
                     );
                 }
             }
@@ -1286,7 +1265,8 @@ fn unquantize(val: i32, bits: i32, is_signed: bool) -> i32 {
         }
     } else {
         if bits >= 16 {
-            unq = val;
+            // TODO: Dead code?
+            // unq = val;
         } else if val < 0 {
             s = 1;
             val = -val;
@@ -1307,13 +1287,13 @@ fn unquantize(val: i32, bits: i32, is_signed: bool) -> i32 {
     unq
 }
 
-fn interpolate(a: u32, b: u32, weights: &[u32], index: usize) -> u32 {
-    (a * (64 - weights[index]) + b * weights[index] + 32) >> 6
+fn interpolate(a: u32, b: u32, weight: u32) -> u32 {
+    (a * (64 - weight) + b * weight + 32) >> 6
 }
 
 // TODO: Combine these with unsigned?
-fn interpolate_i32(a: i32, b: i32, weights: &[i32], index: usize) -> i32 {
-    (a * (64 - weights[index]) + b * weights[index] + 32) >> 6
+fn interpolate_i32(a: i32, b: i32, weight: i32) -> i32 {
+    (a * (64 - weight) + b * weight + 32) >> 6
 }
 
 fn finish_unquantize(val: i32, is_signed: bool) -> u16 {
