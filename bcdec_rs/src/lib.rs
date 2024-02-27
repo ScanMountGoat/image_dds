@@ -77,7 +77,7 @@ pub fn bc6h_half(
     destination_pitch: usize,
     is_signed: bool,
 ) {
-    let actual_bits_count = [
+    let actual_bits_count: [[u8; 14]; 4] = [
         [10, 7, 11, 11, 11, 9, 8, 8, 8, 6, 10, 11, 12, 16], //  W
         [5, 6, 5, 4, 4, 5, 6, 5, 5, 6, 10, 9, 8, 4],        // dR
         [5, 6, 4, 5, 4, 5, 5, 6, 5, 6, 10, 9, 8, 4],        // dG
@@ -87,7 +87,7 @@ pub fn bc6h_half(
     // There are 32 possible partition sets for a two-region tile.
     // Each 4x4 block represents a single shape.
     // Here also every fix-up index has MSB bit set.
-    let partition_sets = [
+    let partition_sets: [[[u8; 4]; 4]; 32] = [
         [[128, 0, 1, 1], [0, 0, 1, 1], [0, 0, 1, 1], [0, 0, 1, 129]], //  0
         [[128, 0, 0, 1], [0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 0, 129]], //  1
         [[128, 1, 1, 1], [0, 1, 1, 1], [0, 1, 1, 1], [0, 1, 1, 129]], //  2
@@ -507,7 +507,7 @@ pub fn bc6h_half(
 
     let num_partitions = if mode >= 10 { 0 } else { 1 };
 
-    let actual_bits0_mode = actual_bits_count[0][mode as usize];
+    let actual_bits0_mode = actual_bits_count[0][mode as usize] as i32;
     if is_signed {
         r[0] = extend_sign(r[0], actual_bits0_mode);
         g[0] = extend_sign(g[0], actual_bits0_mode);
@@ -517,9 +517,9 @@ pub fn bc6h_half(
     // and instead stores both color endpoints explicitly.
     if mode != 9 && mode != 10 || is_signed {
         for i in 1..(num_partitions + 1) * 2 {
-            r[i] = extend_sign(r[i], actual_bits_count[1][mode as usize]);
-            g[i] = extend_sign(g[i], actual_bits_count[2][mode as usize]);
-            b[i] = extend_sign(b[i], actual_bits_count[3][mode as usize]);
+            r[i] = extend_sign(r[i], actual_bits_count[1][mode as usize] as i32);
+            g[i] = extend_sign(g[i], actual_bits_count[2][mode as usize] as i32);
+            b[i] = extend_sign(b[i], actual_bits_count[3][mode as usize] as i32);
         }
     }
 
@@ -546,12 +546,12 @@ pub fn bc6h_half(
         for j in 0..4 {
             let mut partition_set = if mode >= 10 {
                 if i | j != 0 {
-                    0
+                    0usize
                 } else {
-                    128
+                    128usize
                 }
             } else {
-                partition_sets[partition as usize][i][j]
+                partition_sets[partition as usize][i][j] as usize
             };
 
             let mut index_bits = if mode >= 10 { 4 } else { 3 };
@@ -626,7 +626,7 @@ pub fn bc6h_float(
 }
 
 pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_pitch: usize) {
-    let actual_bits_count = [
+    let actual_bits_count: [[u8; 8]; 2] = [
         [4, 6, 5, 7, 5, 7, 7, 5], // RGBA
         [0, 0, 0, 0, 6, 8, 7, 5], // Alpha
     ];
@@ -634,7 +634,7 @@ pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
     // There are 64 possible partition sets for a two-region tile.
     // Each 4x4 block represents a single shape.
     // Here also every fix-up index has MSB bit set.
-    let partition_sets = [
+    let partition_sets: [[[[u8; 4]; 4]; 64]; 2] = [
         [
             // Partition table for 2-subset BPTC
             [[128, 0, 1, 1], [0, 0, 1, 1], [0, 0, 1, 1], [0, 0, 1, 129]], //  0
@@ -781,10 +781,9 @@ pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
         low: u64::from_le_bytes(compressed_block[0..8].try_into().unwrap()),
         high: u64::from_le_bytes(compressed_block[8..16].try_into().unwrap()),
     };
-    let mut partition_set;
 
     let mut endpoints = [[0; 4]; 6];
-    let mut indices = [[0; 4]; 4];
+    let mut indices = [[0u8; 4]; 4];
 
     let mut index;
     let mut index2;
@@ -834,13 +833,13 @@ pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
     // RGB
     for i in 0..3 {
         for j in 0..num_endpoints {
-            endpoints[j][i] = bstream.read_bits(actual_bits_count[0][mode]);
+            endpoints[j][i] = bstream.read_bits(actual_bits_count[0][mode] as u32);
         }
     }
     // Alpha (if any)
     if actual_bits_count[1][mode] > 0 {
         for j in 0..num_endpoints {
-            endpoints[j][3] = bstream.read_bits(actual_bits_count[1][mode]);
+            endpoints[j][3] = bstream.read_bits(actual_bits_count[1][mode] as u32);
         }
     }
 
@@ -937,7 +936,7 @@ pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
     // Pass #1: collecting color indices
     for i in 0..4 {
         for j in 0..4 {
-            partition_set = if num_partitions == 1 {
+            let partition_set = if num_partitions == 1 {
                 if i | j != 0 {
                     0
                 } else {
@@ -960,21 +959,21 @@ pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
                 index_bits -= 1;
             }
 
-            indices[i][j] = bstream.read_bits(index_bits);
+            indices[i][j] = bstream.read_bits(index_bits) as u8;
         }
     }
 
     // Pass #2: reading alpha indices (if any) and interpolating & rotating
     for i in 0..4 {
         for j in 0..4 {
-            partition_set = if num_partitions == 1 {
+            let mut partition_set = if num_partitions == 1 {
                 if i | j != 0 {
-                    0
+                    0usize
                 } else {
-                    128
+                    128usize
                 }
             } else {
-                partition_sets[num_partitions - 2][partition as usize][i][j]
+                partition_sets[num_partitions - 2][partition as usize][i][j] as usize
             };
             partition_set &= 0x03;
 
@@ -1220,25 +1219,25 @@ struct Bitstream {
 }
 
 impl Bitstream {
-    fn read_bits(&mut self, num_bits: u64) -> u64 {
+    fn read_bits(&mut self, num_bits: u32) -> u32 {
         let mask = (1 << num_bits) - 1;
         // Read the low N bits
         let bits = self.low & mask;
 
         self.low >>= num_bits;
         // Put the low N bits of "high" into the high 64-N bits of "low".
-        self.low |= (self.high & mask) << (u64::BITS as u64 - num_bits);
+        self.low |= (self.high & mask) << (u64::BITS as u64 - num_bits as u64);
         self.high >>= num_bits;
 
-        bits
+        bits as u32
     }
 
-    fn read_bit(&mut self) -> u64 {
+    fn read_bit(&mut self) -> u32 {
         self.read_bits(1)
     }
 
     // TODO: Ok to combine these with unsigned?
-    fn read_bits_i32(&mut self, num_bits: u64) -> i32 {
+    fn read_bits_i32(&mut self, num_bits: u32) -> i32 {
         self.read_bits(num_bits) as i32
     }
 
@@ -1248,7 +1247,7 @@ impl Bitstream {
 
     // reversed bits pulling, used in BC6H decoding
     // why ?? just why ???
-    fn read_bits_r(&mut self, num_bits: u64) -> i32 {
+    fn read_bits_r(&mut self, num_bits: u32) -> i32 {
         let mut bits = self.read_bits_i32(num_bits);
         // Reverse the bits.
         let mut result = 0;
@@ -1314,7 +1313,7 @@ fn unquantize(val: i32, bits: i32, is_signed: bool) -> i32 {
     unq
 }
 
-fn interpolate(a: u64, b: u64, weights: &[u64], index: usize) -> u64 {
+fn interpolate(a: u32, b: u32, weights: &[u32], index: usize) -> u32 {
     (a * (64 - weights[index]) + b * weights[index] + 32) >> 6
 }
 
