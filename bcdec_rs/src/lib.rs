@@ -796,14 +796,8 @@ pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
     // unexpected mode, clear the block (transparent black)
     if mode >= 8 {
         for i in 0..4 {
-            for j in 0..4 {
-                // TODO: function for indexing?
-                let index = i * destination_pitch + j * 4;
-                decompressed_block[index] = 0;
-                decompressed_block[index + 1] = 0;
-                decompressed_block[index + 2] = 0;
-                decompressed_block[index + 3] = 0;
-            }
+            let index = i * destination_pitch;
+            decompressed_block[index..index + 4 * 4].fill(0);
         }
 
         return;
@@ -965,6 +959,8 @@ pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
 
     // Pass #2: reading alpha indices (if any) and interpolating & rotating
     for i in 0..4 {
+        assert!(decompressed_block.len() >= i * destination_pitch + 4 * 4);
+
         for j in 0..4 {
             let mut partition_set = if num_partitions == 1 {
                 if i | j != 0 {
@@ -1089,10 +1085,8 @@ pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
 
             // TODO: function for indexing?
             let index = i * destination_pitch + j * 4;
-            decompressed_block[index] = r as u8;
-            decompressed_block[index + 1] = g as u8;
-            decompressed_block[index + 2] = b as u8;
-            decompressed_block[index + 3] = a as u8;
+            decompressed_block[index..index + 4]
+                .copy_from_slice(&[r as u8, g as u8, b as u8, a as u8]);
         }
     }
 }
