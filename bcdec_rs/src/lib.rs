@@ -129,17 +129,20 @@ pub fn bc5(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
 /// Decode 16 bytes from `compressed_block` to RGBFloat16
 /// with `destination_pitch` many half floats per output row.
 ///
+/// The `u16` values contain the bits of a half-precision floats.
+/// For a crate for working with these values, see [half](https://crates.io/crates/half).
+///
 /// # Examples
 ///
 /// ```rust
 /// // Decode a single 4x4 pixel block.
 /// let compressed_block = [0u8; 16];
-/// let mut decompressed_block = [0u8; 4 * 4 * 3 * 2];
+/// let mut decompressed_block = [0u16; 4 * 4 * 3];
 /// bcdec_rs::bc6h_half(&compressed_block, &mut decompressed_block, 4 * 3, false);
 /// ```
 pub fn bc6h_half(
     compressed_block: &[u8],
-    decompressed_block: &mut [u8],
+    decompressed_block: &mut [u16],
     destination_pitch: usize,
     is_signed: bool,
 ) {
@@ -562,9 +565,8 @@ pub fn bc6h_half(
             // must contain all zeroes in all channels except for the alpha channel.
             for i in 0..4 {
                 // TODO: function for indexing?
-                // Convert u16 indices to u8 indices.
-                let index = i * destination_pitch * 2;
-                decompressed_block[index..index + 4 * 3 * 2].fill(0);
+                let index = i * destination_pitch;
+                decompressed_block[index..index + 4 * 3].fill(0);
             }
 
             return;
@@ -634,20 +636,12 @@ pub fn bc6h_half(
             let ep_i = partition_set * 2;
 
             // TODO: function for indexing?
-            // Convert u16 indices to u8 indices.
-            let out = (i * destination_pitch + j * 3) * 2;
-            decompressed_block[out..out + 2].copy_from_slice(
-                &finish_unquantize(interpolate_i32(r[ep_i], r[ep_i + 1], weight), is_signed)
-                    .to_le_bytes(),
-            );
-            decompressed_block[out + 2..out + 4].copy_from_slice(
-                &finish_unquantize(interpolate_i32(g[ep_i], g[ep_i + 1], weight), is_signed)
-                    .to_le_bytes(),
-            );
-            decompressed_block[out + 4..out + 6].copy_from_slice(
-                &finish_unquantize(interpolate_i32(b[ep_i], b[ep_i + 1], weight), is_signed)
-                    .to_le_bytes(),
-            );
+            let out = i * destination_pitch + j * 3;
+            decompressed_block[out..out + 3].copy_from_slice(&[
+                finish_unquantize(interpolate_i32(r[ep_i], r[ep_i + 1], weight), is_signed),
+                finish_unquantize(interpolate_i32(g[ep_i], g[ep_i + 1], weight), is_signed),
+                finish_unquantize(interpolate_i32(b[ep_i], b[ep_i + 1], weight), is_signed),
+            ]);
         }
     }
 }
@@ -660,36 +654,30 @@ pub fn bc6h_half(
 /// ```rust
 /// // Decode a single 4x4 pixel block.
 /// let compressed_block = [0u8; 16];
-/// let mut decompressed_block = [0u8; 4 * 4 * 3 * 4];
+/// let mut decompressed_block = [0.0f32; 4 * 4 * 3];
 /// bcdec_rs::bc6h_float(&compressed_block, &mut decompressed_block, 4 * 3, false);
 /// ```
 pub fn bc6h_float(
     compressed_block: &[u8],
-    decompressed_block: &mut [u8],
+    decompressed_block: &mut [f32],
     destination_pitch: usize,
     is_signed: bool,
 ) {
     let input_pitch = 4 * 3;
-    let mut block = [0u8; 4 * 4 * 6];
+    let mut block = [0u16; 4 * 4 * 3];
     bc6h_half(compressed_block, &mut block, input_pitch, is_signed);
-
-    let float_bytes = |bytes: &[u8]| {
-        half_to_float_quick(u16::from_le_bytes(bytes.try_into().unwrap())).to_le_bytes()
-    };
 
     for i in 0..4 {
         for j in 0..4 {
             // TODO: function for indexing?
             // The input is f16 but the output is f32.
-            let in_index = (i * input_pitch + j * 3) * 2;
-            let out_index = (i * destination_pitch + j * 3) * 4;
-
-            decompressed_block[out_index..out_index + 4]
-                .copy_from_slice(&float_bytes(&block[in_index..in_index + 2]));
-            decompressed_block[out_index + 4..out_index + 8]
-                .copy_from_slice(&float_bytes(&block[in_index + 2..in_index + 4]));
-            decompressed_block[out_index + 8..out_index + 12]
-                .copy_from_slice(&float_bytes(&block[in_index + 4..in_index + 6]));
+            let in_index = i * input_pitch + j * 3;
+            let out_index = i * destination_pitch + j * 3;
+            decompressed_block[out_index..out_index + 3].copy_from_slice(&[
+                half_to_float_quick(block[in_index]),
+                half_to_float_quick(block[in_index + 1]),
+                half_to_float_quick(block[in_index + 2]),
+            ]);
         }
     }
 }
