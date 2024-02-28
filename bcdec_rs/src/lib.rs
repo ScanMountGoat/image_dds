@@ -23,6 +23,17 @@
 // Fast half to float function from here
 // https://gist.github.com/rygorous/2144712
 
+/// Decode 8 bytes from `compressed_block` to RGBA8
+/// with `destination_pitch` many bytes  per output row.
+///
+/// # Examples
+///
+/// ```rust
+/// // Decode a single 4x4 pixel block.
+/// let compressed_block = [0u8; 8];
+/// let mut decompressed_block = [0u8; 4 * 4 * 4];
+/// bcdec_rs::bc1(&compressed_block, &mut decompressed_block, 4 * 4);
+/// ```
 pub fn bc1(compressed_block: &[u8], decompressed_block: &mut [u8], destination_pitch: usize) {
     color_block(
         compressed_block,
@@ -32,6 +43,17 @@ pub fn bc1(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
     )
 }
 
+/// Decode 16 bytes from `compressed_block` to RGBA8
+/// with `destination_pitch` many bytes per output row.
+///
+/// # Examples
+///
+/// ```rust
+/// // Decode a single 4x4 pixel block.
+/// let compressed_block = [0u8; 16];
+/// let mut decompressed_block = [0u8; 4 * 4 * 4];
+/// bcdec_rs::bc2(&compressed_block, &mut decompressed_block, 4 * 4);
+/// ```
 pub fn bc2(compressed_block: &[u8], decompressed_block: &mut [u8], destination_pitch: usize) {
     color_block(
         &compressed_block[8..],
@@ -42,6 +64,17 @@ pub fn bc2(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
     sharp_alpha_block(compressed_block, decompressed_block, destination_pitch);
 }
 
+/// Decode 16 bytes from `compressed_block` to RGBA8
+/// with `destination_pitch` many bytes per output row.
+///
+/// # Examples
+///
+/// ```rust
+/// // Decode a single 4x4 pixel block.
+/// let compressed_block = [0u8; 16];
+/// let mut decompressed_block = [0u8; 4 * 4 * 4];
+/// bcdec_rs::bc3(&compressed_block, &mut decompressed_block, 4 * 4);
+/// ```
 pub fn bc3(compressed_block: &[u8], decompressed_block: &mut [u8], destination_pitch: usize) {
     color_block(
         &compressed_block[8..],
@@ -57,10 +90,32 @@ pub fn bc3(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
     );
 }
 
+/// Decode 8 bytes from `compressed_block` to R8
+/// with `destination_pitch` many bytes per output row.
+///
+/// # Examples
+///
+/// ```rust
+/// // Decode a single 4x4 pixel block.
+/// let compressed_block = [0u8; 8];
+/// let mut decompressed_block = [0u8; 4 * 4];
+/// bcdec_rs::bc4(&compressed_block, &mut decompressed_block, 4);
+/// ```
 pub fn bc4(compressed_block: &[u8], decompressed_block: &mut [u8], destination_pitch: usize) {
     smooth_alpha_block(compressed_block, decompressed_block, destination_pitch, 1);
 }
 
+/// Decode 16 bytes from `compressed_block` to RG8
+/// with `destination_pitch` many bytes per output row.
+///
+/// # Examples
+///
+/// ```rust
+/// // Decode a single 4x4 pixel block.
+/// let compressed_block = [0u8; 16];
+/// let mut decompressed_block = [0u8; 4 * 4 * 2];
+/// bcdec_rs::bc5(&compressed_block, &mut decompressed_block, 4 * 2);
+/// ```
 pub fn bc5(compressed_block: &[u8], decompressed_block: &mut [u8], destination_pitch: usize) {
     smooth_alpha_block(compressed_block, decompressed_block, destination_pitch, 2);
     smooth_alpha_block(
@@ -71,6 +126,17 @@ pub fn bc5(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
     );
 }
 
+/// Decode 16 bytes from `compressed_block` to RGBFloat16
+/// with `destination_pitch` many half floats per output row.
+///
+/// # Examples
+///
+/// ```rust
+/// // Decode a single 4x4 pixel block.
+/// let compressed_block = [0u8; 16];
+/// let mut decompressed_block = [0u8; 4 * 4 * 3 * 2];
+/// bcdec_rs::bc6h_half(&compressed_block, &mut decompressed_block, 4 * 3, false);
+/// ```
 pub fn bc6h_half(
     compressed_block: &[u8],
     decompressed_block: &mut [u8],
@@ -586,6 +652,17 @@ pub fn bc6h_half(
     }
 }
 
+/// Decode 16 bytes from `compressed_block` to RGBFloat32
+/// with `destination_pitch` many floats per output row.
+///
+/// # Examples
+///
+/// ```rust
+/// // Decode a single 4x4 pixel block.
+/// let compressed_block = [0u8; 16];
+/// let mut decompressed_block = [0u8; 4 * 4 * 3 * 4];
+/// bcdec_rs::bc6h_float(&compressed_block, &mut decompressed_block, 4 * 3, false);
+/// ```
 pub fn bc6h_float(
     compressed_block: &[u8],
     decompressed_block: &mut [u8],
@@ -617,6 +694,17 @@ pub fn bc6h_float(
     }
 }
 
+/// Decode 16 bytes from `compressed_block` to RGBA8
+/// with `destination_pitch` many bytes per output row.
+///
+/// # Examples
+///
+/// ```rust
+/// // Decode a single 4x4 pixel block.
+/// let compressed_block = [0u8; 16];
+/// let mut decompressed_block = [0u8; 4 * 4 * 4];
+/// bcdec_rs::bc7(&compressed_block, &mut decompressed_block, 4 * 4);
+/// ```
 pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_pitch: usize) {
     let actual_bits_count: [[u8; 8]; 2] = [
         [4, 6, 5, 7, 5, 7, 7, 5], // RGBA
