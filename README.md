@@ -8,7 +8,7 @@ A library for converting uncompressed image data to and from compressed formats.
 The provided example projects demonstrate basic usage of the conversion functions. 
 The library also provides functions for working directly with the raw bytes of a surface instead of a dds or image file. Floating point data like EXR files or BC6 DDS files is also supported.
 
-`cargo run --release --example img2dds image.png out.dds BC3Unorm`  
+`cargo run --release --example img2dds image.png out.dds BC3RgbaUnorm`  
 `cargo run --release --example dds2img out.dds out.tiff`  
 
 `cargo run --release --example img2ddsf32 image.exr out.dds`  
@@ -18,7 +18,7 @@ Array layers and depth slices in images should be stacked vertically.
 This enables surface creation to avoid making additional copies since the RGBA data is already in the desired layout.
 
 `cargo run --release --example img2dds 3d.dds 3d.png`  
-`cargo run --release --example img2dds 3d.png out.dds R8G8B8A8Unorm depth`  
+`cargo run --release --example img2dds 3d.png out.dds Rgba8Unorm depth`  
 
 `cargo run --release --example dds2imgf32 cube.dds cube.exr`  
 `cargo run --release --example img2ddsf32 cube.exr out.dds layers`  
