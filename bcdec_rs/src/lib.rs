@@ -146,7 +146,7 @@ pub fn bc6h_half(
     destination_pitch: usize,
     is_signed: bool,
 ) {
-    let actual_bits_count: [[u8; 14]; 4] = [
+    static ACTUAL_BITS_COUNT: [[u8; 14]; 4] = [
         [10, 7, 11, 11, 11, 9, 8, 8, 8, 6, 10, 11, 12, 16], //  W
         [5, 6, 5, 4, 4, 5, 6, 5, 5, 6, 10, 9, 8, 4],        // dR
         [5, 6, 4, 5, 4, 5, 5, 6, 5, 6, 10, 9, 8, 4],        // dG
@@ -156,7 +156,7 @@ pub fn bc6h_half(
     // There are 32 possible partition sets for a two-region tile.
     // Each 4x4 block represents a single shape.
     // Here also every fix-up index has MSB bit set.
-    let partition_sets: [[[u8; 4]; 4]; 32] = [
+    static PARTITION_SETS: [[[u8; 4]; 4]; 32] = [
         [[128, 0, 1, 1], [0, 0, 1, 1], [0, 0, 1, 1], [0, 0, 1, 129]], //  0
         [[128, 0, 0, 1], [0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 0, 129]], //  1
         [[128, 1, 1, 1], [0, 1, 1, 1], [0, 1, 1, 1], [0, 1, 1, 129]], //  2
@@ -575,7 +575,7 @@ pub fn bc6h_half(
 
     let num_partitions = if mode >= 10 { 0 } else { 1 };
 
-    let actual_bits0_mode = actual_bits_count[0][mode as usize] as i32;
+    let actual_bits0_mode = ACTUAL_BITS_COUNT[0][mode as usize] as i32;
     if is_signed {
         r[0] = extend_sign(r[0], actual_bits0_mode);
         g[0] = extend_sign(g[0], actual_bits0_mode);
@@ -585,9 +585,9 @@ pub fn bc6h_half(
     // and instead stores both color endpoints explicitly.
     if mode != 9 && mode != 10 || is_signed {
         for i in 1..(num_partitions + 1) * 2 {
-            r[i] = extend_sign(r[i], actual_bits_count[1][mode as usize] as i32);
-            g[i] = extend_sign(g[i], actual_bits_count[2][mode as usize] as i32);
-            b[i] = extend_sign(b[i], actual_bits_count[3][mode as usize] as i32);
+            r[i] = extend_sign(r[i], ACTUAL_BITS_COUNT[1][mode as usize] as i32);
+            g[i] = extend_sign(g[i], ACTUAL_BITS_COUNT[2][mode as usize] as i32);
+            b[i] = extend_sign(b[i], ACTUAL_BITS_COUNT[3][mode as usize] as i32);
         }
     }
 
@@ -619,7 +619,7 @@ pub fn bc6h_half(
                     128usize
                 }
             } else {
-                partition_sets[partition as usize][i][j] as usize
+                PARTITION_SETS[partition as usize][i][j] as usize
             };
 
             let mut index_bits = if mode >= 10 { 4 } else { 3 };
@@ -694,7 +694,7 @@ pub fn bc6h_float(
 /// bcdec_rs::bc7(&compressed_block, &mut decompressed_block, 4 * 4);
 /// ```
 pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_pitch: usize) {
-    let actual_bits_count: [[u8; 8]; 2] = [
+    static ACTUAL_BITS_COUNT: [[u8; 8]; 2] = [
         [4, 6, 5, 7, 5, 7, 7, 5], // RGBA
         [0, 0, 0, 0, 6, 8, 7, 5], // Alpha
     ];
@@ -702,7 +702,7 @@ pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
     // There are 64 possible partition sets for a two-region tile.
     // Each 4x4 block represents a single shape.
     // Here also every fix-up index has MSB bit set.
-    let partition_sets: [[[[u8; 4]; 4]; 64]; 2] = [
+    static PARTITION_SETS: [[[[u8; 4]; 4]; 64]; 2] = [
         [
             // Partition table for 2-subset BPTC
             [[128, 0, 1, 1], [0, 0, 1, 1], [0, 0, 1, 1], [0, 0, 1, 129]], //  0
@@ -892,13 +892,13 @@ pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
     // RGB
     for i in 0..3 {
         for endpoint in endpoints.iter_mut().take(num_endpoints) {
-            endpoint[i] = bstream.read_bits(actual_bits_count[0][mode] as u32);
+            endpoint[i] = bstream.read_bits(ACTUAL_BITS_COUNT[0][mode] as u32);
         }
     }
     // Alpha (if any)
-    if actual_bits_count[1][mode] > 0 {
+    if ACTUAL_BITS_COUNT[1][mode] > 0 {
         for endpoint in endpoints.iter_mut().take(num_endpoints) {
-            endpoint[3] = bstream.read_bits(actual_bits_count[1][mode] as u32);
+            endpoint[3] = bstream.read_bits(ACTUAL_BITS_COUNT[1][mode] as u32);
         }
     }
 
@@ -937,7 +937,7 @@ pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
 
     for endpoint in endpoints.iter_mut().take(num_endpoints) {
         // get color components precision including pbit
-        let j = actual_bits_count[0][mode] + ((s_mode_has_pbits >> mode) & 1);
+        let j = ACTUAL_BITS_COUNT[0][mode] + ((s_mode_has_pbits >> mode) & 1);
 
         for endpoint in endpoint.iter_mut().take(3) {
             // left shift endpoint components so that their MSB lies in bit 7
@@ -947,7 +947,7 @@ pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
         }
 
         // get alpha component precision including pbit
-        let j = actual_bits_count[1][mode] + ((s_mode_has_pbits >> mode) & 1);
+        let j = ACTUAL_BITS_COUNT[1][mode] + ((s_mode_has_pbits >> mode) & 1);
 
         // left shift endpoint components so that their MSB lies in bit 7
         endpoint[3] <<= 8 - j;
@@ -957,7 +957,7 @@ pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
 
     // If this mode does not explicitly define the alpha component
     // set alpha equal to 1.0
-    if actual_bits_count[1][mode] == 0 {
+    if ACTUAL_BITS_COUNT[1][mode] == 0 {
         for endpoint in endpoints.iter_mut().take(num_endpoints) {
             endpoint[3] = 0xFF;
         }
@@ -1002,7 +1002,7 @@ pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
                     128
                 }
             } else {
-                partition_sets[num_partitions - 2][partition as usize][i][j]
+                PARTITION_SETS[num_partitions - 2][partition as usize][i][j]
             };
 
             index_bits = if mode == 0 || mode == 1 {
@@ -1034,7 +1034,7 @@ pub fn bc7(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
                     128usize
                 }
             } else {
-                partition_sets[num_partitions - 2][partition as usize][i][j] as usize
+                PARTITION_SETS[num_partitions - 2][partition as usize][i][j] as usize
             };
             partition_set &= 0x03;
 
