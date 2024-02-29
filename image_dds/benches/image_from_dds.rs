@@ -9,7 +9,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         depth: 1,
         layers: 1,
         mipmaps: 1,
-        image_format: ImageFormat::BC7Unorm,
+        image_format: ImageFormat::BC7RgbaUnorm,
         data: vec![0u8; 512 * 512 * 2],
     };
     let dds = surface.to_dds().unwrap();

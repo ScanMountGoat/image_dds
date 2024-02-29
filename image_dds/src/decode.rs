@@ -119,21 +119,19 @@ impl Decode for u8 {
     ) -> Result<Vec<Self>, SurfaceError> {
         use ImageFormat as F;
         match image_format {
-            F::BC1Unorm | F::BC1Srgb => rgba_from_bcn::<Bc1, u8>(width, height, data),
-            F::BC2Unorm | F::BC2Srgb => rgba_from_bcn::<Bc2, u8>(width, height, data),
-            F::BC3Unorm | F::BC3Srgb => rgba_from_bcn::<Bc3, u8>(width, height, data),
-            F::BC4Unorm | F::BC4Snorm => rgba_from_bcn::<Bc4, u8>(width, height, data),
-            F::BC5Unorm | F::BC5Snorm => rgba_from_bcn::<Bc5, u8>(width, height, data),
-            F::BC6Ufloat | F::BC6Sfloat => rgba_from_bcn::<Bc6, u8>(width, height, data),
-            F::BC7Unorm | F::BC7Srgb => rgba_from_bcn::<Bc7, u8>(width, height, data),
+            F::BC1RgbaUnorm | F::BC1RgbaUnormSrgb => rgba_from_bcn::<Bc1, u8>(width, height, data),
+            F::BC2RgbaUnorm | F::BC2RgbaUnormSrgb => rgba_from_bcn::<Bc2, u8>(width, height, data),
+            F::BC3RgbaUnorm | F::BC3RgbaUnormSrgb => rgba_from_bcn::<Bc3, u8>(width, height, data),
+            F::BC4RUnorm | F::BC4RSnorm => rgba_from_bcn::<Bc4, u8>(width, height, data),
+            F::BC5RgUnorm | F::BC5RgSnorm => rgba_from_bcn::<Bc5, u8>(width, height, data),
+            F::BC6hRgbUfloat | F::BC6hRgbSfloat => rgba_from_bcn::<Bc6, u8>(width, height, data),
+            F::BC7RgbaUnorm | F::BC7RgbaUnormSrgb => rgba_from_bcn::<Bc7, u8>(width, height, data),
             F::R8Unorm => rgba8_from_r8(width, height, data),
-            F::R8G8B8A8Unorm => rgba8_from_rgba8(width, height, data),
-            F::R8G8B8A8Srgb => rgba8_from_rgba8(width, height, data),
-            F::R16G16B16A16Float => rgba8_from_rgbaf16(width, height, data),
-            F::R32G32B32A32Float => rgba8_from_rgbaf32(width, height, data),
-            F::B8G8R8A8Unorm => rgba8_from_bgra8(width, height, data),
-            F::B8G8R8A8Srgb => rgba8_from_bgra8(width, height, data),
-            F::B4G4R4A4Unorm => rgba8_from_bgra4(width, height, data),
+            F::Rgba8Unorm | F::Rgba8UnormSrgb => rgba8_from_rgba8(width, height, data),
+            F::Rgba16Float => rgba8_from_rgbaf16(width, height, data),
+            F::Rgba32Float => rgba8_from_rgbaf32(width, height, data),
+            F::Bgra8Unorm | F::Bgra8UnormSrgb => rgba8_from_bgra8(width, height, data),
+            F::Bgra4Unorm => rgba8_from_bgra4(width, height, data),
         }
     }
 }
@@ -147,9 +145,9 @@ impl Decode for f32 {
     ) -> Result<Vec<Self>, SurfaceError> {
         use ImageFormat as F;
         match image_format {
-            F::BC6Ufloat | F::BC6Sfloat => rgba_from_bcn::<Bc6, f32>(width, height, data),
-            F::R16G16B16A16Float => rgbaf32_from_rgbaf16(width, height, data),
-            F::R32G32B32A32Float => rgbaf32_from_rgbaf32(width, height, data),
+            F::BC6hRgbUfloat | F::BC6hRgbSfloat => rgba_from_bcn::<Bc6, f32>(width, height, data),
+            F::Rgba16Float => rgbaf32_from_rgbaf16(width, height, data),
+            F::Rgba32Float => rgbaf32_from_rgbaf32(width, height, data),
             _ => {
                 // Use existing decoding for formats that don't store floating point data.
                 let rgba8 = u8::decode(width, height, image_format, data)?;
@@ -171,7 +169,7 @@ mod tests {
             depth: 0,
             layers: 1,
             mipmaps: 1,
-            image_format: ImageFormat::R8G8B8A8Srgb,
+            image_format: ImageFormat::Rgba8UnormSrgb,
             data: &[0u8; 0],
         }
         .decode_rgba8();
@@ -194,7 +192,7 @@ mod tests {
             depth: u32::MAX,
             layers: 1,
             mipmaps: 1,
-            image_format: ImageFormat::R8G8B8A8Srgb,
+            image_format: ImageFormat::Rgba8UnormSrgb,
             data: &[0u8; 0],
         }
         .decode_rgba8();
@@ -217,7 +215,7 @@ mod tests {
             depth: 1,
             layers: 1,
             mipmaps: 10,
-            image_format: ImageFormat::R8G8B8A8Srgb,
+            image_format: ImageFormat::Rgba8UnormSrgb,
             data: &[0u8; 4 * 4 * 4],
         }
         .decode_rgba8();
@@ -239,7 +237,7 @@ mod tests {
             depth: 1,
             layers: 1,
             mipmaps: 3,
-            image_format: ImageFormat::R8G8B8A8Srgb,
+            image_format: ImageFormat::Rgba8UnormSrgb,
             data: &[0u8; 512],
         }
         .decode_layers_mipmaps_rgba8(0..1, 1..2)
@@ -267,7 +265,7 @@ mod tests {
             depth: 1,
             layers: 1,
             mipmaps: 1,
-            image_format: ImageFormat::R8G8B8A8Srgb,
+            image_format: ImageFormat::Rgba8UnormSrgb,
             data: &[0u8; 4 * 4 * 4],
         }
         .decode_layers_mipmaps_rgba8(0..1, 0..0)
@@ -294,7 +292,7 @@ mod tests {
             depth: 1,
             layers: 1,
             mipmaps: 3,
-            image_format: ImageFormat::R8G8B8A8Srgb,
+            image_format: ImageFormat::Rgba8UnormSrgb,
             data: &[0u8; 512],
         }
         .decode_layers_mipmaps_rgbaf32(0..1, 1..2)
@@ -322,7 +320,7 @@ mod tests {
             depth: 1,
             layers: 1,
             mipmaps: 1,
-            image_format: ImageFormat::R8G8B8A8Srgb,
+            image_format: ImageFormat::Rgba8UnormSrgb,
             data: &[0u8; 4 * 4 * 4],
         }
         .decode_layers_mipmaps_rgbaf32(0..1, 0..0)

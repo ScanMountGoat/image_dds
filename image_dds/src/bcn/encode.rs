@@ -67,7 +67,7 @@ impl BcnEncode<u8> for Bc2 {
     ) -> Result<Vec<u8>, SurfaceError> {
         // TODO: Find an implementation that supports this?
         Err(SurfaceError::UnsupportedEncodeFormat {
-            format: ImageFormat::BC2Unorm,
+            format: ImageFormat::BC2RgbaUnorm,
         })
     }
 }

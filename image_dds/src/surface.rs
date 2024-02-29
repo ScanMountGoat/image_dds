@@ -97,7 +97,7 @@ impl<T: AsRef<[u8]>> Surface<T> {
     }
 }
 
-/// An uncompressed [ImageFormat::R8G8B8A8Unorm] surface with 4 bytes per pixel.
+/// An uncompressed [ImageFormat::Rgba8Unorm] surface with 4 bytes per pixel.
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -133,7 +133,7 @@ impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
             self.data.as_ref(),
             (self.width, self.height, self.depth),
             self.mipmaps,
-            ImageFormat::R8G8B8A8Unorm,
+            ImageFormat::Rgba8Unorm,
             layer,
             depth_level,
             mipmap,
@@ -147,7 +147,7 @@ impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
             depth: self.depth,
             layers: self.layers,
             mipmaps: self.mipmaps,
-            image_format: ImageFormat::R8G8B8A8Unorm,
+            image_format: ImageFormat::Rgba8Unorm,
             data: self.data.as_ref(),
         }
         .validate()
@@ -256,7 +256,7 @@ impl SurfaceRgba8<Vec<u8>> {
     }
 }
 
-/// An uncompressed [ImageFormat::R32G32B32A32Float] surface with 16 bytes per pixel.
+/// An uncompressed [ImageFormat::Rgba32Float] surface with 16 bytes per pixel.
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -293,7 +293,7 @@ impl<T: AsRef<[f32]>> SurfaceRgba32Float<T> {
             self.data.as_ref(),
             (self.width, self.height, self.depth),
             self.mipmaps,
-            ImageFormat::R32G32B32A32Float,
+            ImageFormat::Rgba32Float,
             layer,
             depth_level,
             mipmap,
@@ -308,7 +308,7 @@ impl<T: AsRef<[f32]>> SurfaceRgba32Float<T> {
             depth: self.depth,
             layers: self.layers,
             mipmaps: self.mipmaps,
-            image_format: ImageFormat::R32G32B32A32Float,
+            image_format: ImageFormat::Rgba32Float,
             data: bytemuck::cast_slice(self.data.as_ref()),
         }
         .validate()

@@ -359,21 +359,31 @@ impl Encode for u8 {
         // Use the same conversion code for both.
         use ImageFormat as F;
         match format {
-            F::BC1Unorm | F::BC1Srgb => bcn_from_rgba::<Bc1, u8>(width, height, data, quality),
-            F::BC2Unorm | F::BC2Srgb => bcn_from_rgba::<Bc2, u8>(width, height, data, quality),
-            F::BC3Unorm | F::BC3Srgb => bcn_from_rgba::<Bc3, u8>(width, height, data, quality),
-            F::BC4Unorm | F::BC4Snorm => bcn_from_rgba::<Bc4, u8>(width, height, data, quality),
-            F::BC5Unorm | F::BC5Snorm => bcn_from_rgba::<Bc5, u8>(width, height, data, quality),
-            F::BC6Ufloat | F::BC6Sfloat => bcn_from_rgba::<Bc6, u8>(width, height, data, quality),
-            F::BC7Unorm | F::BC7Srgb => bcn_from_rgba::<Bc7, u8>(width, height, data, quality),
+            F::BC1RgbaUnorm | F::BC1RgbaUnormSrgb => {
+                bcn_from_rgba::<Bc1, u8>(width, height, data, quality)
+            }
+            F::BC2RgbaUnorm | F::BC2RgbaUnormSrgb => {
+                bcn_from_rgba::<Bc2, u8>(width, height, data, quality)
+            }
+            F::BC3RgbaUnorm | F::BC3RgbaUnormSrgb => {
+                bcn_from_rgba::<Bc3, u8>(width, height, data, quality)
+            }
+            F::BC4RUnorm | F::BC4RSnorm => bcn_from_rgba::<Bc4, u8>(width, height, data, quality),
+            F::BC5RgUnorm | F::BC5RgSnorm => bcn_from_rgba::<Bc5, u8>(width, height, data, quality),
+            F::BC6hRgbUfloat | F::BC6hRgbSfloat => {
+                bcn_from_rgba::<Bc6, u8>(width, height, data, quality)
+            }
+            F::BC7RgbaUnorm | F::BC7RgbaUnormSrgb => {
+                bcn_from_rgba::<Bc7, u8>(width, height, data, quality)
+            }
             F::R8Unorm => r8_from_rgba8(width, height, data),
-            F::R8G8B8A8Unorm => rgba8_from_rgba8(width, height, data),
-            F::R8G8B8A8Srgb => rgba8_from_rgba8(width, height, data),
-            F::R16G16B16A16Float => rgbaf16_from_rgba8(width, height, data),
-            F::R32G32B32A32Float => rgbaf32_from_rgba8(width, height, data),
-            F::B8G8R8A8Unorm => bgra8_from_rgba8(width, height, data),
-            F::B8G8R8A8Srgb => bgra8_from_rgba8(width, height, data),
-            F::B4G4R4A4Unorm => bgra4_from_rgba8(width, height, data),
+            F::Rgba8Unorm => rgba8_from_rgba8(width, height, data),
+            F::Rgba8UnormSrgb => rgba8_from_rgba8(width, height, data),
+            F::Rgba16Float => rgbaf16_from_rgba8(width, height, data),
+            F::Rgba32Float => rgbaf32_from_rgba8(width, height, data),
+            F::Bgra8Unorm => bgra8_from_rgba8(width, height, data),
+            F::Bgra8UnormSrgb => bgra8_from_rgba8(width, height, data),
+            F::Bgra4Unorm => bgra4_from_rgba8(width, height, data),
         }
     }
 }
@@ -390,13 +400,15 @@ impl Encode for f32 {
         // Use the same conversion code for both.
         use ImageFormat as F;
         match format {
-            F::BC6Ufloat | F::BC6Sfloat => bcn_from_rgba::<Bc6, f32>(width, height, data, quality),
-            F::R16G16B16A16Float => {
+            F::BC6hRgbUfloat | F::BC6hRgbSfloat => {
+                bcn_from_rgba::<Bc6, f32>(width, height, data, quality)
+            }
+            F::Rgba16Float => {
                 // TODO: Create conversion functions that don't require a cast?
                 rgbaf16_from_rgbaf32(width, height, bytemuck::cast_slice(data))
                     .map(bytemuck::cast_vec)
             }
-            F::R32G32B32A32Float => rgbaf32_from_rgbaf32(width, height, bytemuck::cast_slice(data))
+            F::Rgba32Float => rgbaf32_from_rgbaf32(width, height, bytemuck::cast_slice(data))
                 .map(bytemuck::cast_vec),
             _ => {
                 let rgba8: Vec<_> = data.iter().map(|f| (f * 255.0) as u8).collect();
@@ -422,7 +434,7 @@ mod tests {
             data: &[0u8; 12 * 12 * 4],
         }
         .encode(
-            ImageFormat::BC7Srgb,
+            ImageFormat::BC7RgbaUnormSrgb,
             Quality::Fast,
             Mipmaps::GeneratedAutomatic,
         )
@@ -433,7 +445,7 @@ mod tests {
         assert_eq!(1, surface.depth);
         assert_eq!(1, surface.layers);
         assert_eq!(4, surface.mipmaps);
-        assert_eq!(ImageFormat::BC7Srgb, surface.image_format);
+        assert_eq!(ImageFormat::BC7RgbaUnormSrgb, surface.image_format);
         // Each mipmap must be at least 1 block in size.
         assert_eq!((9 + 4 + 1 + 1) * 16, surface.data.len());
     }
@@ -450,7 +462,7 @@ mod tests {
             data: &[0u8; (4 * 4 + 2 * 2 + 1 * 1) * 6 * 4],
         }
         .encode(
-            ImageFormat::BC7Srgb,
+            ImageFormat::BC7RgbaUnormSrgb,
             Quality::Fast,
             Mipmaps::GeneratedAutomatic,
         )
@@ -461,7 +473,7 @@ mod tests {
         assert_eq!(1, surface.depth);
         assert_eq!(6, surface.layers);
         assert_eq!(3, surface.mipmaps);
-        assert_eq!(ImageFormat::BC7Srgb, surface.image_format);
+        assert_eq!(ImageFormat::BC7RgbaUnormSrgb, surface.image_format);
         // Each mipmap must be at least 1 block in size.
         assert_eq!(3 * 16 * 6, surface.data.len());
     }
@@ -476,7 +488,11 @@ mod tests {
             mipmaps: 3,
             data: &[0u8; 64 + 16 + 4],
         }
-        .encode(ImageFormat::BC7Srgb, Quality::Fast, Mipmaps::Disabled)
+        .encode(
+            ImageFormat::BC7RgbaUnormSrgb,
+            Quality::Fast,
+            Mipmaps::Disabled,
+        )
         .unwrap();
 
         assert_eq!(4, surface.width);
@@ -484,7 +500,7 @@ mod tests {
         assert_eq!(1, surface.depth);
         assert_eq!(1, surface.layers);
         assert_eq!(1, surface.mipmaps);
-        assert_eq!(ImageFormat::BC7Srgb, surface.image_format);
+        assert_eq!(ImageFormat::BC7RgbaUnormSrgb, surface.image_format);
         assert_eq!(16, surface.data.len());
     }
 
@@ -498,7 +514,11 @@ mod tests {
             mipmaps: 2,
             data: &[0u8; 64 + 16],
         }
-        .encode(ImageFormat::BC7Srgb, Quality::Fast, Mipmaps::FromSurface)
+        .encode(
+            ImageFormat::BC7RgbaUnormSrgb,
+            Quality::Fast,
+            Mipmaps::FromSurface,
+        )
         .unwrap();
 
         assert_eq!(4, surface.width);
@@ -506,7 +526,7 @@ mod tests {
         assert_eq!(1, surface.depth);
         assert_eq!(1, surface.layers);
         assert_eq!(2, surface.mipmaps);
-        assert_eq!(ImageFormat::BC7Srgb, surface.image_format);
+        assert_eq!(ImageFormat::BC7RgbaUnormSrgb, surface.image_format);
         assert_eq!(16 * 2, surface.data.len());
     }
 
@@ -522,7 +542,7 @@ mod tests {
             data: &[0u8; 256],
         }
         .encode(
-            ImageFormat::BC7Srgb,
+            ImageFormat::BC7RgbaUnormSrgb,
             Quality::Fast,
             Mipmaps::GeneratedAutomatic,
         )
@@ -533,7 +553,7 @@ mod tests {
         assert_eq!(1, surface.depth);
         assert_eq!(1, surface.layers);
         assert_eq!(3, surface.mipmaps);
-        assert_eq!(ImageFormat::BC7Srgb, surface.image_format);
+        assert_eq!(ImageFormat::BC7RgbaUnormSrgb, surface.image_format);
         // Each mipmap must have an integral size in blocks.
         assert_eq!((2 + 2) * 16, surface.data.len());
     }
@@ -549,7 +569,7 @@ mod tests {
             data: &[0u8; 0],
         }
         .encode(
-            ImageFormat::BC7Srgb,
+            ImageFormat::BC7RgbaUnormSrgb,
             Quality::Fast,
             Mipmaps::GeneratedAutomatic,
         );
@@ -575,7 +595,7 @@ mod tests {
             data: &[0.0; 12 * 12 * 4],
         }
         .encode(
-            ImageFormat::BC7Srgb,
+            ImageFormat::BC7RgbaUnormSrgb,
             Quality::Fast,
             Mipmaps::GeneratedAutomatic,
         )
@@ -586,7 +606,7 @@ mod tests {
         assert_eq!(1, surface.depth);
         assert_eq!(1, surface.layers);
         assert_eq!(4, surface.mipmaps);
-        assert_eq!(ImageFormat::BC7Srgb, surface.image_format);
+        assert_eq!(ImageFormat::BC7RgbaUnormSrgb, surface.image_format);
         // Each mipmap must be at least 1 block in size.
         assert_eq!((9 + 4 + 1 + 1) * 16, surface.data.len());
     }
@@ -603,7 +623,7 @@ mod tests {
             data: &[0.0; (4 * 4 + 2 * 2 + 1 * 1) * 6 * 4],
         }
         .encode(
-            ImageFormat::BC7Srgb,
+            ImageFormat::BC7RgbaUnormSrgb,
             Quality::Fast,
             Mipmaps::GeneratedAutomatic,
         )
@@ -614,7 +634,7 @@ mod tests {
         assert_eq!(1, surface.depth);
         assert_eq!(6, surface.layers);
         assert_eq!(3, surface.mipmaps);
-        assert_eq!(ImageFormat::BC7Srgb, surface.image_format);
+        assert_eq!(ImageFormat::BC7RgbaUnormSrgb, surface.image_format);
         // Each mipmap must be at least 1 block in size.
         assert_eq!(3 * 16 * 6, surface.data.len());
     }
@@ -629,7 +649,11 @@ mod tests {
             mipmaps: 3,
             data: &[0.0; 64 + 16 + 4],
         }
-        .encode(ImageFormat::BC7Srgb, Quality::Fast, Mipmaps::Disabled)
+        .encode(
+            ImageFormat::BC7RgbaUnormSrgb,
+            Quality::Fast,
+            Mipmaps::Disabled,
+        )
         .unwrap();
 
         assert_eq!(4, surface.width);
@@ -637,7 +661,7 @@ mod tests {
         assert_eq!(1, surface.depth);
         assert_eq!(1, surface.layers);
         assert_eq!(1, surface.mipmaps);
-        assert_eq!(ImageFormat::BC7Srgb, surface.image_format);
+        assert_eq!(ImageFormat::BC7RgbaUnormSrgb, surface.image_format);
         assert_eq!(16, surface.data.len());
     }
 
@@ -651,7 +675,11 @@ mod tests {
             mipmaps: 2,
             data: &[0.0; 64 + 16],
         }
-        .encode(ImageFormat::BC7Srgb, Quality::Fast, Mipmaps::FromSurface)
+        .encode(
+            ImageFormat::BC7RgbaUnormSrgb,
+            Quality::Fast,
+            Mipmaps::FromSurface,
+        )
         .unwrap();
 
         assert_eq!(4, surface.width);
@@ -659,7 +687,7 @@ mod tests {
         assert_eq!(1, surface.depth);
         assert_eq!(1, surface.layers);
         assert_eq!(2, surface.mipmaps);
-        assert_eq!(ImageFormat::BC7Srgb, surface.image_format);
+        assert_eq!(ImageFormat::BC7RgbaUnormSrgb, surface.image_format);
         assert_eq!(16 * 2, surface.data.len());
     }
 
@@ -675,7 +703,7 @@ mod tests {
             data: &[0.0; 256],
         }
         .encode(
-            ImageFormat::BC7Srgb,
+            ImageFormat::BC7RgbaUnormSrgb,
             Quality::Fast,
             Mipmaps::GeneratedAutomatic,
         )
@@ -686,7 +714,7 @@ mod tests {
         assert_eq!(1, surface.depth);
         assert_eq!(1, surface.layers);
         assert_eq!(3, surface.mipmaps);
-        assert_eq!(ImageFormat::BC7Srgb, surface.image_format);
+        assert_eq!(ImageFormat::BC7RgbaUnormSrgb, surface.image_format);
         // Each mipmap must have an integral size in blocks.
         assert_eq!((2 + 2) * 16, surface.data.len());
     }
@@ -702,7 +730,7 @@ mod tests {
             data: &[0.0; 0],
         }
         .encode(
-            ImageFormat::BC7Srgb,
+            ImageFormat::BC7RgbaUnormSrgb,
             Quality::Fast,
             Mipmaps::GeneratedAutomatic,
         );

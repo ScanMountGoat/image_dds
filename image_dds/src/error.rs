@@ -2,6 +2,7 @@ use thiserror::Error;
 
 use crate::{DdsFormatInfo, ImageFormat};
 
+/// Errors that can occur while creating a decoded image.
 #[derive(Debug, Error)]
 pub enum CreateImageError {
     #[error("data length {data_length} is not valid for a {width}x{height} image")]
@@ -18,6 +19,7 @@ pub enum CreateImageError {
     UnexpectedMipmapCount { mipmaps: u32, max_mipmaps: u32 },
 }
 
+/// Errors that can occur while encoding or decoding a surface.
 #[derive(Debug, Error)]
 pub enum SurfaceError {
     #[error("surface dimensions {width} x {height} x {depth} contain no pixels")]

@@ -8,7 +8,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             dds_from_image(
                 black_box(&image),
-                black_box(ImageFormat::BC7Unorm),
+                black_box(ImageFormat::BC7RgbaUnorm),
                 black_box(Quality::Fast),
                 black_box(Mipmaps::GeneratedAutomatic),
             )

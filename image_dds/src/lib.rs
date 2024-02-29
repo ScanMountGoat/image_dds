@@ -1,6 +1,6 @@
 //! # Introduction
 //! DDS can store the vast majority of both compressed and uncompressed GPU texture data.
-//! This includes uncompressed formats like [ImageFormat::R8G8B8A8Unorm].
+//! This includes uncompressed formats like [ImageFormat::Rgba8Unorm].
 //! Libraries and applications for working with custom GPU texture file formats often support DDS.
 //! This makes DDS a good interchange format for texture conversion workflows.
 //!
@@ -69,7 +69,7 @@ mod dds;
 #[cfg(feature = "ddsfile")]
 pub use dds::*;
 
-/// The conversion quality when converting to compressed formats.
+/// The conversion quality when encoding to compressed formats.
 ///
 /// Higher quality settings run significantly slower.
 /// Block compressed formats like BC7 use a fixed compression ratio,
@@ -127,82 +127,96 @@ pub enum Mipmaps {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ImageFormat {
     R8Unorm,
-    R8G8B8A8Unorm,
-    R8G8B8A8Srgb,
-    R16G16B16A16Float,
-    R32G32B32A32Float,
-    B8G8R8A8Unorm,
-    B8G8R8A8Srgb,
-    B4G4R4A4Unorm,
-    BC1Unorm,
-    BC1Srgb,
-    BC2Unorm,
-    BC2Srgb,
-    BC3Unorm,
-    BC3Srgb,
-    BC4Unorm,
-    BC4Snorm,
-    BC5Unorm,
-    BC5Snorm,
-    BC6Ufloat,
-    BC6Sfloat,
-    BC7Unorm,
-    BC7Srgb,
+    Rgba8Unorm,
+    Rgba8UnormSrgb,
+    Rgba16Float,
+    Rgba32Float,
+    Bgra8Unorm,
+    Bgra8UnormSrgb,
+    Bgra4Unorm,
+    /// DXT1
+    BC1RgbaUnorm,
+    /// DXT1
+    BC1RgbaUnormSrgb,
+    /// DXT3
+    BC2RgbaUnorm,
+    /// DXT3
+    BC2RgbaUnormSrgb,
+    /// DXT5
+    BC3RgbaUnorm,
+    /// DXT5
+    BC3RgbaUnormSrgb,
+    /// RGTC1
+    BC4RUnorm,
+    /// RGTC1
+    BC4RSnorm,
+    /// RGTC2
+    BC5RgUnorm,
+    /// RGTC2
+    BC5RgSnorm,
+    /// BPTC (float)
+    BC6hRgbUfloat,
+    /// BPTC (float)
+    BC6hRgbSfloat,
+    /// BPTC (unorm)
+    BC7RgbaUnorm,
+    /// BPTC (unorm)
+    BC7RgbaUnormSrgb,
 }
 
 impl ImageFormat {
     // TODO: Is it worth making these public?
     fn block_dimensions(&self) -> (u32, u32, u32) {
         match self {
-            ImageFormat::BC1Unorm => (4, 4, 1),
-            ImageFormat::BC1Srgb => (4, 4, 1),
-            ImageFormat::BC2Unorm => (4, 4, 1),
-            ImageFormat::BC2Srgb => (4, 4, 1),
-            ImageFormat::BC3Unorm => (4, 4, 1),
-            ImageFormat::BC3Srgb => (4, 4, 1),
-            ImageFormat::BC4Unorm => (4, 4, 1),
-            ImageFormat::BC4Snorm => (4, 4, 1),
-            ImageFormat::BC5Unorm => (4, 4, 1),
-            ImageFormat::BC5Snorm => (4, 4, 1),
-            ImageFormat::BC6Ufloat => (4, 4, 1),
-            ImageFormat::BC6Sfloat => (4, 4, 1),
-            ImageFormat::BC7Unorm => (4, 4, 1),
-            ImageFormat::BC7Srgb => (4, 4, 1),
+            ImageFormat::BC1RgbaUnorm => (4, 4, 1),
+            ImageFormat::BC1RgbaUnormSrgb => (4, 4, 1),
+            ImageFormat::BC2RgbaUnorm => (4, 4, 1),
+            ImageFormat::BC2RgbaUnormSrgb => (4, 4, 1),
+            ImageFormat::BC3RgbaUnorm => (4, 4, 1),
+            ImageFormat::BC3RgbaUnormSrgb => (4, 4, 1),
+            ImageFormat::BC4RUnorm => (4, 4, 1),
+            ImageFormat::BC4RSnorm => (4, 4, 1),
+            ImageFormat::BC5RgUnorm => (4, 4, 1),
+            ImageFormat::BC5RgSnorm => (4, 4, 1),
+            ImageFormat::BC6hRgbUfloat => (4, 4, 1),
+            ImageFormat::BC6hRgbSfloat => (4, 4, 1),
+            ImageFormat::BC7RgbaUnorm => (4, 4, 1),
+            ImageFormat::BC7RgbaUnormSrgb => (4, 4, 1),
             ImageFormat::R8Unorm => (1, 1, 1),
-            ImageFormat::R8G8B8A8Unorm => (1, 1, 1),
-            ImageFormat::R8G8B8A8Srgb => (1, 1, 1),
-            ImageFormat::R16G16B16A16Float => (1, 1, 1),
-            ImageFormat::R32G32B32A32Float => (1, 1, 1),
-            ImageFormat::B8G8R8A8Unorm => (1, 1, 1),
-            ImageFormat::B8G8R8A8Srgb => (1, 1, 1),
-            ImageFormat::B4G4R4A4Unorm => (1, 1, 1),
+            ImageFormat::Rgba8Unorm => (1, 1, 1),
+            ImageFormat::Rgba8UnormSrgb => (1, 1, 1),
+            ImageFormat::Rgba16Float => (1, 1, 1),
+            ImageFormat::Rgba32Float => (1, 1, 1),
+            ImageFormat::Bgra8Unorm => (1, 1, 1),
+            ImageFormat::Bgra8UnormSrgb => (1, 1, 1),
+            ImageFormat::Bgra4Unorm => (1, 1, 1),
         }
     }
 
     fn block_size_in_bytes(&self) -> usize {
         match self {
             ImageFormat::R8Unorm => 1,
-            ImageFormat::R8G8B8A8Unorm => 4,
-            ImageFormat::R8G8B8A8Srgb => 4,
-            ImageFormat::R16G16B16A16Float => 8,
-            ImageFormat::R32G32B32A32Float => 16,
-            ImageFormat::B8G8R8A8Unorm => 4,
-            ImageFormat::B8G8R8A8Srgb => 4,
-            ImageFormat::BC1Unorm => 8,
-            ImageFormat::BC1Srgb => 8,
-            ImageFormat::BC2Unorm => 16,
-            ImageFormat::BC2Srgb => 16,
-            ImageFormat::BC3Unorm => 16,
-            ImageFormat::BC3Srgb => 16,
-            ImageFormat::BC4Unorm => 8,
-            ImageFormat::BC4Snorm => 8,
-            ImageFormat::BC5Unorm => 16,
-            ImageFormat::BC5Snorm => 16,
-            ImageFormat::BC6Ufloat => 16,
-            ImageFormat::BC6Sfloat => 16,
-            ImageFormat::BC7Unorm => 16,
-            ImageFormat::BC7Srgb => 16,
-            ImageFormat::B4G4R4A4Unorm => 2,
+            ImageFormat::Rgba8Unorm => 4,
+            ImageFormat::Rgba8UnormSrgb => 4,
+            ImageFormat::Rgba16Float => 8,
+            ImageFormat::Rgba32Float => 16,
+            ImageFormat::Bgra8Unorm => 4,
+            ImageFormat::Bgra8UnormSrgb => 4,
+            ImageFormat::BC1RgbaUnorm => 8,
+            ImageFormat::BC1RgbaUnormSrgb => 8,
+            ImageFormat::BC2RgbaUnorm => 16,
+            ImageFormat::BC2RgbaUnormSrgb => 16,
+            ImageFormat::BC3RgbaUnorm => 16,
+            ImageFormat::BC3RgbaUnormSrgb => 16,
+            ImageFormat::BC4RUnorm => 8,
+            ImageFormat::BC4RSnorm => 8,
+            ImageFormat::BC5RgUnorm => 16,
+            ImageFormat::BC5RgSnorm => 16,
+            ImageFormat::BC6hRgbUfloat => 16,
+            ImageFormat::BC6hRgbSfloat => 16,
+            ImageFormat::BC7RgbaUnorm => 16,
+            ImageFormat::BC7RgbaUnormSrgb => 16,
+            ImageFormat::Bgra4Unorm => 2,
         }
     }
 }

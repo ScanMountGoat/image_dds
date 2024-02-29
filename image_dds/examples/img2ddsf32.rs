@@ -10,7 +10,7 @@ fn main() {
             // Assume a square image.
             image_dds::SurfaceRgba32Float::from_image_layers(&image, image.height() / image.width())
                 .encode(
-                    image_dds::ImageFormat::BC6Ufloat,
+                    image_dds::ImageFormat::BC6hRgbUfloat,
                     image_dds::Quality::Fast,
                     image_dds::Mipmaps::GeneratedAutomatic,
                 )
@@ -22,7 +22,7 @@ fn main() {
             // Assume a square image.
             image_dds::SurfaceRgba32Float::from_image_depth(&image, image.height() / image.width())
                 .encode(
-                    image_dds::ImageFormat::BC6Ufloat,
+                    image_dds::ImageFormat::BC6hRgbUfloat,
                     image_dds::Quality::Fast,
                     image_dds::Mipmaps::GeneratedAutomatic,
                 )
@@ -32,7 +32,7 @@ fn main() {
         }
         _ => image_dds::dds_from_imagef32(
             &image,
-            image_dds::ImageFormat::BC6Ufloat,
+            image_dds::ImageFormat::BC6hRgbUfloat,
             image_dds::Quality::Fast,
             image_dds::Mipmaps::GeneratedAutomatic,
         )
