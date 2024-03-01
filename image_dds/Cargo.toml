@@ -1,6 +1,6 @@
 [package]
 name = "image_dds"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["ScanMountGoat <>"]
 description = "Convert images to and from compressed DDS formats"
 license = "MIT"
@@ -18,7 +18,7 @@ thiserror = "1.0.38"
 arbitrary = { version = "1.2.2", features = ["derive"], optional = true }
 half = { version = "2.2.1", features = ["bytemuck"] }
 bytemuck = "1.13.0"
-strum = { version = "0.24", features = ["derive"], optional = true }
+strum = { version = "0.26.1", features = ["derive"], optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
 
 [dev-dependencies]
