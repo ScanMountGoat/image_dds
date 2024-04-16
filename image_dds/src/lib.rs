@@ -36,7 +36,7 @@
 //! and can be disabled in the Cargo.toml by setting `default-features = false`.
 //! The `"ddsfile"` and `"image"` features can then be enabled individually.
 //! The `"encode"` feature is enabled by default but can be disabled
-//! to resolve compiliation errors on some targets if not needed.
+//! to resolve compilation errors on some targets if not needed.
 //!
 //! # Limitations
 //! BC2 data can be decoded but not encoded due to limitations in intel-tex-rs-2.
