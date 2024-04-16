@@ -36,7 +36,6 @@ pub fn rgbaf32_from_rgba8(width: u32, height: u32, data: &[u8]) -> Result<Vec<u8
 pub fn rgbaf32_from_rgbaf32(
     width: u32,
     height: u32,
-
     data: &[u8],
 ) -> Result<Vec<f32>, SurfaceError> {
     validate_length(width, height, 16, data)?;

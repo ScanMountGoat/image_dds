@@ -5,7 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-### 0.5.0 - 2024-03-01
+## unreleased
+### Fixed
+* Fixed an issue where `dds_from_imagef32` would panic due to internal alignment mismatches when encoding to `ImageFormat::Rgba16Float` and `ImageFormat::Rgba32Float`.
+
+## 0.5.0 - 2024-03-01
 ### Changed
 * Renamed `ImageFormat` variants to be more descriptive.
 * Changed BCN decoding implementation to bcdec_rs for better safety and easier compilation.
@@ -13,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 * Removed the `"decode"` feature from image_dds. Decoding is now implemented in pure Rust and always enabled.
 
-### 0.4.0 - 2023-12-23
+## 0.4.0 - 2023-12-23
 ### Added
 * Added support for `D3DFormat::A8R8G8B8`.
 

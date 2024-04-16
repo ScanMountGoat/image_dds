@@ -21,7 +21,7 @@ This enables surface creation to avoid making additional copies since the RGBA d
 `cargo run --release --example img2dds 3d.png out.dds Rgba8Unorm depth`  
 
 `cargo run --release --example dds2imgf32 cube.dds cube.exr`  
-`cargo run --release --example img2ddsf32 cube.exr out.dds layers`  
+`cargo run --release --example img2ddsf32 cube.exr out.dds BC6hRgbUfloat layers`  
 
 ## Supported Formats
 The only compressed formats supported at this time are BCN formats since these are the formats commonly used by DDS files and compressed GPU textures. This library does not support other compressed formats used for GPU textures like ETC1. Compression is handled using [intel-tex-rs-2](https://github.com/Traverse-Research/intel-tex-rs-2) for bindings to Intel's ISPC texture compressor in C++. Decompression is handled using a safe Rust port of the [bcdec](https://github.com/iOrange/bcdec) library in C.

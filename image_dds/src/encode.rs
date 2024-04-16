@@ -406,10 +406,11 @@ impl Encode for f32 {
             F::Rgba16Float => {
                 // TODO: Create conversion functions that don't require a cast?
                 rgbaf16_from_rgbaf32(width, height, bytemuck::cast_slice(data))
-                    .map(bytemuck::cast_vec)
+                    .map(|d| bytemuck::cast_slice(&d).to_vec())
             }
+            // TODO: Create conversion functions that don't require a cast?
             F::Rgba32Float => rgbaf32_from_rgbaf32(width, height, bytemuck::cast_slice(data))
-                .map(bytemuck::cast_vec),
+                .map(|d| bytemuck::cast_slice(&d).to_vec()),
             _ => {
                 let rgba8: Vec<_> = data.iter().map(|f| (f * 255.0) as u8).collect();
                 u8::encode(width, height, &rgba8, format, quality)

@@ -45,3 +45,9 @@ name = "decode_surface_rgbaf32"
 path = "fuzz_targets/decode_surface_rgbaf32.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "encode_surface_rgbaf32"
+path = "fuzz_targets/encode_surface_rgbaf32.rs"
+test = false
+doc = false

@@ -243,8 +243,6 @@ where
 mod tests {
     use super::*;
 
-    use crate::{bcn::encode::bcn_from_rgba, Quality};
-
     // TODO: Create tests for data length since we can't know what the compressed blocks should be?
     // TODO: Test edge cases and type conversions?
     // TODO: Add tests for validating the input length.
