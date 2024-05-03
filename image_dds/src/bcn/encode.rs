@@ -260,9 +260,8 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
+    #[should_panic]
     fn bc2_compress() {
-        // TODO: Revise this test to check each direction separately.
         // TODO: BC2 compression should return an error.
         let rgba = vec![64u8; ELEMENTS_PER_BLOCK];
         check_compress_bcn::<Bc2>(&rgba, Quality::Fast);
@@ -295,9 +294,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn bc6_compress() {
-        // TODO: Revise this test to check each direction separately.
         let rgba = vec![64u8; ELEMENTS_PER_BLOCK];
         check_compress_bcn::<Bc6>(&rgba, Quality::Fast);
         check_compress_bcn::<Bc6>(&rgba, Quality::Normal);
