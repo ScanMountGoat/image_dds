@@ -98,12 +98,13 @@ impl BcnEncode<u8> for Bc4 {
         rgba8_data: &[u8],
         _: Quality,
     ) -> Result<Vec<u8>, SurfaceError> {
-        // RGBA with 4 bytes per pixel.
-        let surface = intel_tex_2::RgbaSurface {
+        // R8 with 4 bytes per pixel.
+        let r8_data: Vec<_> = rgba8_data.chunks_exact(4).map(|p| p[0]).collect();
+        let surface = intel_tex_2::RSurface {
             width,
             height,
-            stride: width * CHANNELS as u32,
-            data: rgba8_data,
+            stride: width,
+            data: &r8_data,
         };
 
         Ok(intel_tex_2::bc4::compress_blocks(&surface))
@@ -117,12 +118,16 @@ impl BcnEncode<u8> for Bc5 {
         rgba8_data: &[u8],
         _: Quality,
     ) -> Result<Vec<u8>, SurfaceError> {
-        // RGBA with 4 bytes per pixel.
-        let surface = intel_tex_2::RgbaSurface {
+        // RG8 with 2 bytes per pixel.
+        let rg8_data: Vec<_> = rgba8_data
+            .chunks_exact(4)
+            .flat_map(|p| [p[0], p[1]])
+            .collect();
+        let surface = intel_tex_2::RgSurface {
             width,
             height,
-            stride: width * CHANNELS as u32,
-            data: rgba8_data,
+            stride: width * 2,
+            data: &rg8_data,
         };
 
         Ok(intel_tex_2::bc5::compress_blocks(&surface))
