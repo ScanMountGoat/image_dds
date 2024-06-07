@@ -47,7 +47,7 @@ Some uncompressed formats are also supported. These formats are supported by DDS
 | R32G32B32A32Float | ✔️ | ✔️ |
 
 ## Features
-Helper functions for working with the files from the [image](https://crates.io/crates/image) and [ddsfile](https://crates.io/crates/ddsfile) crates are supported under feature flags and enabled by default. The `encoding` feature is enabled by default but can be disabled to resolve compilation issues on certain targets if not needed. The default features of the image crate are disabled by default. Features are additive, so simply add a reference to the appropriate version of image in the `Cargo.toml` that enables the desired format features like `"exr"`.
+Helper functions for working with the files from the [image](https://crates.io/crates/image) and [ddsfile](https://crates.io/crates/ddsfile) crates are supported under feature flags and enabled by default. The `encoding` feature is enabled by default but can be disabled to resolve compilation issues on certain targets if not needed. The default features of the image crate are disabled by default. Features are additive, so simply add a reference to the appropriate version of image in the `Cargo.toml` to enable all the default features.
 
 ## Building
 Build the projects using `cargo build --release` with a newer version of the Rust toolchain installed. Builds support Windows, Linux, and MacOS. Some targets may not build properly due to a lack of precompiled ISP kernels in intel-tex-rs-2.
