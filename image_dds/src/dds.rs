@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use ddsfile::{D3DFormat, Dds, DxgiFormat, FourCC};
+use ddsfile::{Caps2, D3DFormat, Dds, DxgiFormat, FourCC};
 use thiserror::Error;
 
 use crate::{
@@ -81,15 +81,15 @@ impl<T: AsRef<[u8]>> Surface<T> {
             },
             format: self.image_format.into(),
             mipmap_levels: (self.mipmaps > 1).then_some(self.mipmaps),
-            array_layers: (self.layers > 1).then_some(self.layers),
-            caps2: None,
-            is_cubemap: false,
+            array_layers: (self.layers > 1 && self.layers != 6).then_some(self.layers),
+            caps2: (self.layers == 6).then_some(Caps2::CUBEMAP | Caps2::CUBEMAP_ALLFACES),
+            is_cubemap: self.layers == 6,
             resource_dimension: if self.depth > 1 {
                 ddsfile::D3D10ResourceDimension::Texture3D
             } else {
                 ddsfile::D3D10ResourceDimension::Texture2D
             },
-            alpha_mode: ddsfile::AlphaMode::Straight, // TODO: Does this matter?
+            alpha_mode: ddsfile::AlphaMode::Straight,
         })?;
 
         dds.data = self.data.as_ref().to_vec();
