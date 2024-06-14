@@ -1,0 +1,8 @@
+[package]
+name = "bcn_test"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+image_dds = { path = "../image_dds" }
+image = "0.25.1"
