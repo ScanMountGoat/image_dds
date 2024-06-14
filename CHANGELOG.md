@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## unreleased
+### Changed
+* Changed the rounding behavior of BC1, BC2, and BC3 decoding to be more precise, which more closely matches the floating point arithmetic used in DirectXTex. Differences in pixel RGB values compared to the previous decoder will be at most 1.
+
 ## 0.5.1 - 2024-04-15
 ### Fixed
 * Fixed an issue where `dds_from_imagef32` would panic due to internal alignment mismatches when encoding to `ImageFormat::Rgba16Float` and `ImageFormat::Rgba32Float`.
