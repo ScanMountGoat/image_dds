@@ -1157,37 +1157,46 @@ fn color_block(
     let c0 = u16::from_le_bytes(compressed_block[0..2].try_into().unwrap());
     let c1 = u16::from_le_bytes(compressed_block[2..4].try_into().unwrap());
 
-    // Expand 565 ref colors to 888
-    let r0 = (((c0 >> 11) & 0x1F) * 527 + 23) >> 6;
-    let g0 = (((c0 >> 5) & 0x3F) * 259 + 33) >> 6;
-    let b0 = ((c0 & 0x1F) * 527 + 23) >> 6;
-    ref_colors[0] = [r0 as u8, g0 as u8, b0 as u8, 255u8];
+    // Unpack 565 ref colors
+    let r0 = (c0 as u32 >> 11) & 0x1F;
+    let g0 = (c0 as u32 >> 5) & 0x3F;
+    let b0 = c0 as u32 & 0x1F;
 
-    let r1 = (((c1 >> 11) & 0x1F) * 527 + 23) >> 6;
-    let g1 = (((c1 >> 5) & 0x3F) * 259 + 33) >> 6;
-    let b1 = ((c1 & 0x1F) * 527 + 23) >> 6;
-    ref_colors[1] = [r1 as u8, g1 as u8, b1 as u8, 255u8];
+    let r1 = (c1 as u32 >> 11) & 0x1F;
+    let g1 = (c1 as u32 >> 5) & 0x3F;
+    let b1 = c1 as u32 & 0x1F;
+
+    // Expand 565 ref colors to 888
+    let r = (r0 * 527 + 23) >> 6;
+    let g = (g0 * 259 + 33) >> 6;
+    let b = (b0 * 527 + 23) >> 6;
+    ref_colors[0] = [r as u8, g as u8, b as u8, 255];
+
+    let r = (r1 * 527 + 23) >> 6;
+    let g = (g1 * 259 + 33) >> 6;
+    let b = (b1 * 527 + 23) >> 6;
+    ref_colors[1] = [r as u8, g as u8, b as u8, 255];
 
     if c0 > c1 || only_opaque_mode {
         // Standard BC1 mode (also BC3 color block uses ONLY this mode)
         // color_2 = 2/3*color_0 + 1/3*color_1
         // color_3 = 1/3*color_0 + 2/3*color_1
-        let r = (2 * r0 + r1 + 1) / 3;
-        let g = (2 * g0 + g1 + 1) / 3;
-        let b = (2 * b0 + b1 + 1) / 3;
+        let r = ((2 * r0 + r1) * 351 + 61) >> 7;
+        let g = ((2 * g0 + g1) * 2763 + 1039) >> 11;
+        let b = ((2 * b0 + b1) * 351 + 61) >> 7;
         ref_colors[2] = [r as u8, g as u8, b as u8, 255u8];
 
-        let r = (r0 + 2 * r1 + 1) / 3;
-        let g = (g0 + 2 * g1 + 1) / 3;
-        let b = (b0 + 2 * b1 + 1) / 3;
+        let r = ((r0 + r1 * 2) * 351 + 61) >> 7;
+        let g = ((g0 + g1 * 2) * 2763 + 1039) >> 11;
+        let b = ((b0 + b1 * 2) * 351 + 61) >> 7;
         ref_colors[3] = [r as u8, g as u8, b as u8, 255u8];
     } else {
         // Quite rare BC1A mode
         // color_2 = 1/2*color_0 + 1/2*color_1;
         // color_3 = 0;
-        let r = (r0 + r1 + 1) >> 1;
-        let g = (g0 + g1 + 1) >> 1;
-        let b = (b0 + b1 + 1) >> 1;
+        let r = ((r0 + r1) * 1053 + 125) >> 8;
+        let g = ((g0 + g1) * 4145 + 1019) >> 11;
+        let b = ((b0 + b1) * 1053 + 125) >> 8;
         ref_colors[2] = [r as u8, g as u8, b as u8, 255u8];
 
         ref_colors[3] = [0u8; 4];
