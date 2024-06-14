@@ -1,6 +1,6 @@
 [package]
 name = "bcndecode-sys"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["ScanMountGoat <>"]
 description = "Rust bindings to bcdec"
 license = "MIT"
