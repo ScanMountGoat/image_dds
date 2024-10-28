@@ -107,25 +107,29 @@ where
 {
     let block_dimensions = format.block_dimensions();
 
-    for level in 0..surface.depth() {
-        // Track the previous image data and dimensions.
-        // This enables generating mipmaps from a single base layer.
-        let mut mip_data = get_mipmap_data(surface, layer, level, 0, block_dimensions)?;
+    // Track the previous image data and dimensions.
+    // This enables generating mipmaps from a single base layer.
+    let mut mip_data = get_mipmap_data(surface, layer, 0, block_dimensions)?;
+
+    let encoded = mip_data.encode(format, quality)?;
+    surface_data.extend_from_slice(&encoded);
+
+    for mipmap in 1..num_mipmaps {
+        mip_data = if use_surface {
+            // TODO: Error if surface does not have the appropriate number of mipmaps?
+            get_mipmap_data(surface, layer, mipmap, block_dimensions)?
+        } else {
+            mip_data.downsample(
+                surface.width(),
+                surface.height(),
+                surface.depth(),
+                block_dimensions,
+                mipmap,
+            )
+        };
 
         let encoded = mip_data.encode(format, quality)?;
         surface_data.extend_from_slice(&encoded);
-
-        for mipmap in 1..num_mipmaps {
-            mip_data = if use_surface {
-                // TODO: Error if surface does not have the appropriate number of mipmaps?
-                get_mipmap_data(surface, layer, level, mipmap, block_dimensions)?
-            } else {
-                mip_data.downsample(surface.width(), surface.height(), block_dimensions, mipmap)
-            };
-
-            let encoded = mip_data.encode(format, quality)?;
-            surface_data.extend_from_slice(&encoded);
-        }
     }
 
     Ok(())
@@ -134,6 +138,7 @@ where
 struct MipData<T> {
     width: usize,
     height: usize,
+    depth: usize,
     data: Vec<T>,
 }
 
@@ -142,6 +147,7 @@ impl<T: Pixel> MipData<T> {
         &self,
         base_width: u32,
         base_height: u32,
+        base_depth: u32,
         block_dimensions: (u32, u32, u32),
         mipmap: u32,
     ) -> MipData<T> {
@@ -150,16 +156,25 @@ impl<T: Pixel> MipData<T> {
         let (width, height, depth) = physical_dimensions(
             mip_dimension(base_width, mipmap),
             mip_dimension(base_height, mipmap),
-            1,
+            mip_dimension(base_depth, mipmap),
             block_dimensions,
         );
 
         // Assume the data is already padded.
-        let data = downsample_rgba(width, height, depth, self.width, self.height, 1, &self.data);
+        let data = downsample_rgba(
+            width,
+            height,
+            depth,
+            self.width,
+            self.height,
+            self.depth,
+            &self.data,
+        );
 
         MipData {
             width,
             height,
+            depth,
             data,
         }
     }
@@ -172,7 +187,7 @@ where
     fn encode(&self, format: ImageFormat, quality: Quality) -> Result<Vec<u8>, SurfaceError> {
         T::encode(
             self.width as u32,
-            self.height as u32,
+            self.height as u32 * self.depth as u32,
             &self.data,
             format,
             quality,
@@ -250,7 +265,6 @@ where
 fn get_mipmap_data<S, P>(
     surface: &S,
     layer: u32,
-    depth_level: u32,
     mipmap: u32,
     block_dimensions: (u32, u32, u32),
 ) -> Result<MipData<P>, SurfaceError>
@@ -260,25 +274,34 @@ where
 {
     let mip_width = mip_dimension(surface.width(), mipmap);
     let mip_height = mip_dimension(surface.height(), mipmap);
+    let mip_depth = mip_dimension(surface.depth(), mipmap);
 
-    let data = surface.get(layer, depth_level, mipmap).unwrap();
+    // TODO: This should be for all depth levels.
+    // TODO: This can be optimized to avoid copies?
+    let mut data = Vec::new();
+    for level in 0..surface.depth() {
+        let new_data = surface.get(layer, level, mipmap).unwrap();
+        data.extend_from_slice(&new_data);
+    }
 
-    let (width, height, _) = physical_dimensions(mip_width, mip_height, 1, block_dimensions);
+    let (width, height, depth) =
+        physical_dimensions(mip_width, mip_height, mip_depth, block_dimensions);
 
     let data = pad_mipmap_rgba(
         mip_width as usize,
         mip_height as usize,
-        1,
+        mip_depth as usize,
         width,
         height,
-        1,
-        data,
+        depth,
+        &data,
     )
     .to_vec();
 
     Ok(MipData {
         width,
         height,
+        depth,
         data,
     })
 }
@@ -613,7 +636,7 @@ mod tests {
     }
 
     #[test]
-    fn encode_surface_float32_cube_mipmaps() {
+    fn encode_surface_float32_cube_mipmaps_length() {
         // It's ok for mipmaps to not be divisible by the block width.
         let surface = SurfaceRgba32Float {
             width: 4,
@@ -743,6 +766,205 @@ mod tests {
                 depth: 0,
             })
         ));
+    }
+
+    #[test]
+    fn encode_surface_float32_2d_mipmaps() {
+        let surface = SurfaceRgba32Float {
+            width: 3,
+            height: 3,
+            depth: 1,
+            layers: 1,
+            mipmaps: 1,
+            data: &(0..36).map(|i| i as f32).collect::<Vec<_>>(),
+        }
+        .encode(
+            ImageFormat::Rgba32Float,
+            Quality::Fast,
+            Mipmaps::GeneratedAutomatic,
+        )
+        .unwrap();
+
+        assert_eq!(
+            Surface {
+                width: 3,
+                height: 3,
+                depth: 1,
+                layers: 1,
+                mipmaps: 2,
+                image_format: ImageFormat::Rgba32Float,
+                data: bytemuck::cast_slice::<[f32; 4], u8>(&[
+                    [0.0, 1.0, 2.0, 3.0],
+                    [4.0, 5.0, 6.0, 7.0],
+                    [8.0, 9.0, 10.0, 11.0],
+                    [12.0, 13.0, 14.0, 15.0],
+                    [16.0, 17.0, 18.0, 19.0],
+                    [20.0, 21.0, 22.0, 23.0],
+                    [24.0, 25.0, 26.0, 27.0],
+                    [28.0, 29.0, 30.0, 31.0],
+                    [32.0, 33.0, 34.0, 35.0],
+                    [8.0, 9.0, 10.0, 11.0],
+                ])
+                .to_vec()
+            },
+            surface
+        );
+    }
+
+    #[test]
+    fn encode_surface_float32_3d_mipmaps() {
+        let surface = SurfaceRgba32Float {
+            width: 3,
+            height: 3,
+            depth: 3,
+            layers: 1,
+            mipmaps: 1,
+            data: &(0..108).map(|i| i as f32).collect::<Vec<_>>(),
+        }
+        .encode(
+            ImageFormat::Rgba32Float,
+            Quality::Fast,
+            Mipmaps::GeneratedAutomatic,
+        )
+        .unwrap();
+
+        dbg!(bytemuck::cast_slice::<_, [f32; 4]>(&surface.data));
+
+        assert_eq!(
+            Surface {
+                width: 3,
+                height: 3,
+                depth: 3,
+                layers: 1,
+                mipmaps: 2,
+                image_format: ImageFormat::Rgba32Float,
+                data: bytemuck::cast_slice::<[f32; 4], u8>(&[
+                    [0.0, 1.0, 2.0, 3.0],
+                    [4.0, 5.0, 6.0, 7.0],
+                    [8.0, 9.0, 10.0, 11.0],
+                    [12.0, 13.0, 14.0, 15.0],
+                    [16.0, 17.0, 18.0, 19.0],
+                    [20.0, 21.0, 22.0, 23.0],
+                    [24.0, 25.0, 26.0, 27.0],
+                    [28.0, 29.0, 30.0, 31.0],
+                    [32.0, 33.0, 34.0, 35.0],
+                    [36.0, 37.0, 38.0, 39.0],
+                    [40.0, 41.0, 42.0, 43.0],
+                    [44.0, 45.0, 46.0, 47.0],
+                    [48.0, 49.0, 50.0, 51.0],
+                    [52.0, 53.0, 54.0, 55.0],
+                    [56.0, 57.0, 58.0, 59.0],
+                    [60.0, 61.0, 62.0, 63.0],
+                    [64.0, 65.0, 66.0, 67.0],
+                    [68.0, 69.0, 70.0, 71.0],
+                    [72.0, 73.0, 74.0, 75.0],
+                    [76.0, 77.0, 78.0, 79.0],
+                    [80.0, 81.0, 82.0, 83.0],
+                    [84.0, 85.0, 86.0, 87.0],
+                    [88.0, 89.0, 90.0, 91.0],
+                    [92.0, 93.0, 94.0, 95.0],
+                    [96.0, 97.0, 98.0, 99.0],
+                    [100.0, 101.0, 102.0, 103.0],
+                    [104.0, 105.0, 106.0, 107.0],
+                    [26.0, 27.0, 28.0, 29.0],
+                ])
+                .to_vec()
+            },
+            surface
+        );
+    }
+
+    #[test]
+    fn encode_surface_float32_cube_mipmaps() {
+        let surface = SurfaceRgba32Float {
+            width: 3,
+            height: 3,
+            depth: 1,
+            layers: 6,
+            mipmaps: 1,
+            data: &(0..216).map(|i| i as f32).collect::<Vec<_>>(),
+        }
+        .encode(
+            ImageFormat::Rgba32Float,
+            Quality::Fast,
+            Mipmaps::GeneratedAutomatic,
+        )
+        .unwrap();
+
+        assert_eq!(
+            Surface {
+                width: 3,
+                height: 3,
+                depth: 1,
+                layers: 6,
+                mipmaps: 2,
+                image_format: ImageFormat::Rgba32Float,
+                data: bytemuck::cast_slice::<[f32; 4], u8>(&[
+                    [0.0, 1.0, 2.0, 3.0],
+                    [4.0, 5.0, 6.0, 7.0],
+                    [8.0, 9.0, 10.0, 11.0],
+                    [12.0, 13.0, 14.0, 15.0],
+                    [16.0, 17.0, 18.0, 19.0],
+                    [20.0, 21.0, 22.0, 23.0],
+                    [24.0, 25.0, 26.0, 27.0],
+                    [28.0, 29.0, 30.0, 31.0],
+                    [32.0, 33.0, 34.0, 35.0],
+                    [8.0, 9.0, 10.0, 11.0],
+                    [36.0, 37.0, 38.0, 39.0],
+                    [40.0, 41.0, 42.0, 43.0],
+                    [44.0, 45.0, 46.0, 47.0],
+                    [48.0, 49.0, 50.0, 51.0],
+                    [52.0, 53.0, 54.0, 55.0],
+                    [56.0, 57.0, 58.0, 59.0],
+                    [60.0, 61.0, 62.0, 63.0],
+                    [64.0, 65.0, 66.0, 67.0],
+                    [68.0, 69.0, 70.0, 71.0],
+                    [44.0, 45.0, 46.0, 47.0],
+                    [72.0, 73.0, 74.0, 75.0],
+                    [76.0, 77.0, 78.0, 79.0],
+                    [80.0, 81.0, 82.0, 83.0],
+                    [84.0, 85.0, 86.0, 87.0],
+                    [88.0, 89.0, 90.0, 91.0],
+                    [92.0, 93.0, 94.0, 95.0],
+                    [96.0, 97.0, 98.0, 99.0],
+                    [100.0, 101.0, 102.0, 103.0],
+                    [104.0, 105.0, 106.0, 107.0],
+                    [80.0, 81.0, 82.0, 83.0],
+                    [108.0, 109.0, 110.0, 111.0],
+                    [112.0, 113.0, 114.0, 115.0],
+                    [116.0, 117.0, 118.0, 119.0],
+                    [120.0, 121.0, 122.0, 123.0],
+                    [124.0, 125.0, 126.0, 127.0],
+                    [128.0, 129.0, 130.0, 131.0],
+                    [132.0, 133.0, 134.0, 135.0],
+                    [136.0, 137.0, 138.0, 139.0],
+                    [140.0, 141.0, 142.0, 143.0],
+                    [116.0, 117.0, 118.0, 119.0],
+                    [144.0, 145.0, 146.0, 147.0],
+                    [148.0, 149.0, 150.0, 151.0],
+                    [152.0, 153.0, 154.0, 155.0],
+                    [156.0, 157.0, 158.0, 159.0],
+                    [160.0, 161.0, 162.0, 163.0],
+                    [164.0, 165.0, 166.0, 167.0],
+                    [168.0, 169.0, 170.0, 171.0],
+                    [172.0, 173.0, 174.0, 175.0],
+                    [176.0, 177.0, 178.0, 179.0],
+                    [152.0, 153.0, 154.0, 155.0],
+                    [180.0, 181.0, 182.0, 183.0],
+                    [184.0, 185.0, 186.0, 187.0],
+                    [188.0, 189.0, 190.0, 191.0],
+                    [192.0, 193.0, 194.0, 195.0],
+                    [196.0, 197.0, 198.0, 199.0],
+                    [200.0, 201.0, 202.0, 203.0],
+                    [204.0, 205.0, 206.0, 207.0],
+                    [208.0, 209.0, 210.0, 211.0],
+                    [212.0, 213.0, 214.0, 215.0],
+                    [188.0, 189.0, 190.0, 191.0],
+                ])
+                .to_vec()
+            },
+            surface
+        );
     }
 
     #[test]

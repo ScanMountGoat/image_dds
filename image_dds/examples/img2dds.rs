@@ -29,7 +29,7 @@ fn main() {
                 .encode(
                     format,
                     image_dds::Quality::Fast,
-                    image_dds::Mipmaps::Disabled,
+                    image_dds::Mipmaps::GeneratedAutomatic,
                 )
                 .unwrap()
                 .to_dds()
