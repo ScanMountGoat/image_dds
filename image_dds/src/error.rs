@@ -1,6 +1,8 @@
 use thiserror::Error;
 
-use crate::{DdsFormatInfo, ImageFormat};
+use crate::ImageFormat;
+#[cfg(feature = "ddsfile")]
+use crate::DdsFormatInfo;
 
 /// Errors that can occur while creating a decoded image.
 #[derive(Debug, Error)]
@@ -53,6 +55,7 @@ pub enum SurfaceError {
     #[error("failed to get image data for layer {layer} mipmap {mipmap}")]
     MipmapDataOutOfBounds { layer: u32, mipmap: u32 },
 
+    #[cfg(feature = "ddsfile")]
     #[error("DDS image format {0:?} is not supported")]
     UnsupportedDdsFormat(DdsFormatInfo),
 
