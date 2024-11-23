@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.6.2 - 2024-11-23
+### Fixed
+* Fixed a compile error when building without the `ddsfile` feature flag.
+
 ## 0.6.1 - 2024-10-28
 ### Fixed
 * Fixed an issue where mipmap generation did not work properly for 3D textures.
