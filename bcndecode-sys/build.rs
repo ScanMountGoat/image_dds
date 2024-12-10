@@ -4,5 +4,6 @@ fn main() {
     cc::Build::new()
         .file("src/bcdec.c")
         .define("BCDEC_IMPLEMENTATION", None)
+        .define("BCDEC_BC4BC5_PRECISE", None)
         .compile("bcdec");
 }

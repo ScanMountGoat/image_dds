@@ -1,8 +1,8 @@
 use thiserror::Error;
 
-use crate::ImageFormat;
 #[cfg(feature = "ddsfile")]
 use crate::DdsFormatInfo;
+use crate::ImageFormat;
 
 /// Errors that can occur while creating a decoded image.
 #[derive(Debug, Error)]
