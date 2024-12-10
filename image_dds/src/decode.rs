@@ -10,7 +10,7 @@ use crate::{
     },
     ImageFormat, Surface, SurfaceRgba32Float, SurfaceRgba8,
 };
-use bcn::{Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7};
+use bcn::{Bc1, Bc2, Bc3, Bc4, Bc4S, Bc5, Bc5S, Bc6, Bc7};
 
 impl<T: AsRef<[u8]>> Surface<T> {
     /// Decode all layers and mipmaps from `surface` to RGBA8.
@@ -122,8 +122,10 @@ impl Decode for u8 {
             F::BC1RgbaUnorm | F::BC1RgbaUnormSrgb => rgba_from_bcn::<Bc1, u8>(width, height, data),
             F::BC2RgbaUnorm | F::BC2RgbaUnormSrgb => rgba_from_bcn::<Bc2, u8>(width, height, data),
             F::BC3RgbaUnorm | F::BC3RgbaUnormSrgb => rgba_from_bcn::<Bc3, u8>(width, height, data),
-            F::BC4RUnorm | F::BC4RSnorm => rgba_from_bcn::<Bc4, u8>(width, height, data),
-            F::BC5RgUnorm | F::BC5RgSnorm => rgba_from_bcn::<Bc5, u8>(width, height, data),
+            F::BC4RUnorm => rgba_from_bcn::<Bc4, u8>(width, height, data),
+            F::BC4RSnorm => rgba_from_bcn::<Bc4S, u8>(width, height, data),
+            F::BC5RgUnorm => rgba_from_bcn::<Bc5, u8>(width, height, data),
+            F::BC5RgSnorm => rgba_from_bcn::<Bc5S, u8>(width, height, data),
             F::BC6hRgbUfloat | F::BC6hRgbSfloat => rgba_from_bcn::<Bc6, u8>(width, height, data),
             F::BC7RgbaUnorm | F::BC7RgbaUnormSrgb => rgba_from_bcn::<Bc7, u8>(width, height, data),
             F::R8Unorm => rgba8_from_r8(width, height, data),
