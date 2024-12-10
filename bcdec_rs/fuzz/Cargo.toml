@@ -40,14 +40,26 @@ test = false
 doc = false
 
 [[bin]]
-name = "bc4"
-path = "fuzz_targets/bc4.rs"
+name = "bc4_signed"
+path = "fuzz_targets/bc4_signed.rs"
 test = false
 doc = false
 
 [[bin]]
-name = "bc5"
-path = "fuzz_targets/bc5.rs"
+name = "bc4_unsigned"
+path = "fuzz_targets/bc4_unsigned.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "bc5_signed"
+path = "fuzz_targets/bc5_signed.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "bc5_unsigned"
+path = "fuzz_targets/bc5_unsigned.rs"
 test = false
 doc = false
 
