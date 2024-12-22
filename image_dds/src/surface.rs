@@ -140,6 +140,20 @@ impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
         )
     }
 
+    /// Get the image corresponding to the specified `layer`, `depth_level`, and `mipmap`.
+    ///
+    /// Returns [None] if the expected range is not fully contained within the buffer.
+    #[cfg(feature = "image")]
+    pub fn get_image(&self, layer: u32, depth_level: u32, mipmap: u32) -> Option<image::RgbaImage> {
+        self.get(layer, depth_level, mipmap).and_then(|data| {
+            image::RgbaImage::from_raw(
+                mip_dimension(self.width, mipmap),
+                mip_dimension(self.height, mipmap),
+                data.to_vec(),
+            )
+        })
+    }
+
     pub(crate) fn validate(&self) -> Result<(), SurfaceError> {
         Surface {
             width: self.width,
@@ -299,6 +313,25 @@ impl<T: AsRef<[f32]>> SurfaceRgba32Float<T> {
             mipmap,
         )
         .map(bytemuck::cast_slice)
+    }
+
+    /// Get the image corresponding to the specified `layer`, `depth_level`, and `mipmap`.
+    ///
+    /// Returns [None] if the expected range is not fully contained within the buffer.
+    #[cfg(feature = "image")]
+    pub fn get_image(
+        &self,
+        layer: u32,
+        depth_level: u32,
+        mipmap: u32,
+    ) -> Option<image::Rgba32FImage> {
+        self.get(layer, depth_level, mipmap).and_then(|data| {
+            image::Rgba32FImage::from_raw(
+                mip_dimension(self.width, mipmap),
+                mip_dimension(self.height, mipmap),
+                data.to_vec(),
+            )
+        })
     }
 
     pub(crate) fn validate(&self) -> Result<(), SurfaceError> {
