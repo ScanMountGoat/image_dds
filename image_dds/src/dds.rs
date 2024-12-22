@@ -286,3 +286,42 @@ impl From<ImageFormat> for DxgiFormat {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dds_to_from_surface() {
+        let surface = Surface {
+            width: 4,
+            height: 4,
+            depth: 1,
+            layers: 1,
+            mipmaps: 1,
+            image_format: ImageFormat::Rgba8Unorm,
+            data: [0u8; 4 * 4 * 4].as_slice(),
+        };
+        assert_eq!(
+            surface,
+            Surface::from_dds(&surface.to_dds().unwrap()).unwrap()
+        );
+    }
+
+    #[test]
+    fn dds_to_from_surface_cube() {
+        let surface = Surface {
+            width: 4,
+            height: 4,
+            depth: 1,
+            layers: 6,
+            mipmaps: 1,
+            image_format: ImageFormat::Rgba8Unorm,
+            data: [0u8; 4 * 4 * 6 * 4].as_slice(),
+        };
+        assert_eq!(
+            surface,
+            Surface::from_dds(&surface.to_dds().unwrap()).unwrap()
+        );
+    }
+}
