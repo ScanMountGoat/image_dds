@@ -82,13 +82,32 @@ pub fn rgba8_from_bgra8(width: u32, height: u32, data: &[u8]) -> Result<Vec<u8>,
     validate_length(width, height, 4, data)?;
 
     let mut bgra = data.to_vec();
-    swap_red_blue(width, height, &mut bgra);
+    swap_red_blue_rgba(width, height, &mut bgra);
     Ok(bgra)
 }
 
 pub fn r8_from_rgba8(width: u32, height: u32, data: &[u8]) -> Result<Vec<u8>, SurfaceError> {
     validate_length(width, height, 4, data)?;
-    Ok(data.iter().copied().step_by(4).collect())
+
+    let mut r = vec![0u8; width as usize * height as usize];
+    for i in 0..r.len() {
+        r[i] = data[i * 4];
+    }
+    Ok(r)
+}
+
+pub fn rgba8_from_bgr8(width: u32, height: u32, data: &[u8]) -> Result<Vec<u8>, SurfaceError> {
+    validate_length(width, height, 3, data)?;
+
+    let pixel_count = width as usize * height as usize;
+    let mut rgba = vec![0u8; pixel_count * 4];
+    for i in 0..pixel_count {
+        rgba[i * 4] = data[i * 3 + 2];
+        rgba[i * 4 + 1] = data[i * 3 + 1];
+        rgba[i * 4 + 2] = data[i * 3];
+        rgba[i * 4 + 3] = 255u8;
+    }
+    Ok(rgba)
 }
 
 pub fn rgba8_from_r8(width: u32, height: u32, data: &[u8]) -> Result<Vec<u8>, SurfaceError> {
@@ -100,8 +119,21 @@ pub fn bgra8_from_rgba8(width: u32, height: u32, data: &[u8]) -> Result<Vec<u8>,
     validate_length(width, height, 4, data)?;
 
     let mut bgra = data.to_vec();
-    swap_red_blue(width, height, &mut bgra);
+    swap_red_blue_rgba(width, height, &mut bgra);
     Ok(bgra)
+}
+
+pub fn bgr8_from_rgba8(width: u32, height: u32, data: &[u8]) -> Result<Vec<u8>, SurfaceError> {
+    validate_length(width, height, 4, data)?;
+
+    let pixel_count = width as usize * height as usize;
+    let mut bgr = vec![0u8; pixel_count * 3];
+    for i in 0..pixel_count {
+        bgr[i * 3] = data[i * 4 + 2];
+        bgr[i * 3 + 1] = data[i * 4 + 1];
+        bgr[i * 3 + 2] = data[i * 4];
+    }
+    Ok(bgr)
 }
 
 pub fn rgba8_from_bgra4(width: u32, height: u32, data: &[u8]) -> Result<Vec<u8>, SurfaceError> {
@@ -142,7 +174,7 @@ pub fn bgra4_from_rgba8(width: u32, height: u32, data: &[u8]) -> Result<Vec<u8>,
     Ok(bgra)
 }
 
-fn swap_red_blue(width: u32, height: u32, rgba: &mut [u8]) {
+fn swap_red_blue_rgba(width: u32, height: u32, rgba: &mut [u8]) {
     for i in 0..(width as usize * height as usize) {
         // RGBA -> BGRA.
         rgba.swap(i * 4, i * 4 + 2);
@@ -192,13 +224,13 @@ mod tests {
     #[test]
     fn r8_from_rgba8_invalid() {
         let result = r8_from_rgba8(1, 1, &[1, 2, 3]);
-        assert!(matches!(
+        assert_eq!(
             result,
             Err(SurfaceError::NotEnoughData {
                 expected: 4,
                 actual: 3
             })
-        ));
+        );
     }
 
     #[test]
@@ -209,13 +241,13 @@ mod tests {
     #[test]
     fn rgba8_from_r8_invalid() {
         let result = rgba8_from_r8(4, 4, &[64]);
-        assert!(matches!(
+        assert_eq!(
             result,
             Err(SurfaceError::NotEnoughData {
                 expected: 16,
                 actual: 1
             })
-        ));
+        );
     }
 
     #[test]
@@ -229,13 +261,13 @@ mod tests {
     #[test]
     fn bgra8_from_rgba8_invalid() {
         let result = bgra8_from_rgba8(1, 1, &[1, 2, 3]);
-        assert!(matches!(
+        assert_eq!(
             result,
             Err(SurfaceError::NotEnoughData {
                 expected: 4,
                 actual: 3
             })
-        ));
+        );
     }
 
     #[test]
@@ -249,13 +281,50 @@ mod tests {
     #[test]
     fn rgba8_from_bgra8_invalid() {
         let result = rgba8_from_bgra8(1, 1, &[1, 2, 3]);
-        assert!(matches!(
+        assert_eq!(
             result,
             Err(SurfaceError::NotEnoughData {
                 expected: 4,
                 actual: 3
             })
-        ));
+        );
+    }
+
+    #[test]
+    fn rgb8_from_rgba8_valid() {
+        assert_eq!(vec![3, 2, 1], bgr8_from_rgba8(1, 1, &[1, 2, 3, 4]).unwrap());
+    }
+
+    #[test]
+    fn rgb8_from_rgba8_invalid() {
+        let result = bgr8_from_rgba8(1, 1, &[1, 2]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 4,
+                actual: 2
+            })
+        );
+    }
+
+    #[test]
+    fn rgba8_from_bgr8_valid() {
+        assert_eq!(
+            vec![3, 2, 1, 255],
+            rgba8_from_bgr8(1, 1, &[1, 2, 3]).unwrap()
+        );
+    }
+
+    #[test]
+    fn rgba8_from_bgr8_invalid() {
+        let result = rgba8_from_bgr8(1, 1, &[1, 2]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 3,
+                actual: 2
+            })
+        );
     }
 
     #[test]
@@ -274,13 +343,13 @@ mod tests {
     #[test]
     fn rgba8_from_rgbaf32_invalid() {
         let result = rgba8_from_rgbaf32(1, 1, &[0; 15]);
-        assert!(matches!(
+        assert_eq!(
             result,
             Err(SurfaceError::NotEnoughData {
                 expected: 16,
                 actual: 15
             })
-        ));
+        );
     }
 
     #[test]
@@ -296,13 +365,13 @@ mod tests {
     #[test]
     fn rgbaf32_from_rgba8_invalid() {
         let result = rgbaf32_from_rgba8(1, 1, &[1, 2, 3]);
-        assert!(matches!(
+        assert_eq!(
             result,
             Err(SurfaceError::NotEnoughData {
                 expected: 4,
                 actual: 3
             })
-        ));
+        );
     }
 
     #[test]
@@ -326,13 +395,13 @@ mod tests {
     #[test]
     fn rgba8_from_rgbaf16_invalid() {
         let result = rgba8_from_rgbaf16(1, 1, &[0; 7]);
-        assert!(matches!(
+        assert_eq!(
             result,
             Err(SurfaceError::NotEnoughData {
                 expected: 8,
                 actual: 7
             })
-        ));
+        );
     }
 
     #[test]
@@ -353,13 +422,13 @@ mod tests {
     #[test]
     fn rgbaf16_from_rgba8_invalid() {
         let result = rgbaf16_from_rgba8(1, 1, &[1, 2, 3]);
-        assert!(matches!(
+        assert_eq!(
             result,
             Err(SurfaceError::NotEnoughData {
                 expected: 4,
                 actual: 3
             })
-        ));
+        );
     }
 
     #[test]
@@ -373,13 +442,13 @@ mod tests {
     #[test]
     fn rgba8_from_rgba8_invalid() {
         let result = rgba8_from_rgba8(1, 1, &[1, 2, 3]);
-        assert!(matches!(
+        assert_eq!(
             result,
             Err(SurfaceError::NotEnoughData {
                 expected: 4,
                 actual: 3
             })
-        ));
+        );
     }
 
     #[test]
@@ -398,13 +467,13 @@ mod tests {
     #[test]
     fn rgbaf32_from_rgbaf32_invalid() {
         let result = rgbaf32_from_rgbaf32(1, 1, &[0; 15]);
-        assert!(matches!(
+        assert_eq!(
             result,
             Err(SurfaceError::NotEnoughData {
                 expected: 16,
                 actual: 15
             })
-        ));
+        );
     }
 
     #[test]
@@ -428,13 +497,13 @@ mod tests {
     #[test]
     fn rgbaf32_from_rgbaf16_invalid() {
         let result = rgbaf32_from_rgbaf16(1, 1, &[0; 7]);
-        assert!(matches!(
+        assert_eq!(
             result,
             Err(SurfaceError::NotEnoughData {
                 expected: 8,
                 actual: 7
             })
-        ));
+        );
     }
 
     #[test]
@@ -448,13 +517,13 @@ mod tests {
     #[test]
     fn bgra4_from_rgba8_invalid() {
         let result = bgra4_from_rgba8(1, 1, &[1, 2, 3]);
-        assert!(matches!(
+        assert_eq!(
             result,
             Err(SurfaceError::NotEnoughData {
                 expected: 4,
                 actual: 3
             })
-        ));
+        );
     }
 
     #[test]
@@ -468,12 +537,12 @@ mod tests {
     #[test]
     fn rgba8_from_bgra4_invalid() {
         let result = rgba8_from_bgra4(1, 1, &[1]);
-        assert!(matches!(
+        assert_eq!(
             result,
             Err(SurfaceError::NotEnoughData {
                 expected: 2,
                 actual: 1
             })
-        ));
+        );
     }
 }

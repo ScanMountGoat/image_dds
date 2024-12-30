@@ -131,36 +131,30 @@ pub enum ImageFormat {
     Rgba8UnormSrgb,
     Rgba16Float,
     Rgba32Float,
+    Bgr8Unorm,
     Bgra8Unorm,
     Bgra8UnormSrgb,
     Bgra4Unorm,
     /// DXT1
     BC1RgbaUnorm,
-    /// DXT1
     BC1RgbaUnormSrgb,
     /// DXT3
     BC2RgbaUnorm,
-    /// DXT3
     BC2RgbaUnormSrgb,
     /// DXT5
     BC3RgbaUnorm,
-    /// DXT5
     BC3RgbaUnormSrgb,
     /// RGTC1
     BC4RUnorm,
-    /// RGTC1
     BC4RSnorm,
     /// RGTC2
     BC5RgUnorm,
-    /// RGTC2
     BC5RgSnorm,
     /// BPTC (float)
     BC6hRgbUfloat,
-    /// BPTC (float)
     BC6hRgbSfloat,
     /// BPTC (unorm)
     BC7RgbaUnorm,
-    /// BPTC (unorm)
     BC7RgbaUnormSrgb,
 }
 
@@ -190,10 +184,12 @@ impl ImageFormat {
             ImageFormat::Bgra8Unorm => (1, 1, 1),
             ImageFormat::Bgra8UnormSrgb => (1, 1, 1),
             ImageFormat::Bgra4Unorm => (1, 1, 1),
+            ImageFormat::Bgr8Unorm => (1, 1, 1),
         }
     }
 
     fn block_size_in_bytes(&self) -> usize {
+        // Size of a block if compressed or pixel if uncompressed.
         match self {
             ImageFormat::R8Unorm => 1,
             ImageFormat::Rgba8Unorm => 4,
@@ -217,6 +213,7 @@ impl ImageFormat {
             ImageFormat::BC7RgbaUnorm => 16,
             ImageFormat::BC7RgbaUnormSrgb => 16,
             ImageFormat::Bgra4Unorm => 2,
+            ImageFormat::Bgr8Unorm => 3,
         }
     }
 }

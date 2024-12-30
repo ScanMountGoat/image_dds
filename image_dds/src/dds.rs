@@ -71,26 +71,48 @@ pub fn imagef32_from_dds(dds: &Dds, mipmap: u32) -> Result<image::Rgba32FImage, 
 impl<T: AsRef<[u8]>> Surface<T> {
     /// Create a DDS file with the same image data and format.
     pub fn to_dds(&self) -> Result<crate::ddsfile::Dds, CreateDdsError> {
-        let mut dds = Dds::new_dxgi(ddsfile::NewDxgiParams {
-            height: self.height,
-            width: self.width,
-            depth: if self.depth > 1 {
-                Some(self.depth)
-            } else {
-                None
-            },
-            format: self.image_format.into(),
-            mipmap_levels: (self.mipmaps > 1).then_some(self.mipmaps),
-            array_layers: (self.layers > 1 && self.layers != 6).then_some(self.layers),
-            caps2: (self.layers == 6).then_some(Caps2::CUBEMAP | Caps2::CUBEMAP_ALLFACES),
-            is_cubemap: self.layers == 6,
-            resource_dimension: if self.depth > 1 {
-                ddsfile::D3D10ResourceDimension::Texture3D
-            } else {
-                ddsfile::D3D10ResourceDimension::Texture2D
-            },
-            alpha_mode: ddsfile::AlphaMode::Straight,
-        })?;
+        let mut dds = dxgi_from_image_format(self.image_format)
+            .map(|format| {
+                Dds::new_dxgi(ddsfile::NewDxgiParams {
+                    height: self.height,
+                    width: self.width,
+                    depth: if self.depth > 1 {
+                        Some(self.depth)
+                    } else {
+                        None
+                    },
+                    format,
+                    mipmap_levels: (self.mipmaps > 1).then_some(self.mipmaps),
+                    array_layers: (self.layers > 1 && self.layers != 6).then_some(self.layers),
+                    caps2: (self.layers == 6).then_some(Caps2::CUBEMAP | Caps2::CUBEMAP_ALLFACES),
+                    is_cubemap: self.layers == 6,
+                    resource_dimension: if self.depth > 1 {
+                        ddsfile::D3D10ResourceDimension::Texture3D
+                    } else {
+                        ddsfile::D3D10ResourceDimension::Texture2D
+                    },
+                    alpha_mode: ddsfile::AlphaMode::Straight,
+                })
+            })
+            .or_else(|| {
+                // Not all surface formats are supported by DXGI.
+                d3d_from_image_format(self.image_format).map(|format| {
+                    Dds::new_d3d(ddsfile::NewD3dParams {
+                        height: self.height,
+                        width: self.width,
+                        depth: if self.depth > 1 {
+                            Some(self.depth)
+                        } else {
+                            None
+                        },
+                        format,
+                        mipmap_levels: (self.mipmaps > 1).then_some(self.mipmaps),
+                        caps2: (self.layers == 6)
+                            .then_some(Caps2::CUBEMAP | Caps2::CUBEMAP_ALLFACES),
+                    })
+                })
+            })
+            .unwrap()?;
 
         dds.data = self.data.as_ref().to_vec();
 
@@ -178,7 +200,7 @@ fn array_layer_count(dds: &Dds) -> u32 {
 }
 
 /// Format information for all DDS variants.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct DdsFormatInfo {
     pub dxgi: Option<DxgiFormat>,
     pub d3d: Option<D3DFormat>,
@@ -236,6 +258,7 @@ fn image_format_from_d3d(format: D3DFormat) -> Option<ImageFormat> {
         // BGRA is also ARGB depending on how we look at the bytes.
         D3DFormat::A4R4G4B4 => Some(ImageFormat::Bgra4Unorm),
         D3DFormat::A8R8G8B8 => Some(ImageFormat::Bgra8Unorm),
+        D3DFormat::R8G8B8 => Some(ImageFormat::Bgr8Unorm),
         _ => None,
     }
 }
@@ -258,32 +281,59 @@ fn image_format_from_fourcc(fourcc: FourCC) -> Option<ImageFormat> {
     }
 }
 
-impl From<ImageFormat> for DxgiFormat {
-    fn from(value: ImageFormat) -> Self {
-        match value {
-            ImageFormat::BC1RgbaUnorm => Self::BC1_UNorm,
-            ImageFormat::BC1RgbaUnormSrgb => Self::BC1_UNorm_sRGB,
-            ImageFormat::BC2RgbaUnorm => Self::BC2_UNorm,
-            ImageFormat::BC2RgbaUnormSrgb => Self::BC2_UNorm_sRGB,
-            ImageFormat::BC3RgbaUnorm => Self::BC3_UNorm,
-            ImageFormat::BC3RgbaUnormSrgb => Self::BC3_UNorm_sRGB,
-            ImageFormat::BC4RUnorm => Self::BC4_UNorm,
-            ImageFormat::BC4RSnorm => Self::BC4_SNorm,
-            ImageFormat::BC5RgUnorm => Self::BC5_UNorm,
-            ImageFormat::BC5RgSnorm => Self::BC5_SNorm,
-            ImageFormat::BC6hRgbUfloat => Self::BC6H_UF16,
-            ImageFormat::BC6hRgbSfloat => Self::BC6H_SF16,
-            ImageFormat::BC7RgbaUnorm => Self::BC7_UNorm,
-            ImageFormat::BC7RgbaUnormSrgb => Self::BC7_UNorm_sRGB,
-            ImageFormat::R8Unorm => Self::R8_UNorm,
-            ImageFormat::Rgba8Unorm => Self::R8G8B8A8_UNorm,
-            ImageFormat::Rgba8UnormSrgb => Self::R8G8B8A8_UNorm_sRGB,
-            ImageFormat::Rgba16Float => Self::R16G16B16A16_Float,
-            ImageFormat::Rgba32Float => Self::R32G32B32A32_Float,
-            ImageFormat::Bgra8Unorm => Self::B8G8R8A8_UNorm,
-            ImageFormat::Bgra8UnormSrgb => Self::B8G8R8A8_UNorm_sRGB,
-            ImageFormat::Bgra4Unorm => Self::B4G4R4A4_UNorm,
-        }
+fn d3d_from_image_format(value: ImageFormat) -> Option<D3DFormat> {
+    match value {
+        ImageFormat::BC1RgbaUnorm => Some(D3DFormat::DXT1),
+        ImageFormat::BC1RgbaUnormSrgb => Some(D3DFormat::DXT1),
+        ImageFormat::BC2RgbaUnorm => Some(D3DFormat::DXT2),
+        ImageFormat::BC2RgbaUnormSrgb => Some(D3DFormat::DXT2),
+        ImageFormat::BC3RgbaUnorm => Some(D3DFormat::DXT5),
+        ImageFormat::BC3RgbaUnormSrgb => Some(D3DFormat::DXT5),
+        ImageFormat::BC4RUnorm => None,  // fourcc
+        ImageFormat::BC4RSnorm => None,  // fourcc
+        ImageFormat::BC5RgUnorm => None, // fourcc
+        ImageFormat::BC5RgSnorm => None, // fourcc
+        ImageFormat::BC6hRgbUfloat => None,
+        ImageFormat::BC6hRgbSfloat => None,
+        ImageFormat::BC7RgbaUnorm => None,
+        ImageFormat::BC7RgbaUnormSrgb => None,
+        ImageFormat::R8Unorm => None,
+        ImageFormat::Rgba8Unorm => Some(D3DFormat::A8B8G8R8),
+        ImageFormat::Rgba8UnormSrgb => Some(D3DFormat::A8B8G8R8),
+        ImageFormat::Rgba16Float => Some(D3DFormat::A16B16G16R16F),
+        ImageFormat::Rgba32Float => Some(D3DFormat::A32B32G32R32F),
+        ImageFormat::Bgra8Unorm => Some(D3DFormat::A8R8G8B8),
+        ImageFormat::Bgra8UnormSrgb => Some(D3DFormat::A8R8G8B8),
+        ImageFormat::Bgra4Unorm => Some(D3DFormat::A4R4G4B4),
+        ImageFormat::Bgr8Unorm => Some(D3DFormat::R8G8B8),
+    }
+}
+
+fn dxgi_from_image_format(value: ImageFormat) -> Option<DxgiFormat> {
+    match value {
+        ImageFormat::BC1RgbaUnorm => Some(DxgiFormat::BC1_UNorm),
+        ImageFormat::BC1RgbaUnormSrgb => Some(DxgiFormat::BC1_UNorm_sRGB),
+        ImageFormat::BC2RgbaUnorm => Some(DxgiFormat::BC2_UNorm),
+        ImageFormat::BC2RgbaUnormSrgb => Some(DxgiFormat::BC2_UNorm_sRGB),
+        ImageFormat::BC3RgbaUnorm => Some(DxgiFormat::BC3_UNorm),
+        ImageFormat::BC3RgbaUnormSrgb => Some(DxgiFormat::BC3_UNorm_sRGB),
+        ImageFormat::BC4RUnorm => Some(DxgiFormat::BC4_UNorm),
+        ImageFormat::BC4RSnorm => Some(DxgiFormat::BC4_SNorm),
+        ImageFormat::BC5RgUnorm => Some(DxgiFormat::BC5_UNorm),
+        ImageFormat::BC5RgSnorm => Some(DxgiFormat::BC5_SNorm),
+        ImageFormat::BC6hRgbUfloat => Some(DxgiFormat::BC6H_UF16),
+        ImageFormat::BC6hRgbSfloat => Some(DxgiFormat::BC6H_SF16),
+        ImageFormat::BC7RgbaUnorm => Some(DxgiFormat::BC7_UNorm),
+        ImageFormat::BC7RgbaUnormSrgb => Some(DxgiFormat::BC7_UNorm_sRGB),
+        ImageFormat::R8Unorm => Some(DxgiFormat::R8_UNorm),
+        ImageFormat::Rgba8Unorm => Some(DxgiFormat::R8G8B8A8_UNorm),
+        ImageFormat::Rgba8UnormSrgb => Some(DxgiFormat::R8G8B8A8_UNorm_sRGB),
+        ImageFormat::Rgba16Float => Some(DxgiFormat::R16G16B16A16_Float),
+        ImageFormat::Rgba32Float => Some(DxgiFormat::R32G32B32A32_Float),
+        ImageFormat::Bgra8Unorm => Some(DxgiFormat::B8G8R8A8_UNorm),
+        ImageFormat::Bgra8UnormSrgb => Some(DxgiFormat::B8G8R8A8_UNorm_sRGB),
+        ImageFormat::Bgra4Unorm => Some(DxgiFormat::B4G4R4A4_UNorm),
+        ImageFormat::Bgr8Unorm => None,
     }
 }
 
@@ -291,37 +341,45 @@ impl From<ImageFormat> for DxgiFormat {
 mod tests {
     use super::*;
 
+    use strum::IntoEnumIterator;
+
     #[test]
     fn dds_to_from_surface() {
-        let surface = Surface {
-            width: 4,
-            height: 4,
-            depth: 1,
-            layers: 1,
-            mipmaps: 1,
-            image_format: ImageFormat::Rgba8Unorm,
-            data: [0u8; 4 * 4 * 4].as_slice(),
-        };
-        assert_eq!(
-            surface,
-            Surface::from_dds(&surface.to_dds().unwrap()).unwrap()
-        );
+        for image_format in ImageFormat::iter() {
+            let data = vec![0u8; 4 * 4 * 6 * image_format.block_size_in_bytes()];
+            let surface = Surface {
+                width: 4,
+                height: 4,
+                depth: 1,
+                layers: 1,
+                mipmaps: 1,
+                image_format,
+                data: data.as_slice(),
+            };
+            assert_eq!(
+                surface,
+                Surface::from_dds(&surface.to_dds().unwrap()).unwrap()
+            );
+        }
     }
 
     #[test]
     fn dds_to_from_surface_cube() {
-        let surface = Surface {
-            width: 4,
-            height: 4,
-            depth: 1,
-            layers: 6,
-            mipmaps: 1,
-            image_format: ImageFormat::Rgba8Unorm,
-            data: [0u8; 4 * 4 * 6 * 4].as_slice(),
-        };
-        assert_eq!(
-            surface,
-            Surface::from_dds(&surface.to_dds().unwrap()).unwrap()
-        );
+        for image_format in ImageFormat::iter() {
+            let data = vec![0u8; 4 * 4 * 6 * image_format.block_size_in_bytes()];
+            let surface = Surface {
+                width: 4,
+                height: 4,
+                depth: 1,
+                layers: 6,
+                mipmaps: 1,
+                image_format,
+                data: data.as_slice(),
+            };
+            assert_eq!(
+                surface,
+                Surface::from_dds(&surface.to_dds().unwrap()).unwrap()
+            );
+        }
     }
 }

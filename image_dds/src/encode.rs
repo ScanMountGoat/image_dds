@@ -2,8 +2,8 @@ use std::borrow::Cow;
 
 use crate::bcn::{bcn_from_rgba, Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7};
 use crate::rgba::{
-    bgra4_from_rgba8, bgra8_from_rgba8, r8_from_rgba8, rgba8_from_rgba8, rgbaf16_from_rgba8,
-    rgbaf16_from_rgbaf32, rgbaf32_from_rgba8, rgbaf32_from_rgbaf32,
+    bgr8_from_rgba8, bgra4_from_rgba8, bgra8_from_rgba8, r8_from_rgba8, rgba8_from_rgba8,
+    rgbaf16_from_rgba8, rgbaf16_from_rgbaf32, rgbaf32_from_rgba8, rgbaf32_from_rgbaf32,
 };
 use crate::{
     downsample_rgba, error::SurfaceError, max_mipmap_count, mip_dimension, round_up, ImageFormat,
@@ -281,7 +281,7 @@ where
     let mut data = Vec::new();
     for level in 0..surface.depth() {
         let new_data = surface.get(layer, level, mipmap).unwrap();
-        data.extend_from_slice(&new_data);
+        data.extend_from_slice(new_data);
     }
 
     let (width, height, depth) =
@@ -400,13 +400,12 @@ impl Encode for u8 {
                 bcn_from_rgba::<Bc7, u8>(width, height, data, quality)
             }
             F::R8Unorm => r8_from_rgba8(width, height, data),
-            F::Rgba8Unorm => rgba8_from_rgba8(width, height, data),
-            F::Rgba8UnormSrgb => rgba8_from_rgba8(width, height, data),
+            F::Rgba8Unorm | F::Rgba8UnormSrgb => rgba8_from_rgba8(width, height, data),
             F::Rgba16Float => rgbaf16_from_rgba8(width, height, data),
             F::Rgba32Float => rgbaf32_from_rgba8(width, height, data),
-            F::Bgra8Unorm => bgra8_from_rgba8(width, height, data),
-            F::Bgra8UnormSrgb => bgra8_from_rgba8(width, height, data),
+            F::Bgra8Unorm | F::Bgra8UnormSrgb => bgra8_from_rgba8(width, height, data),
             F::Bgra4Unorm => bgra4_from_rgba8(width, height, data),
+            F::Bgr8Unorm => bgr8_from_rgba8(width, height, data),
         }
     }
 }

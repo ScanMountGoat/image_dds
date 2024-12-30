@@ -5,8 +5,8 @@ use crate::{
     error::SurfaceError,
     mip_dimension,
     rgba::{
-        rgba8_from_bgra4, rgba8_from_bgra8, rgba8_from_r8, rgba8_from_rgba8, rgba8_from_rgbaf16,
-        rgba8_from_rgbaf32, rgbaf32_from_rgbaf16, rgbaf32_from_rgbaf32,
+        rgba8_from_bgr8, rgba8_from_bgra4, rgba8_from_bgra8, rgba8_from_r8, rgba8_from_rgba8,
+        rgba8_from_rgbaf16, rgba8_from_rgbaf32, rgbaf32_from_rgbaf16, rgbaf32_from_rgbaf32,
     },
     ImageFormat, Surface, SurfaceRgba32Float, SurfaceRgba8,
 };
@@ -132,6 +132,7 @@ impl Decode for u8 {
             F::Rgba32Float => rgba8_from_rgbaf32(width, height, data),
             F::Bgra8Unorm | F::Bgra8UnormSrgb => rgba8_from_bgra8(width, height, data),
             F::Bgra4Unorm => rgba8_from_bgra4(width, height, data),
+            F::Bgr8Unorm => rgba8_from_bgr8(width, height, data),
         }
     }
 }
