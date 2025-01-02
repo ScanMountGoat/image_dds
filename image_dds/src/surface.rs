@@ -212,7 +212,7 @@ impl<'a> SurfaceRgba8<&'a [u8]> {
 }
 
 #[cfg(feature = "image")]
-impl SurfaceRgba8<Vec<u8>> {
+impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
     /// Create an image for all layers and depth slices for the given `mipmap`.
     ///
     /// Array layers and depth slices are arranged vertically from top to bottom.
@@ -241,7 +241,10 @@ impl SurfaceRgba8<Vec<u8>> {
             },
         )
     }
+}
 
+#[cfg(feature = "image")]
+impl SurfaceRgba8<Vec<u8>> {
     /// Create an image for all layers and depth slices without copying.
     ///
     /// Fails if the surface has more than one mipmap.
@@ -392,7 +395,7 @@ impl<'a> SurfaceRgba32Float<&'a [f32]> {
 }
 
 #[cfg(feature = "image")]
-impl SurfaceRgba32Float<Vec<f32>> {
+impl<T: AsRef<[f32]>> SurfaceRgba32Float<T> {
     /// Create an image for all layers and depth slices for the given `mipmap`.
     ///
     /// Array layers are arranged vertically from top to bottom.
@@ -419,7 +422,10 @@ impl SurfaceRgba32Float<Vec<f32>> {
             },
         )
     }
+}
 
+#[cfg(feature = "image")]
+impl SurfaceRgba32Float<Vec<f32>> {
     /// Create an image for all layers and depth slices without copying.
     ///
     /// Fails if the surface has more than one mipmap.
