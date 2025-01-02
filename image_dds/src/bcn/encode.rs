@@ -1,4 +1,4 @@
-use crate::{mip_size, ImageFormat, Quality, SurfaceError};
+use crate::{mip_size, Quality, SurfaceError};
 use half::f16;
 
 use super::{
@@ -60,16 +60,82 @@ impl BcnEncode<u8> for Bc1 {
 
 impl BcnEncode<u8> for Bc2 {
     fn compress_surface(
-        _width: u32,
-        _height: u32,
-        _rgba8_data: &[u8],
-        _quality: Quality,
+        width: u32,
+        height: u32,
+        rgba8_data: &[u8],
+        _: Quality,
     ) -> Result<Vec<u8>, SurfaceError> {
-        // TODO: Find an implementation that supports this?
-        Err(SurfaceError::UnsupportedEncodeFormat {
-            format: ImageFormat::BC2RgbaUnorm,
-        })
+        // RGBA with 4 bytes per pixel.
+        let surface = intel_tex_2::RgbaSurface {
+            width,
+            height,
+            stride: width * CHANNELS as u32,
+            data: rgba8_data,
+        };
+
+        // BC2 is rarely used and not supported by intel_tex.
+        // The RGB data is identical BC1, so we only need to encode alpha.
+        // https://learn.microsoft.com/en-us/windows/win32/direct3d10/d3d10-graphics-programming-guide-resources-block-compression#bc2
+        let bc1_data = intel_tex_2::bc1::compress_blocks(&surface);
+
+        let mut data = Vec::new();
+
+        // TODO: Tests for this.
+        // TODO: Test surfaces not divisible by block dimensions.
+        let mut block_index = 0;
+        for y in (0..height).step_by(BLOCK_HEIGHT) {
+            for x in (0..width).step_by(BLOCK_WIDTH) {
+                let bc2_block =
+                    encode_bc2_block(x, y, width, height, rgba8_data, &bc1_data, block_index);
+                data.extend_from_slice(&bc2_block.to_le_bytes());
+
+                block_index += 1;
+            }
+        }
+
+        Ok(data)
     }
+}
+
+fn encode_bc2_block(
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+    rgba8_data: &[u8],
+    bc1_data: &Vec<u8>,
+    block_index: usize,
+) -> u128 {
+    let alpha = sharp_alpha_block(x, y, width, height, rgba8_data);
+
+    let block_size = 8;
+    let block_start = block_index * block_size;
+    let bc1_block_data = bc1_data[block_start..block_start + block_size]
+        .try_into()
+        .unwrap();
+    let bc1_block = u64::from_le_bytes(bc1_block_data);
+
+    let bc2_block = ((bc1_block as u128) << u64::BITS) | alpha as u128;
+    bc2_block
+}
+
+fn sharp_alpha_block(x: u32, y: u32, width: u32, height: u32, rgba8_data: &[u8]) -> u64 {
+    // TODO: Use a byte array for better clarity?
+    let mut alpha = 0u64;
+    for i in 0..BLOCK_HEIGHT {
+        for j in 0..BLOCK_WIDTH {
+            // TODO: Is there a simpler way of doing this?
+            let x_final = (x as usize + i).min(width.saturating_sub(1) as usize);
+            let y_final = (y as usize + j).min(height.saturating_sub(1) as usize);
+            let input_index = (y_final * width as usize + x_final) * CHANNELS + 3;
+
+            let output_index = j * BLOCK_HEIGHT + i;
+
+            // 4-bit alpha for each pixel.
+            alpha |= ((rgba8_data[input_index] / 17) as u64) << (output_index * 4);
+        }
+    }
+    alpha
 }
 
 impl BcnEncode<u8> for Bc3 {
@@ -265,9 +331,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn bc2_compress() {
-        // TODO: BC2 compression should return an error.
         let rgba = vec![64u8; ELEMENTS_PER_BLOCK];
         check_compress_bcn::<Bc2>(&rgba, Quality::Fast);
         check_compress_bcn::<Bc2>(&rgba, Quality::Normal);

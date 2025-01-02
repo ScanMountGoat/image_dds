@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added `SurfaceRgba8::get_image` and `SurfaceRgba32Float::get_image` for more conveniently accessing mipmap data.
 * Added `resize_dds` example to show some more advanced usage of surface decoding and encoding.
 * Added support for `D3DFormat::R8G8B8`.
+* Added support for encoding BC2 compressed surfaces.
 
 ### Fixed
 * Fixed an issue where the result of `Surface::from_dds` would contain `0` layers instead of the expected value of `1`.
