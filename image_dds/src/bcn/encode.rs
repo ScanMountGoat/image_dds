@@ -103,7 +103,7 @@ fn encode_bc2_block(
     width: u32,
     height: u32,
     rgba8_data: &[u8],
-    bc1_data: &Vec<u8>,
+    bc1_data: &[u8],
     block_index: usize,
 ) -> u128 {
     let alpha = sharp_alpha_block(x, y, width, height, rgba8_data);
@@ -115,8 +115,7 @@ fn encode_bc2_block(
         .unwrap();
     let bc1_block = u64::from_le_bytes(bc1_block_data);
 
-    let bc2_block = ((bc1_block as u128) << u64::BITS) | alpha as u128;
-    bc2_block
+    ((bc1_block as u128) << u64::BITS) | alpha as u128
 }
 
 fn sharp_alpha_block(x: u32, y: u32, width: u32, height: u32, rgba8_data: &[u8]) -> u64 {

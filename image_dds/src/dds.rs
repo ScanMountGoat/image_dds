@@ -255,10 +255,13 @@ fn image_format_from_d3d(format: D3DFormat) -> Option<ImageFormat> {
         D3DFormat::DXT3 => Some(ImageFormat::BC2RgbaUnorm),
         D3DFormat::DXT4 => Some(ImageFormat::BC3RgbaUnorm),
         D3DFormat::DXT5 => Some(ImageFormat::BC3RgbaUnorm),
-        // BGRA is also ARGB depending on how we look at the bytes.
+        // BGRA can also be written ARGB depending on how we look at the bytes.
         D3DFormat::A4R4G4B4 => Some(ImageFormat::Bgra4Unorm),
         D3DFormat::A8R8G8B8 => Some(ImageFormat::Bgra8Unorm),
         D3DFormat::R8G8B8 => Some(ImageFormat::Bgr8Unorm),
+        D3DFormat::A8B8G8R8 => Some(ImageFormat::Rgba8Unorm),
+        D3DFormat::A16B16G16R16F => Some(ImageFormat::Rgba16Float),
+        D3DFormat::A32B32G32R32F => Some(ImageFormat::Rgba32Float),
         _ => None,
     }
 }
