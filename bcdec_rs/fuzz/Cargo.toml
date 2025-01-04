@@ -92,3 +92,31 @@ name = "bc6h_float"
 path = "fuzz_targets/bc6h_float.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "bc4_float"
+path = "fuzz_targets/bc4_float.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "bc4_float_signed"
+path = "fuzz_targets/bc4_float_signed.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "bc5_float"
+path = "fuzz_targets/bc5_float.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "bc5_float_signed"
+path = "fuzz_targets/bc5_float_signed.rs"
+test = false
+doc = false
+bench = false

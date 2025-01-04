@@ -133,7 +133,13 @@ pub fn bc4_float(
     destination_pitch: usize,
     is_signed: bool,
 ) {
-    todo!()
+    bc4_block_float(
+        compressed_block,
+        decompressed_block,
+        destination_pitch,
+        1,
+        is_signed,
+    )
 }
 
 /// Decode 16 bytes from `compressed_block` to RG8
@@ -186,7 +192,20 @@ pub fn bc5_float(
     destination_pitch: usize,
     is_signed: bool,
 ) {
-    todo!()
+    bc4_block_float(
+        compressed_block,
+        decompressed_block,
+        destination_pitch,
+        2,
+        is_signed,
+    );
+    bc4_block_float(
+        &compressed_block[8..],
+        &mut decompressed_block[1..],
+        destination_pitch,
+        2,
+        is_signed,
+    );
 }
 
 /// Decode 16 bytes from `compressed_block` to RGBFloat16
@@ -1388,6 +1407,61 @@ fn bc4_block(
             // TODO: Function for indexing?
             let index = i * destination_pitch + j * pixel_size;
             decompressed_block[index] = alpha[indices as usize & 0x7] as u8;
+            indices >>= 3;
+        }
+    }
+}
+
+fn bc4_block_float(
+    compressed_block: &[u8],
+    decompressed_block: &mut [f32],
+    destination_pitch: usize,
+    pixel_size: usize,
+    is_signed: bool,
+) {
+    let mut alpha = [0.0; 8];
+
+    if is_signed {
+        alpha[0] = (compressed_block[0] as i8) as f32 / 127.0;
+        alpha[1] = (compressed_block[1] as i8) as f32 / 127.0;
+        if alpha[0] < -1.0 {
+            // -128 clamps to -127
+            alpha[0] = -1.0
+        };
+        if alpha[1] < -1.0 {
+            // -128 clamps to -127
+            alpha[1] = -1.0
+        };
+    } else {
+        alpha[0] = compressed_block[0] as f32 / 255.0;
+        alpha[1] = compressed_block[1] as f32 / 255.0;
+    }
+
+    if alpha[0] > alpha[1] {
+        // 6 interpolated alpha values.
+        alpha[2] = (6.0 * alpha[0] + alpha[1]) / 7.0; // 6/7*alpha_0 + 1/7*alpha_1
+        alpha[3] = (5.0 * alpha[0] + 2.0 * alpha[1]) / 7.0; // 5/7*alpha_0 + 2/7*alpha_1
+        alpha[4] = (4.0 * alpha[0] + 3.0 * alpha[1]) / 7.0; // 4/7*alpha_0 + 3/7*alpha_1
+        alpha[5] = (3.0 * alpha[0] + 4.0 * alpha[1]) / 7.0; // 3/7*alpha_0 + 4/7*alpha_1
+        alpha[6] = (2.0 * alpha[0] + 5.0 * alpha[1]) / 7.0; // 2/7*alpha_0 + 5/7*alpha_1
+        alpha[7] = (alpha[0] + 6.0 * alpha[1]) / 7.0; // 1/7*alpha_0 + 6/7*alpha_1
+    } else {
+        // 4 interpolated alpha values.
+        alpha[2] = (4.0 * alpha[0] + alpha[1]) / 5.0; // 4/5*alpha_0 + 1/5*alpha_1
+        alpha[3] = (3.0 * alpha[0] + 2.0 * alpha[1]) / 5.0; // 3/5*alpha_0 + 2/5*alpha_1
+        alpha[4] = (2.0 * alpha[0] + 3.0 * alpha[1]) / 5.0; // 2/5*alpha_0 + 3/5*alpha_1
+        alpha[5] = (alpha[0] + 4.0 * alpha[1]) / 5.0; // 1/5*alpha_0 + 4/5*alpha_1
+        alpha[6] = if is_signed { -1.0 } else { 0.0 };
+        alpha[7] = 1.0;
+    }
+
+    let block = u64::from_le_bytes(compressed_block[..8].try_into().unwrap());
+    let mut indices = block >> 16;
+    for i in 0..4 {
+        for j in 0..4 {
+            // TODO: Function for indexing?
+            let index = i * destination_pitch + j * pixel_size;
+            decompressed_block[index] = alpha[indices as usize & 0x7];
             indices >>= 3;
         }
     }
