@@ -12,7 +12,7 @@ fuzz_target!(|data: [u8; 16]| {
     }
 
     let mut actual = [255u8; 4 * 4 * 4];
-    bcdec_rs::bc5(&data, &mut actual, 4 * 4);
+    bcdec_rs::bc5(&data, &mut actual, 4 * 4, false);
 
     assert_eq!(expected, actual);
 });

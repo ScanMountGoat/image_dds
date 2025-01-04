@@ -143,6 +143,36 @@ impl BcnDecode<[u8; 4]> for Bc4S {
     }
 }
 
+impl BcnDecode<[f32; 4]> for Bc4S {
+    type CompressedBlock = [u8; 8];
+
+    fn decompress_block(block: &[u8; 8]) -> [[[f32; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
+        // BC4 stores grayscale data, so each decompressed pixel is 1 byte.
+        let mut decompressed_r = [[0.0; BLOCK_WIDTH]; BLOCK_HEIGHT];
+
+        bcdec_rs::bc4_float(
+            block,
+            bytemuck::cast_slice_mut(&mut decompressed_r),
+            BLOCK_WIDTH,
+            true,
+        );
+
+        // Pad to RGBA with alpha set to white.
+        let mut decompressed = [[[0.0; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT];
+        for y in 0..BLOCK_HEIGHT {
+            for x in 0..BLOCK_WIDTH {
+                // It's a convention in some programs display BC4 in the red channel.
+                // Use grayscale instead to avoid confusing it with colored data.
+                // TODO: Match how channels handled when compressing RGBA data to BC4?
+                let r = decompressed_r[y][x];
+                decompressed[y][x] = [r, r, r, 1.0];
+            }
+        }
+
+        decompressed
+    }
+}
+
 impl BcnDecode<[u8; 4]> for Bc5 {
     type CompressedBlock = [u8; 16];
 
@@ -199,13 +229,41 @@ impl BcnDecode<[u8; 4]> for Bc5S {
     }
 }
 
+impl BcnDecode<[f32; 4]> for Bc5S {
+    type CompressedBlock = [u8; 16];
+
+    fn decompress_block(block: &[u8; 16]) -> [[[f32; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
+        // BC5 stores RG data, so each decompressed pixel is 2 bytes.
+        let mut decompressed_rg = [[[0.0; 2]; BLOCK_WIDTH]; BLOCK_HEIGHT];
+
+        bcdec_rs::bc5_float(
+            block,
+            bytemuck::cast_slice_mut(&mut decompressed_rg),
+            BLOCK_WIDTH * 2,
+            true,
+        );
+
+        // Pad to RGBA with alpha set to white.
+        let mut decompressed = [[[0.0; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT];
+        for y in 0..BLOCK_HEIGHT {
+            for x in 0..BLOCK_HEIGHT {
+                // It's convention to zero the blue channel when decompressing BC5.
+                let [r, g] = decompressed_rg[y][x];
+                decompressed[y][x] = [r, g, 0.0, 1.0];
+            }
+        }
+
+        decompressed
+    }
+}
+
 impl BcnDecode<[f32; 4]> for Bc6 {
     type CompressedBlock = [u8; 16];
 
     fn decompress_block(block: &[u8; 16]) -> [[[f32; 4]; BLOCK_WIDTH]; BLOCK_HEIGHT] {
         // BC6H uses half precision floating point data.
         // Convert to single precision since f32 is better supported on CPUs.
-        let mut decompressed_rgb = [[[0f32; 3]; BLOCK_WIDTH]; BLOCK_HEIGHT];
+        let mut decompressed_rgb = [[[0.0; 3]; BLOCK_WIDTH]; BLOCK_HEIGHT];
 
         // Cast the pointer to a less strictly aligned type.
         // The pitch is in terms of floats rather than bytes.

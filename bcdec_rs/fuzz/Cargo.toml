@@ -46,8 +46,8 @@ test = false
 doc = false
 
 [[bin]]
-name = "bc4_unsigned"
-path = "fuzz_targets/bc4_unsigned.rs"
+name = "bc4"
+path = "fuzz_targets/bc4.rs"
 test = false
 doc = false
 
@@ -58,8 +58,8 @@ test = false
 doc = false
 
 [[bin]]
-name = "bc5_unsigned"
-path = "fuzz_targets/bc5_unsigned.rs"
+name = "bc5"
+path = "fuzz_targets/bc5.rs"
 test = false
 doc = false
 
@@ -76,8 +76,8 @@ test = false
 doc = false
 
 [[bin]]
-name = "bc6h_unsigned"
-path = "fuzz_targets/bc6h_unsigned.rs"
+name = "bc6h"
+path = "fuzz_targets/bc6h.rs"
 test = false
 doc = false
 
@@ -88,7 +88,7 @@ test = false
 doc = false
 
 [[bin]]
-name = "bc6h_float_unsigned"
-path = "fuzz_targets/bc6h_float_unsigned.rs"
+name = "bc6h_float"
+path = "fuzz_targets/bc6h_float.rs"
 test = false
 doc = false

@@ -445,6 +445,8 @@ impl Encode for f32 {
 mod tests {
     use super::*;
 
+    use strum::IntoEnumIterator;
+
     #[test]
     fn encode_surface_integral_dimensions() {
         // It's ok for mipmaps to not be divisible by the block width.
@@ -1012,5 +1014,39 @@ mod tests {
         assert_eq!((4, 4, 1), physical_dimensions(4, 4, 1, (4, 4, 1)));
         assert_eq!((4, 4, 1), physical_dimensions(2, 2, 1, (4, 4, 1)));
         assert_eq!((4, 4, 1), physical_dimensions(1, 1, 1, (4, 4, 1)));
+    }
+
+    #[test]
+    fn encode_all_u8() {
+        for image_format in ImageFormat::iter() {
+            let surface = SurfaceRgba8 {
+                width: 4,
+                height: 4,
+                depth: 1,
+                layers: 1,
+                mipmaps: 1,
+                data: vec![0u8; 4 * 4 * 4],
+            };
+            surface
+                .encode(image_format, Quality::Normal, Mipmaps::GeneratedAutomatic)
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn encode_all_f32() {
+        for image_format in ImageFormat::iter() {
+            let surface = SurfaceRgba32Float {
+                width: 4,
+                height: 4,
+                depth: 1,
+                layers: 1,
+                mipmaps: 1,
+                data: vec![0.0; 4 * 4 * 4],
+            };
+            surface
+                .encode(image_format, Quality::Normal, Mipmaps::GeneratedAutomatic)
+                .unwrap();
+        }
     }
 }

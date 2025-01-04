@@ -275,6 +275,7 @@ mod tests {
 
     #[test]
     fn image_from_dds_bc2() {
+        // Test reference PNGs generated with paint.net (DirectXTex).
         test_dds_decode(
             include_bytes!("../data/bc2_r.dds"),
             include_bytes!("../data/bc2_r.png"),
@@ -307,6 +308,7 @@ mod tests {
 
     #[test]
     fn image_from_dds_bc4() {
+        // Test reference PNGs generated with paint.net (DirectXTex).
         test_dds_decode(
             include_bytes!("../data/bc4_r.dds"),
             include_bytes!("../data/bc4_r.png"),
@@ -315,6 +317,7 @@ mod tests {
 
     #[test]
     fn image_from_dds_bc5() {
+        // Test reference PNGs generated with paint.net (DirectXTex).
         test_dds_decode(
             include_bytes!("../data/bc5_r.dds"),
             include_bytes!("../data/bc5_r.png"),

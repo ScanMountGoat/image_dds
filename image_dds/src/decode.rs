@@ -148,6 +148,8 @@ impl Decode for f32 {
     ) -> Result<Vec<Self>, SurfaceError> {
         use ImageFormat as F;
         match image_format {
+            F::BC4RSnorm => rgba_from_bcn::<Bc4S, f32>(width, height, data),
+            F::BC5RgSnorm => rgba_from_bcn::<Bc5S, f32>(width, height, data),
             F::BC6hRgbUfloat | F::BC6hRgbSfloat => rgba_from_bcn::<Bc6, f32>(width, height, data),
             F::Rgba16Float => rgbaf32_from_rgbaf16(width, height, data),
             F::Rgba32Float => rgbaf32_from_rgbaf32(width, height, data),
@@ -163,6 +165,8 @@ impl Decode for f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use strum::IntoEnumIterator;
 
     #[test]
     fn decode_surface_zero_size() {
@@ -340,5 +344,39 @@ mod tests {
             },
             rgbaf32
         );
+    }
+
+    #[test]
+    fn decode_all_u8() {
+        for image_format in ImageFormat::iter() {
+            let data = vec![0u8; 4 * 4 * image_format.block_size_in_bytes()];
+            let surface = Surface {
+                width: 4,
+                height: 4,
+                depth: 1,
+                layers: 1,
+                mipmaps: 1,
+                image_format,
+                data: data.as_slice(),
+            };
+            surface.decode_rgba8().unwrap();
+        }
+    }
+
+    #[test]
+    fn decode_all_f32() {
+        for image_format in ImageFormat::iter() {
+            let data = vec![0u8; 4 * 4 * image_format.block_size_in_bytes()];
+            let surface = Surface {
+                width: 4,
+                height: 4,
+                depth: 1,
+                layers: 1,
+                mipmaps: 1,
+                image_format,
+                data: data.as_slice(),
+            };
+            surface.decode_rgbaf32().unwrap();
+        }
     }
 }
