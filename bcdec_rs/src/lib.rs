@@ -99,10 +99,19 @@ pub fn bc3(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
 /// // Decode a single 4x4 pixel block.
 /// let compressed_block = [0u8; 8];
 /// let mut decompressed_block = [0u8; 4 * 4];
-/// bcdec_rs::bc4(&compressed_block, &mut decompressed_block, 4);
+/// bcdec_rs::bc4(&compressed_block, &mut decompressed_block, 4, false);
 /// ```
-pub fn bc4(compressed_block: &[u8], decompressed_block: &mut [u8], destination_pitch: usize) {
-    smooth_alpha_block(compressed_block, decompressed_block, destination_pitch, 1);
+pub fn bc4(
+    compressed_block: &[u8],
+    decompressed_block: &mut [u8],
+    destination_pitch: usize,
+    is_signed: bool,
+) {
+    if is_signed {
+        smooth_alpha_block_signed(compressed_block, decompressed_block, destination_pitch, 1);
+    } else {
+        smooth_alpha_block(compressed_block, decompressed_block, destination_pitch, 1);
+    }
 }
 
 /// Decode 16 bytes from `compressed_block` to RG8
@@ -114,16 +123,31 @@ pub fn bc4(compressed_block: &[u8], decompressed_block: &mut [u8], destination_p
 /// // Decode a single 4x4 pixel block.
 /// let compressed_block = [0u8; 16];
 /// let mut decompressed_block = [0u8; 4 * 4 * 2];
-/// bcdec_rs::bc5(&compressed_block, &mut decompressed_block, 4 * 2);
+/// bcdec_rs::bc5(&compressed_block, &mut decompressed_block, 4 * 2, false);
 /// ```
-pub fn bc5(compressed_block: &[u8], decompressed_block: &mut [u8], destination_pitch: usize) {
-    smooth_alpha_block(compressed_block, decompressed_block, destination_pitch, 2);
-    smooth_alpha_block(
-        &compressed_block[8..],
-        &mut decompressed_block[1..],
-        destination_pitch,
-        2,
-    );
+pub fn bc5(
+    compressed_block: &[u8],
+    decompressed_block: &mut [u8],
+    destination_pitch: usize,
+    is_signed: bool,
+) {
+    if is_signed {
+        smooth_alpha_block_signed(compressed_block, decompressed_block, destination_pitch, 2);
+        smooth_alpha_block_signed(
+            &compressed_block[8..],
+            &mut decompressed_block[1..],
+            destination_pitch,
+            2,
+        );
+    } else {
+        smooth_alpha_block(compressed_block, decompressed_block, destination_pitch, 2);
+        smooth_alpha_block(
+            &compressed_block[8..],
+            &mut decompressed_block[1..],
+            destination_pitch,
+            2,
+        );
+    }
 }
 
 /// Decode 16 bytes from `compressed_block` to RGBFloat16
@@ -1271,6 +1295,60 @@ fn smooth_alpha_block(
     }
 }
 
+/// From: <https://github.com/image-rs/image/blob/ab0ec2cd79857ba902dde1b28624a1dea458fe2b/src/codecs/dds/bc.rs#L140>
+fn smooth_alpha_block_signed(
+    compressed_block: &[u8],
+    decompressed_block: &mut [u8],
+    destination_pitch: usize,
+    pixel_size: usize,
+) {
+    let mut alpha = [0u32; 8];
+
+    fn snorm8_to_unorm8(x: u8) -> u8 {
+        let y = x.wrapping_add(128).saturating_sub(1) as u16;
+        ((y * 129 + 1) >> 7) as u8
+    }
+
+    let red0 = compressed_block[0];
+    let red1 = compressed_block[1];
+
+    alpha[0] = snorm8_to_unorm8(red0) as u32;
+    alpha[1] = snorm8_to_unorm8(red1) as u32;
+
+    const CONVERSION_FACTOR: f32 = 255.0 / 254.0;
+    let alpha0_f = red0.wrapping_add(128).saturating_sub(1) as f32 * CONVERSION_FACTOR;
+    let alpha1_f = red1.wrapping_add(128).saturating_sub(1) as f32 * CONVERSION_FACTOR;
+
+    if alpha[0] > alpha[1] {
+        // 6 interpolated alpha values.
+        alpha[2] = interpolate_f32_to_u32(alpha0_f, alpha1_f, 1.0 / 7.0);
+        alpha[3] = interpolate_f32_to_u32(alpha0_f, alpha1_f, 2.0 / 7.0);
+        alpha[4] = interpolate_f32_to_u32(alpha0_f, alpha1_f, 3.0 / 7.0);
+        alpha[5] = interpolate_f32_to_u32(alpha0_f, alpha1_f, 4.0 / 7.0);
+        alpha[6] = interpolate_f32_to_u32(alpha0_f, alpha1_f, 5.0 / 7.0);
+        alpha[7] = interpolate_f32_to_u32(alpha0_f, alpha1_f, 6.0 / 7.0);
+    } else {
+        // 4 interpolated alpha values.
+        alpha[2] = interpolate_f32_to_u32(alpha0_f, alpha1_f, 1.0 / 5.0);
+        alpha[3] = interpolate_f32_to_u32(alpha0_f, alpha1_f, 2.0 / 5.0);
+        alpha[4] = interpolate_f32_to_u32(alpha0_f, alpha1_f, 3.0 / 5.0);
+        alpha[5] = interpolate_f32_to_u32(alpha0_f, alpha1_f, 4.0 / 5.0);
+        alpha[6] = 0x00;
+        alpha[7] = 0xFF;
+    };
+
+    let block = u64::from_le_bytes(compressed_block[..8].try_into().unwrap());
+    let mut indices = block >> 16;
+    for i in 0..4 {
+        for j in 0..4 {
+            // TODO: Function for indexing?
+            let index = i * destination_pitch + j * pixel_size;
+            decompressed_block[index] = alpha[(indices & 0x07) as usize] as u8;
+            indices >>= 3;
+        }
+    }
+}
+
 struct Bitstream {
     low: u64,
     high: u64,
@@ -1379,6 +1457,10 @@ fn interpolate(a: u32, b: u32, weight: u32) -> u32 {
 // TODO: Combine these with unsigned?
 fn interpolate_i32(a: i32, b: i32, weight: i32) -> i32 {
     (a * (64 - weight) + b * weight + 32) >> 6
+}
+
+fn interpolate_f32_to_u32(red0: f32, red1: f32, blend: f32) -> u32 {
+    (red0 * (1.0 - blend) + red1 * blend + 0.5) as u32
 }
 
 fn finish_unquantize(val: i32, is_signed: bool) -> u16 {

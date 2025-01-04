@@ -16,6 +16,8 @@ pub struct Bc1;
 pub struct Bc2;
 pub struct Bc3;
 pub struct Bc4;
+pub struct Bc4S;
 pub struct Bc5;
+pub struct Bc5S;
 pub struct Bc6;
 pub struct Bc7;
