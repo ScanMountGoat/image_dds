@@ -51,6 +51,11 @@ fn main() {
     let dds = surface.to_dds().unwrap();
     save_dds(dds, "bc4_r.dds");
 
+    // BC4S
+    let surface = bc4_r_signed();
+    let dds = surface.to_dds().unwrap();
+    save_dds(dds, "bc4_r_signed.dds");
+
     // BC5
     let surface = bc5_r();
     let dds = surface.to_dds().unwrap();
@@ -59,6 +64,15 @@ fn main() {
     let surface = bc5_g();
     let dds = surface.to_dds().unwrap();
     save_dds(dds, "bc5_g.dds");
+
+    // BC5S
+    let surface = bc5_r_signed();
+    let dds = surface.to_dds().unwrap();
+    save_dds(dds, "bc5_r_signed.dds");
+
+    let surface = bc5_g_signed();
+    let dds = surface.to_dds().unwrap();
+    save_dds(dds, "bc5_g_signed.dds");
 
     // TODO: How to handle BC6 and BC7?
 }
@@ -177,6 +191,13 @@ fn bc4_r() -> Surface<Vec<u8>> {
     })
 }
 
+fn bc4_r_signed() -> Surface<Vec<u8>> {
+    // 8-bit independent R channel for BC4 end points.
+    bcn(8, image_dds::ImageFormat::BC4RSnorm, |i, j| {
+        bc4_block(i, j).to_le_bytes()
+    })
+}
+
 fn bc4_block(r0: u64, r1: u64) -> u64 {
     // BC4 is just a BC3 "alpha" block.
     smooth_alpha_block(r0, r1)
@@ -189,10 +210,23 @@ fn bc5_r() -> Surface<Vec<u8>> {
     })
 }
 
-// TODO: helper functions for block 8 and block 16?
 fn bc5_g() -> Surface<Vec<u8>> {
     // 8-bit independent G channel for BC5 end points.
     bcn(8, image_dds::ImageFormat::BC5RgUnorm, |i, j| {
+        bc5_block_g(i, j).to_le_bytes()
+    })
+}
+
+fn bc5_r_signed() -> Surface<Vec<u8>> {
+    // 8-bit independent R channel for BC5 end points.
+    bcn(8, image_dds::ImageFormat::BC5RgSnorm, |i, j| {
+        bc5_block_r(i, j).to_le_bytes()
+    })
+}
+
+fn bc5_g_signed() -> Surface<Vec<u8>> {
+    // 8-bit independent G channel for BC5 end points.
+    bcn(8, image_dds::ImageFormat::BC5RgSnorm, |i, j| {
         bc5_block_g(i, j).to_le_bytes()
     })
 }
@@ -316,6 +350,15 @@ mod tests {
     }
 
     #[test]
+    fn image_from_dds_bc4_signed() {
+        // Test reference PNGs generated with paint.net (DirectXTex).
+        test_dds_decode(
+            include_bytes!("../data/bc4_r_signed.dds"),
+            include_bytes!("../data/bc4_r_signed.png"),
+        );
+    }
+
+    #[test]
     fn image_from_dds_bc5() {
         // Test reference PNGs generated with paint.net (DirectXTex).
         test_dds_decode(
@@ -325,6 +368,19 @@ mod tests {
         test_dds_decode(
             include_bytes!("../data/bc5_g.dds"),
             include_bytes!("../data/bc5_g.png"),
+        );
+    }
+
+    #[test]
+    fn image_from_dds_bc5_signed() {
+        // Test reference PNGs generated with paint.net (DirectXTex).
+        test_dds_decode(
+            include_bytes!("../data/bc5_r_signed.dds"),
+            include_bytes!("../data/bc5_r_signed.png"),
+        );
+        test_dds_decode(
+            include_bytes!("../data/bc5_g_signed.dds"),
+            include_bytes!("../data/bc5_g_signed.png"),
         );
     }
 }
