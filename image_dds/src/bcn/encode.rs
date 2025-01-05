@@ -74,9 +74,9 @@ impl BcnEncode<u8> for Bc2 {
         };
 
         // BC2 is rarely used and not supported by intel_tex.
-        // The RGB data is identical BC1, so we only need to encode alpha.
+        // The RGB block and mode is identical BC3, so we only need to encode alpha.
         // https://learn.microsoft.com/en-us/windows/win32/direct3d10/d3d10-graphics-programming-guide-resources-block-compression#bc2
-        let bc1_data = intel_tex_2::bc1::compress_blocks(&surface);
+        let bc3_data = intel_tex_2::bc3::compress_blocks(&surface);
 
         let mut data = Vec::new();
 
@@ -86,7 +86,7 @@ impl BcnEncode<u8> for Bc2 {
         for y in (0..height).step_by(BLOCK_HEIGHT) {
             for x in (0..width).step_by(BLOCK_WIDTH) {
                 let bc2_block =
-                    encode_bc2_block(x, y, width, height, rgba8_data, &bc1_data, block_index);
+                    encode_bc2_block(x, y, width, height, rgba8_data, &bc3_data, block_index);
                 data.extend_from_slice(&bc2_block.to_le_bytes());
 
                 block_index += 1;
@@ -103,19 +103,19 @@ fn encode_bc2_block(
     width: u32,
     height: u32,
     rgba8_data: &[u8],
-    bc1_data: &[u8],
+    bc3_data: &[u8],
     block_index: usize,
 ) -> u128 {
     let alpha = sharp_alpha_block(x, y, width, height, rgba8_data);
 
-    let block_size = 8;
+    let block_size = 16;
     let block_start = block_index * block_size;
-    let bc1_block_data = bc1_data[block_start..block_start + block_size]
+    let bc3_block_data = bc3_data[block_start..block_start + block_size]
         .try_into()
         .unwrap();
-    let bc1_block = u64::from_le_bytes(bc1_block_data);
+    let bc3_color_block = u128::from_le_bytes(bc3_block_data) >> u64::BITS;
 
-    ((bc1_block as u128) << u64::BITS) | alpha as u128
+    (bc3_color_block << u64::BITS) | alpha as u128
 }
 
 fn sharp_alpha_block(x: u32, y: u32, width: u32, height: u32, rgba8_data: &[u8]) -> u64 {
