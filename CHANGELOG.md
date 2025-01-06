@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added support for `D3DFormat::R8G8B8`, `D3DFormat::A8B8G8R8`, `D3DFormat::A16B16G16R16F`, and `D3DFormat::A32B32G32R32F`.
 * Added support for encoding BC2 compressed surfaces.
 * Defined `SurfaceRgba8::to_image` and `SurfaceRgba32Float::to_image` for `AsRef<[T]>` instead of just `Vec<T>`.
+* Added support for `R8Snorm`, `Rg8Unorm`, and `Rg8Snorm` formats.
 
 ### Changed
 * Improved accuracy of `u8` and `f32` decoding for BC4 and BC5.

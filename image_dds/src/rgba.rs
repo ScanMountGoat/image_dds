@@ -1,6 +1,6 @@
 use half::f16;
 
-use crate::SurfaceError;
+use crate::{snorm_to_unorm, unorm_to_snorm, SurfaceError};
 
 pub fn rgba8_from_rgba8(width: u32, height: u32, data: &[u8]) -> Result<Vec<u8>, SurfaceError> {
     validate_length(width, height, 4, data)?;
@@ -96,6 +96,16 @@ pub fn r8_from_rgba8(width: u32, height: u32, data: &[u8]) -> Result<Vec<u8>, Su
     Ok(r)
 }
 
+pub fn r8_snorm_from_rgba8(width: u32, height: u32, data: &[u8]) -> Result<Vec<u8>, SurfaceError> {
+    validate_length(width, height, 4, data)?;
+
+    let mut r = vec![0u8; width as usize * height as usize];
+    for i in 0..r.len() {
+        r[i] = unorm_to_snorm(data[i * 4]);
+    }
+    Ok(r)
+}
+
 pub fn rgba8_from_bgr8(width: u32, height: u32, data: &[u8]) -> Result<Vec<u8>, SurfaceError> {
     validate_length(width, height, 3, data)?;
 
@@ -113,6 +123,68 @@ pub fn rgba8_from_bgr8(width: u32, height: u32, data: &[u8]) -> Result<Vec<u8>, 
 pub fn rgba8_from_r8(width: u32, height: u32, data: &[u8]) -> Result<Vec<u8>, SurfaceError> {
     validate_length(width, height, 1, data)?;
     Ok(data.iter().flat_map(|r| [*r, *r, *r, 255u8]).collect())
+}
+
+pub fn rgba8_from_r8_snorm(width: u32, height: u32, data: &[u8]) -> Result<Vec<u8>, SurfaceError> {
+    validate_length(width, height, 1, data)?;
+    Ok(data
+        .iter()
+        .flat_map(|r| {
+            let r = snorm_to_unorm(*r);
+            [r, r, r, 255u8]
+        })
+        .collect())
+}
+
+pub fn rgba8_from_rg8(width: u32, height: u32, data: &[u8]) -> Result<Vec<u8>, SurfaceError> {
+    validate_length(width, height, 2, data)?;
+
+    let pixel_count = width as usize * height as usize;
+    let mut rgba = vec![0u8; pixel_count * 4];
+    for i in 0..pixel_count {
+        rgba[i * 4] = data[i * 2];
+        rgba[i * 4 + 1] = data[i * 2 + 1];
+        rgba[i * 4 + 3] = 255u8;
+    }
+    Ok(rgba)
+}
+
+pub fn rgba8_from_rg8_snorm(width: u32, height: u32, data: &[u8]) -> Result<Vec<u8>, SurfaceError> {
+    validate_length(width, height, 2, data)?;
+
+    let pixel_count = width as usize * height as usize;
+    let mut rgba = vec![0u8; pixel_count * 4];
+    for i in 0..pixel_count {
+        rgba[i * 4] = snorm_to_unorm(data[i * 2]);
+        rgba[i * 4 + 1] = snorm_to_unorm(data[i * 2 + 1]);
+        rgba[i * 4 + 2] = 128u8;
+        rgba[i * 4 + 3] = 255u8;
+    }
+    Ok(rgba)
+}
+
+pub fn rg8_from_rgba8(width: u32, height: u32, data: &[u8]) -> Result<Vec<u8>, SurfaceError> {
+    validate_length(width, height, 4, data)?;
+
+    let pixel_count = width as usize * height as usize;
+    let mut rg = vec![0u8; pixel_count * 2];
+    for i in 0..pixel_count {
+        rg[i * 2] = data[i * 4];
+        rg[i * 2 + 1] = data[i * 4 + 1];
+    }
+    Ok(rg)
+}
+
+pub fn rg8_snorm_from_rgba8(width: u32, height: u32, data: &[u8]) -> Result<Vec<u8>, SurfaceError> {
+    validate_length(width, height, 4, data)?;
+
+    let pixel_count = width as usize * height as usize;
+    let mut rg = vec![0u8; pixel_count * 2];
+    for i in 0..pixel_count {
+        rg[i * 2] = unorm_to_snorm(data[i * 4]);
+        rg[i * 2 + 1] = unorm_to_snorm(data[i * 4 + 1]);
+    }
+    Ok(rg)
 }
 
 pub fn bgra8_from_rgba8(width: u32, height: u32, data: &[u8]) -> Result<Vec<u8>, SurfaceError> {
@@ -245,6 +317,94 @@ mod tests {
             result,
             Err(SurfaceError::NotEnoughData {
                 expected: 16,
+                actual: 1
+            })
+        );
+    }
+
+    #[test]
+    fn r8_snorm_from_rgba8_valid() {
+        assert_eq!(vec![130], r8_snorm_from_rgba8(1, 1, &[1, 2, 3, 4]).unwrap());
+    }
+
+    #[test]
+    fn r8_snorm_from_rgba8_invalid() {
+        let result = r8_snorm_from_rgba8(1, 1, &[1, 2, 3]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 4,
+                actual: 3
+            })
+        );
+    }
+
+    #[test]
+    fn rgba8_from_r8_snorm_valid() {
+        assert_eq!(vec![64, 64, 64, 255], rgba8_from_r8(1, 1, &[64]).unwrap());
+    }
+
+    #[test]
+    fn rgba8_from_r8_snorm_invalid() {
+        let result = rgba8_from_r8(4, 4, &[64]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 16,
+                actual: 1
+            })
+        );
+    }
+
+    #[test]
+    fn rg8_from_rgba8_valid() {
+        assert_eq!(vec![1, 2], rg8_from_rgba8(1, 1, &[1, 2, 3, 4]).unwrap());
+    }
+
+    #[test]
+    fn rg8_from_rgba8_invalid() {
+        let result = rg8_from_rgba8(1, 1, &[1, 2, 3]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 4,
+                actual: 3
+            })
+        );
+    }
+
+    #[test]
+    fn rg8_snorm_from_rgba8_valid() {
+        assert_eq!(
+            vec![130, 131],
+            rg8_snorm_from_rgba8(1, 1, &[1, 2, 3, 4]).unwrap()
+        );
+    }
+
+    #[test]
+    fn rg8_snorm_from_rgba8_invalid() {
+        let result = rg8_snorm_from_rgba8(1, 1, &[1, 2, 3]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 4,
+                actual: 3
+            })
+        );
+    }
+
+    #[test]
+    fn rgba8_from_rg8_snorm_valid() {
+        assert_eq!(vec![1, 2, 0, 255], rgba8_from_rg8(1, 1, &[1, 2]).unwrap());
+    }
+
+    #[test]
+    fn rgba8_from_rg8_snorm_invalid() {
+        let result = rgba8_from_rg8(1, 1, &[64]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 2,
                 actual: 1
             })
         );

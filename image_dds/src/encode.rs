@@ -2,8 +2,9 @@ use std::borrow::Cow;
 
 use crate::bcn::{bcn_from_rgba, Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7};
 use crate::rgba::{
-    bgr8_from_rgba8, bgra4_from_rgba8, bgra8_from_rgba8, r8_from_rgba8, rgba8_from_rgba8,
-    rgbaf16_from_rgba8, rgbaf16_from_rgbaf32, rgbaf32_from_rgba8, rgbaf32_from_rgbaf32,
+    bgr8_from_rgba8, bgra4_from_rgba8, bgra8_from_rgba8, r8_from_rgba8, r8_snorm_from_rgba8,
+    rg8_from_rgba8, rg8_snorm_from_rgba8, rgba8_from_rgba8, rgbaf16_from_rgba8,
+    rgbaf16_from_rgbaf32, rgbaf32_from_rgba8, rgbaf32_from_rgbaf32,
 };
 use crate::{
     downsample_rgba, error::SurfaceError, max_mipmap_count, mip_dimension, round_up, ImageFormat,
@@ -400,6 +401,9 @@ impl Encode for u8 {
                 bcn_from_rgba::<Bc7, u8>(width, height, data, quality)
             }
             F::R8Unorm => r8_from_rgba8(width, height, data),
+            F::R8Snorm => r8_snorm_from_rgba8(width, height, data),
+            F::Rg8Unorm => rg8_from_rgba8(width, height, data),
+            F::Rg8Snorm => rg8_snorm_from_rgba8(width, height, data),
             F::Rgba8Unorm | F::Rgba8UnormSrgb => rgba8_from_rgba8(width, height, data),
             F::Rgba16Float => rgbaf16_from_rgba8(width, height, data),
             F::Rgba32Float => rgbaf32_from_rgba8(width, height, data),

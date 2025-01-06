@@ -5,8 +5,9 @@ use crate::{
     error::SurfaceError,
     mip_dimension,
     rgba::{
-        rgba8_from_bgr8, rgba8_from_bgra4, rgba8_from_bgra8, rgba8_from_r8, rgba8_from_rgba8,
-        rgba8_from_rgbaf16, rgba8_from_rgbaf32, rgbaf32_from_rgbaf16, rgbaf32_from_rgbaf32,
+        rgba8_from_bgr8, rgba8_from_bgra4, rgba8_from_bgra8, rgba8_from_r8, rgba8_from_r8_snorm,
+        rgba8_from_rg8, rgba8_from_rg8_snorm, rgba8_from_rgba8, rgba8_from_rgbaf16,
+        rgba8_from_rgbaf32, rgbaf32_from_rgbaf16, rgbaf32_from_rgbaf32,
     },
     ImageFormat, Surface, SurfaceRgba32Float, SurfaceRgba8,
 };
@@ -129,6 +130,9 @@ impl Decode for u8 {
             F::BC6hRgbUfloat | F::BC6hRgbSfloat => rgba_from_bcn::<Bc6, u8>(width, height, data),
             F::BC7RgbaUnorm | F::BC7RgbaUnormSrgb => rgba_from_bcn::<Bc7, u8>(width, height, data),
             F::R8Unorm => rgba8_from_r8(width, height, data),
+            F::R8Snorm => rgba8_from_r8_snorm(width, height, data),
+            F::Rg8Unorm => rgba8_from_rg8(width, height, data),
+            F::Rg8Snorm => rgba8_from_rg8_snorm(width, height, data),
             F::Rgba8Unorm | F::Rgba8UnormSrgb => rgba8_from_rgba8(width, height, data),
             F::Rgba16Float => rgba8_from_rgbaf16(width, height, data),
             F::Rgba32Float => rgba8_from_rgbaf32(width, height, data),
