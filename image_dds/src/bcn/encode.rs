@@ -271,7 +271,7 @@ impl BcnEncode<u8> for Bc7 {
     }
 }
 
-pub fn bcn_from_rgba<F, T>(
+pub fn encode_bcn<F, T>(
     width: u32,
     height: u32,
     data: &[T],
@@ -318,7 +318,7 @@ mod tests {
     // TODO: Add tests for validating the input length.
     // TODO: Will compression fail for certain pixel values (test with fuzz tests?)
     fn check_compress_bcn<T: BcnEncode<u8>>(rgba: &[u8], quality: Quality) {
-        bcn_from_rgba::<T, u8>(4, 4, &rgba, quality).unwrap();
+        encode_bcn::<T, u8>(4, 4, &rgba, quality).unwrap();
     }
 
     #[test]

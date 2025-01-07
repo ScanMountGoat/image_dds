@@ -1,9 +1,8 @@
 use std::borrow::Cow;
 
-use crate::bcn::{bcn_from_rgba, Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7};
+use crate::bcn::{encode_bcn, Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7};
 use crate::rgba::{
-    pixels_from_rgba8, rgbaf16_from_rgbaf32, rgbaf32_from_rgbaf32, Bgr8, Bgra4, Bgra8, R8Snorm,
-    Rg8, Rg8Snorm, Rgba8, Rgbaf16, Rgbaf32, R8,
+    encode_rgba, Bgr8, Bgra4, Bgra8, R8Snorm, Rg8, Rg8Snorm, Rgba8, Rgbaf16, Rgbaf32, R8,
 };
 use crate::{
     downsample_rgba, error::SurfaceError, max_mipmap_count, mip_dimension, round_up, ImageFormat,
@@ -383,32 +382,32 @@ impl Encode for u8 {
         use ImageFormat as F;
         match format {
             F::BC1RgbaUnorm | F::BC1RgbaUnormSrgb => {
-                bcn_from_rgba::<Bc1, u8>(width, height, data, quality)
+                encode_bcn::<Bc1, u8>(width, height, data, quality)
             }
             F::BC2RgbaUnorm | F::BC2RgbaUnormSrgb => {
-                bcn_from_rgba::<Bc2, u8>(width, height, data, quality)
+                encode_bcn::<Bc2, u8>(width, height, data, quality)
             }
             F::BC3RgbaUnorm | F::BC3RgbaUnormSrgb => {
-                bcn_from_rgba::<Bc3, u8>(width, height, data, quality)
+                encode_bcn::<Bc3, u8>(width, height, data, quality)
             }
-            F::BC4RUnorm | F::BC4RSnorm => bcn_from_rgba::<Bc4, u8>(width, height, data, quality),
-            F::BC5RgUnorm | F::BC5RgSnorm => bcn_from_rgba::<Bc5, u8>(width, height, data, quality),
+            F::BC4RUnorm | F::BC4RSnorm => encode_bcn::<Bc4, u8>(width, height, data, quality),
+            F::BC5RgUnorm | F::BC5RgSnorm => encode_bcn::<Bc5, u8>(width, height, data, quality),
             F::BC6hRgbUfloat | F::BC6hRgbSfloat => {
-                bcn_from_rgba::<Bc6, u8>(width, height, data, quality)
+                encode_bcn::<Bc6, u8>(width, height, data, quality)
             }
             F::BC7RgbaUnorm | F::BC7RgbaUnormSrgb => {
-                bcn_from_rgba::<Bc7, u8>(width, height, data, quality)
+                encode_bcn::<Bc7, u8>(width, height, data, quality)
             }
-            F::R8Unorm => pixels_from_rgba8::<R8>(width, height, data),
-            F::R8Snorm => pixels_from_rgba8::<R8Snorm>(width, height, data),
-            F::Rg8Unorm => pixels_from_rgba8::<Rg8>(width, height, data),
-            F::Rg8Snorm => pixels_from_rgba8::<Rg8Snorm>(width, height, data),
-            F::Rgba8Unorm | F::Rgba8UnormSrgb => pixels_from_rgba8::<Rgba8>(width, height, data),
-            F::Rgba16Float => pixels_from_rgba8::<Rgbaf16>(width, height, data),
-            F::Rgba32Float => pixels_from_rgba8::<Rgbaf32>(width, height, data),
-            F::Bgra8Unorm | F::Bgra8UnormSrgb => pixels_from_rgba8::<Bgra8>(width, height, data),
-            F::Bgra4Unorm => pixels_from_rgba8::<Bgra4>(width, height, data),
-            F::Bgr8Unorm => pixels_from_rgba8::<Bgr8>(width, height, data),
+            F::R8Unorm => encode_rgba::<R8, u8>(width, height, data),
+            F::R8Snorm => encode_rgba::<R8Snorm, u8>(width, height, data),
+            F::Rg8Unorm => encode_rgba::<Rg8, u8>(width, height, data),
+            F::Rg8Snorm => encode_rgba::<Rg8Snorm, u8>(width, height, data),
+            F::Rgba8Unorm | F::Rgba8UnormSrgb => encode_rgba::<Rgba8, u8>(width, height, data),
+            F::Rgba16Float => encode_rgba::<Rgbaf16, u8>(width, height, data),
+            F::Rgba32Float => encode_rgba::<Rgbaf32, u8>(width, height, data),
+            F::Bgra8Unorm | F::Bgra8UnormSrgb => encode_rgba::<Bgra8, u8>(width, height, data),
+            F::Bgra4Unorm => encode_rgba::<Bgra4, u8>(width, height, data),
+            F::Bgr8Unorm => encode_rgba::<Bgr8, u8>(width, height, data),
         }
     }
 }
@@ -426,16 +425,10 @@ impl Encode for f32 {
         use ImageFormat as F;
         match format {
             F::BC6hRgbUfloat | F::BC6hRgbSfloat => {
-                bcn_from_rgba::<Bc6, f32>(width, height, data, quality)
+                encode_bcn::<Bc6, f32>(width, height, data, quality)
             }
-            F::Rgba16Float => {
-                // TODO: Create conversion functions that don't require a cast?
-                rgbaf16_from_rgbaf32(width, height, bytemuck::cast_slice(data))
-                    .map(|d| bytemuck::cast_slice(&d).to_vec())
-            }
-            // TODO: Create conversion functions that don't require a cast?
-            F::Rgba32Float => rgbaf32_from_rgbaf32(width, height, bytemuck::cast_slice(data))
-                .map(|d| bytemuck::cast_slice(&d).to_vec()),
+            F::Rgba16Float => encode_rgba::<Rgbaf16, f32>(width, height, data),
+            F::Rgba32Float => encode_rgba::<Rgbaf32, f32>(width, height, data),
             _ => {
                 let rgba8: Vec<_> = data.iter().map(|f| (f * 255.0) as u8).collect();
                 u8::encode(width, height, &rgba8, format, quality)

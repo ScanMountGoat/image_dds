@@ -320,7 +320,7 @@ impl BcnDecode<[u8; 4]> for Bc7 {
 }
 
 /// Decompress the bytes in `data` to the uncompressed RGBA8 format.
-pub fn rgba_from_bcn<F, T>(width: u32, height: u32, data: &[u8]) -> Result<Vec<T>, SurfaceError>
+pub fn decode_bcn<F, T>(width: u32, height: u32, data: &[u8]) -> Result<Vec<T>, SurfaceError>
 where
     T: Copy + Default + Pod,
     F: BcnDecode<[T; 4]>,

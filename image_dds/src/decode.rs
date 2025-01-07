@@ -1,13 +1,10 @@
 use std::ops::Range;
 
 use crate::{
-    bcn::{self, rgba_from_bcn},
+    bcn::{self, decode_bcn},
     error::SurfaceError,
     mip_dimension,
-    rgba::{
-        rgba8_from_pixels, rgbaf32_from_rgbaf16, rgbaf32_from_rgbaf32, Bgr8, Bgra4, Bgra8, R8Snorm,
-        Rg8, Rg8Snorm, Rgba8, Rgbaf16, Rgbaf32, R8,
-    },
+    rgba::{decode_rgba, Bgr8, Bgra4, Bgra8, R8Snorm, Rg8, Rg8Snorm, Rgba8, Rgbaf16, Rgbaf32, R8},
     ImageFormat, Surface, SurfaceRgba32Float, SurfaceRgba8,
 };
 use bcn::{Bc1, Bc2, Bc3, Bc4, Bc4S, Bc5, Bc5S, Bc6, Bc7};
@@ -119,25 +116,25 @@ impl Decode for u8 {
     ) -> Result<Vec<Self>, SurfaceError> {
         use ImageFormat as F;
         match image_format {
-            F::BC1RgbaUnorm | F::BC1RgbaUnormSrgb => rgba_from_bcn::<Bc1, u8>(width, height, data),
-            F::BC2RgbaUnorm | F::BC2RgbaUnormSrgb => rgba_from_bcn::<Bc2, u8>(width, height, data),
-            F::BC3RgbaUnorm | F::BC3RgbaUnormSrgb => rgba_from_bcn::<Bc3, u8>(width, height, data),
-            F::BC4RUnorm => rgba_from_bcn::<Bc4, u8>(width, height, data),
-            F::BC4RSnorm => rgba_from_bcn::<Bc4S, u8>(width, height, data),
-            F::BC5RgUnorm => rgba_from_bcn::<Bc5, u8>(width, height, data),
-            F::BC5RgSnorm => rgba_from_bcn::<Bc5S, u8>(width, height, data),
-            F::BC6hRgbUfloat | F::BC6hRgbSfloat => rgba_from_bcn::<Bc6, u8>(width, height, data),
-            F::BC7RgbaUnorm | F::BC7RgbaUnormSrgb => rgba_from_bcn::<Bc7, u8>(width, height, data),
-            F::R8Unorm => rgba8_from_pixels::<R8>(width, height, data),
-            F::R8Snorm => rgba8_from_pixels::<R8Snorm>(width, height, data),
-            F::Rg8Unorm => rgba8_from_pixels::<Rg8>(width, height, data),
-            F::Rg8Snorm => rgba8_from_pixels::<Rg8Snorm>(width, height, data),
-            F::Rgba8Unorm | F::Rgba8UnormSrgb => rgba8_from_pixels::<Rgba8>(width, height, data),
-            F::Rgba16Float => rgba8_from_pixels::<Rgbaf16>(width, height, data),
-            F::Rgba32Float => rgba8_from_pixels::<Rgbaf32>(width, height, data),
-            F::Bgra8Unorm | F::Bgra8UnormSrgb => rgba8_from_pixels::<Bgra8>(width, height, data),
-            F::Bgra4Unorm => rgba8_from_pixels::<Bgra4>(width, height, data),
-            F::Bgr8Unorm => rgba8_from_pixels::<Bgr8>(width, height, data),
+            F::BC1RgbaUnorm | F::BC1RgbaUnormSrgb => decode_bcn::<Bc1, u8>(width, height, data),
+            F::BC2RgbaUnorm | F::BC2RgbaUnormSrgb => decode_bcn::<Bc2, u8>(width, height, data),
+            F::BC3RgbaUnorm | F::BC3RgbaUnormSrgb => decode_bcn::<Bc3, u8>(width, height, data),
+            F::BC4RUnorm => decode_bcn::<Bc4, u8>(width, height, data),
+            F::BC4RSnorm => decode_bcn::<Bc4S, u8>(width, height, data),
+            F::BC5RgUnorm => decode_bcn::<Bc5, u8>(width, height, data),
+            F::BC5RgSnorm => decode_bcn::<Bc5S, u8>(width, height, data),
+            F::BC6hRgbUfloat | F::BC6hRgbSfloat => decode_bcn::<Bc6, u8>(width, height, data),
+            F::BC7RgbaUnorm | F::BC7RgbaUnormSrgb => decode_bcn::<Bc7, u8>(width, height, data),
+            F::R8Unorm => decode_rgba::<R8, u8>(width, height, data),
+            F::R8Snorm => decode_rgba::<R8Snorm, u8>(width, height, data),
+            F::Rg8Unorm => decode_rgba::<Rg8, u8>(width, height, data),
+            F::Rg8Snorm => decode_rgba::<Rg8Snorm, u8>(width, height, data),
+            F::Rgba8Unorm | F::Rgba8UnormSrgb => decode_rgba::<Rgba8, u8>(width, height, data),
+            F::Rgba16Float => decode_rgba::<Rgbaf16, u8>(width, height, data),
+            F::Rgba32Float => decode_rgba::<Rgbaf32, u8>(width, height, data),
+            F::Bgra8Unorm | F::Bgra8UnormSrgb => decode_rgba::<Bgra8, u8>(width, height, data),
+            F::Bgra4Unorm => decode_rgba::<Bgra4, u8>(width, height, data),
+            F::Bgr8Unorm => decode_rgba::<Bgr8, u8>(width, height, data),
         }
     }
 }
@@ -151,11 +148,11 @@ impl Decode for f32 {
     ) -> Result<Vec<Self>, SurfaceError> {
         use ImageFormat as F;
         match image_format {
-            F::BC4RSnorm => rgba_from_bcn::<Bc4S, f32>(width, height, data),
-            F::BC5RgSnorm => rgba_from_bcn::<Bc5S, f32>(width, height, data),
-            F::BC6hRgbUfloat | F::BC6hRgbSfloat => rgba_from_bcn::<Bc6, f32>(width, height, data),
-            F::Rgba16Float => rgbaf32_from_rgbaf16(width, height, data),
-            F::Rgba32Float => rgbaf32_from_rgbaf32(width, height, data),
+            F::BC4RSnorm => decode_bcn::<Bc4S, f32>(width, height, data),
+            F::BC5RgSnorm => decode_bcn::<Bc5S, f32>(width, height, data),
+            F::BC6hRgbUfloat | F::BC6hRgbSfloat => decode_bcn::<Bc6, f32>(width, height, data),
+            F::Rgba16Float => decode_rgba::<Rgbaf16, f32>(width, height, data),
+            F::Rgba32Float => decode_rgba::<Rgbaf32, f32>(width, height, data),
             _ => {
                 // Use existing decoding for formats that don't store floating point data.
                 let rgba8 = u8::decode(width, height, image_format, data)?;
