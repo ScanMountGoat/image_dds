@@ -17,7 +17,7 @@
 //! support compressed texture formats. DDS plugins for image editors often don't support newer
 //! compression formats like BC7. Rendering APIs may not support compressed formats or only make it available
 //! via an extension such as in the browser.
-//! image_dds supports decoding surfaces to RGBA8 for
+//! image_dds supports decoding surfaces to RGBA `u8` or `f32` for
 //! better compatibility at the cost of increased memory usage.
 //!
 //! # Usage
@@ -39,8 +39,6 @@
 //! to resolve compilation errors on some targets if not needed.
 //!
 //! # Limitations
-//! BC2 data can be decoded but not encoded due to limitations in intel-tex-rs-2.
-//! This format is very rarely used in practice.
 //! Not all targets will compile by default due to intel-tex-rs-2 using the Intel ISPC compiler
 //! and lacking precompiled kernels for all targets.
 
@@ -594,7 +592,7 @@ mod tests {
     }
 
     fn unorm_to_snorm_reference(x: u8) -> i8 {
-        // Remap [0, 1] to [-1, 1] and convert to float.
+        // Remap [0, 1] to [-1, 1] to fit in a signed integer.
         (((x as f32 / 255.0) * 2.0 - 1.0) * 127.0).round() as i8
     }
 
