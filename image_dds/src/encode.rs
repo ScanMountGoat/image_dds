@@ -2,9 +2,8 @@ use std::borrow::Cow;
 
 use crate::bcn::{bcn_from_rgba, Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7};
 use crate::rgba::{
-    bgr8_from_rgba8, bgra4_from_rgba8, bgra8_from_rgba8, r8_from_rgba8, r8_snorm_from_rgba8,
-    rg8_from_rgba8, rg8_snorm_from_rgba8, rgba8_from_rgba8, rgbaf16_from_rgba8,
-    rgbaf16_from_rgbaf32, rgbaf32_from_rgba8, rgbaf32_from_rgbaf32,
+    pixels_from_rgba8, rgbaf16_from_rgbaf32, rgbaf32_from_rgbaf32, Bgr8, Bgra4, Bgra8, R8Snorm,
+    Rg8, Rg8Snorm, Rgba8, Rgbaf16, Rgbaf32, R8,
 };
 use crate::{
     downsample_rgba, error::SurfaceError, max_mipmap_count, mip_dimension, round_up, ImageFormat,
@@ -400,16 +399,16 @@ impl Encode for u8 {
             F::BC7RgbaUnorm | F::BC7RgbaUnormSrgb => {
                 bcn_from_rgba::<Bc7, u8>(width, height, data, quality)
             }
-            F::R8Unorm => r8_from_rgba8(width, height, data),
-            F::R8Snorm => r8_snorm_from_rgba8(width, height, data),
-            F::Rg8Unorm => rg8_from_rgba8(width, height, data),
-            F::Rg8Snorm => rg8_snorm_from_rgba8(width, height, data),
-            F::Rgba8Unorm | F::Rgba8UnormSrgb => rgba8_from_rgba8(width, height, data),
-            F::Rgba16Float => rgbaf16_from_rgba8(width, height, data),
-            F::Rgba32Float => rgbaf32_from_rgba8(width, height, data),
-            F::Bgra8Unorm | F::Bgra8UnormSrgb => bgra8_from_rgba8(width, height, data),
-            F::Bgra4Unorm => bgra4_from_rgba8(width, height, data),
-            F::Bgr8Unorm => bgr8_from_rgba8(width, height, data),
+            F::R8Unorm => pixels_from_rgba8::<R8>(width, height, data),
+            F::R8Snorm => pixels_from_rgba8::<R8Snorm>(width, height, data),
+            F::Rg8Unorm => pixels_from_rgba8::<Rg8>(width, height, data),
+            F::Rg8Snorm => pixels_from_rgba8::<Rg8Snorm>(width, height, data),
+            F::Rgba8Unorm | F::Rgba8UnormSrgb => pixels_from_rgba8::<Rgba8>(width, height, data),
+            F::Rgba16Float => pixels_from_rgba8::<Rgbaf16>(width, height, data),
+            F::Rgba32Float => pixels_from_rgba8::<Rgbaf32>(width, height, data),
+            F::Bgra8Unorm | F::Bgra8UnormSrgb => pixels_from_rgba8::<Bgra8>(width, height, data),
+            F::Bgra4Unorm => pixels_from_rgba8::<Bgra4>(width, height, data),
+            F::Bgr8Unorm => pixels_from_rgba8::<Bgr8>(width, height, data),
         }
     }
 }
