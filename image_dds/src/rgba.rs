@@ -1,7 +1,7 @@
 use bytemuck::{Pod, Zeroable};
 use half::f16;
 
-use crate::{snorm_to_unorm, unorm_to_snorm, SurfaceError};
+use crate::{float_to_snorm, snorm_to_float, snorm_to_unorm, unorm_to_snorm, SurfaceError};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -72,7 +72,6 @@ pixel_impl!(Bgr8, 3);
 pixel_impl!(Rgba8, 4);
 pixel_impl!(Bgra8, 4);
 
-// TODO: impl f32 for snorm formats.
 pub trait ToRgba<T> {
     fn to_rgba(self) -> [T; 4];
 }
@@ -220,6 +219,19 @@ impl FromRgba<u8> for R8Snorm {
     }
 }
 
+impl ToRgba<f32> for R8Snorm {
+    fn to_rgba(self) -> [f32; 4] {
+        let r = snorm_to_float(self.0);
+        [r, r, r, 1.0]
+    }
+}
+
+impl FromRgba<f32> for R8Snorm {
+    fn from_rgba(rgba: [f32; 4]) -> Self {
+        Self(float_to_snorm(rgba[0]) as u8)
+    }
+}
+
 impl ToRgba<u8> for Rg8 {
     fn to_rgba(self) -> [u8; 4] {
         [self.0[0], self.0[1], 0, 255u8]
@@ -246,6 +258,24 @@ impl ToRgba<u8> for Rg8Snorm {
 impl FromRgba<u8> for Rg8Snorm {
     fn from_rgba(rgba: [u8; 4]) -> Self {
         Self([unorm_to_snorm(rgba[0]), unorm_to_snorm(rgba[1])])
+    }
+}
+
+impl ToRgba<f32> for Rg8Snorm {
+    fn to_rgba(self) -> [f32; 4] {
+        // TODO: Is this the correct blue channel value?
+        [
+            snorm_to_float(self.0[0]),
+            snorm_to_float(self.0[1]),
+            snorm_to_float(0u8),
+            1.0,
+        ]
+    }
+}
+
+impl FromRgba<f32> for Rg8Snorm {
+    fn from_rgba(rgba: [f32; 4]) -> Self {
+        Self([float_to_snorm(rgba[0]) as u8, float_to_snorm(rgba[1]) as u8])
     }
 }
 
@@ -428,6 +458,26 @@ mod tests {
     }
 
     #[test]
+    fn r8_snorm_from_rgbaf32_valid() {
+        assert_eq!(
+            vec![129],
+            encode_rgba::<R8Snorm, f32>(1, 1, &[-1.0, 0.0, 1.0, 1.0]).unwrap()
+        );
+    }
+
+    #[test]
+    fn r8_snorm_from_rgbaf32_invalid() {
+        let result = encode_rgba::<R8Snorm, f32>(1, 1, &[-1.0, 0.0, 1.0]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 4,
+                actual: 3
+            })
+        );
+    }
+
+    #[test]
     fn rgba8_from_r8_snorm_valid() {
         assert_eq!(
             vec![192, 192, 192, 255],
@@ -438,6 +488,26 @@ mod tests {
     #[test]
     fn rgba8_from_r8_snorm_invalid() {
         let result = decode_rgba::<R8Snorm, u8>(4, 4, &[64]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 16,
+                actual: 1
+            })
+        );
+    }
+
+    #[test]
+    fn rgbaf32_from_r8_snorm_valid() {
+        assert_eq!(
+            vec![-1.0, -1.0, -1.0, 1.0],
+            decode_rgba::<R8Snorm, f32>(1, 1, &[128]).unwrap()
+        );
+    }
+
+    #[test]
+    fn rgbaf32_from_r8_snorm_invalid() {
+        let result = decode_rgba::<R8Snorm, f32>(4, 4, &[128]);
         assert_eq!(
             result,
             Err(SurfaceError::NotEnoughData {
@@ -488,6 +558,26 @@ mod tests {
     }
 
     #[test]
+    fn rg8_snorm_from_rgbaf32_valid() {
+        assert_eq!(
+            vec![129, 0],
+            encode_rgba::<Rg8Snorm, f32>(1, 1, &[-1.0, 0.0, 1.0, 1.0]).unwrap()
+        );
+    }
+
+    #[test]
+    fn rg8_snorm_from_rgbaf32_invalid() {
+        let result = encode_rgba::<Rg8Snorm, f32>(1, 1, &[-1.0, 0.0, 1.0]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 4,
+                actual: 3
+            })
+        );
+    }
+
+    #[test]
     fn rgba8_from_rg8_snorm_valid() {
         assert_eq!(
             vec![129, 130, 128, 255],
@@ -498,6 +588,26 @@ mod tests {
     #[test]
     fn rgba8_from_rg8_snorm_invalid() {
         let result = decode_rgba::<Rg8Snorm, u8>(1, 1, &[64]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 2,
+                actual: 1
+            })
+        );
+    }
+
+    #[test]
+    fn rgbaf32_from_rg8_snorm_valid() {
+        assert_eq!(
+            vec![-1.0, 0.0, 0.0, 1.0],
+            decode_rgba::<Rg8Snorm, f32>(1, 1, &[128, 0]).unwrap()
+        );
+    }
+
+    #[test]
+    fn rgbaf32_from_rg8_snorm_invalid() {
+        let result = decode_rgba::<Rg8Snorm, f32>(1, 1, &[64]);
         assert_eq!(
             result,
             Err(SurfaceError::NotEnoughData {

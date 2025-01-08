@@ -416,6 +416,14 @@ fn unorm_to_snorm(x: u8) -> u8 {
     }
 }
 
+fn snorm_to_float(x: u8) -> f32 {
+    ((x as i8) as f32 / 127.0).max(-1.0)
+}
+
+fn float_to_snorm(x: f32) -> i8 {
+    ((x.clamp(-1.0, 1.0)) * 127.0).round() as i8
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -586,9 +594,9 @@ mod tests {
         );
     }
 
-    fn snorm_to_unorm_reference(x: i8) -> u8 {
+    fn snorm_to_unorm_reference(x: u8) -> u8 {
         // Remap [-1, 1] to [0, 1] to fit in an unsigned integer.
-        (((x as f32 / 127.0).max(-1.0) * 0.5 + 0.5) * 255.0).round() as u8
+        ((snorm_to_float(x) * 0.5 + 0.5) * 255.0).round() as u8
     }
 
     fn unorm_to_snorm_reference(x: u8) -> i8 {
@@ -600,7 +608,7 @@ mod tests {
     fn convert_snorm_to_unorm() {
         // 128, ..., 255, 0, ..., 126
         for i in 0..=255 {
-            assert_eq!(snorm_to_unorm(i), snorm_to_unorm_reference(i as i8));
+            assert_eq!(snorm_to_unorm(i), snorm_to_unorm_reference(i));
         }
     }
 
@@ -621,5 +629,16 @@ mod tests {
         }
         // Explictly test the value with no true inverse.
         assert_eq!(unorm_to_snorm(128), 0);
+    }
+
+    #[test]
+    fn snorm_unorm_float() {
+        for i in 0..=255 {
+            if i != 128 {
+                assert_eq!(float_to_snorm(snorm_to_float(i)), i as i8);
+            }
+        }
+        // Explictly test the value with no true inverse.
+        assert_eq!(snorm_to_float(128), -1.0);
     }
 }
