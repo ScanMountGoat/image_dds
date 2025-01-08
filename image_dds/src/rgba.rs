@@ -47,15 +47,38 @@ pub struct Bgra8([u8; 4]);
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct Bgra4([u8; 2]);
 
-// TODO: impl Pixel<f32> for snorm formats.
-pub trait Pixel<T> {
+pub trait Pixel {
     const SIZE: usize;
 
-    fn to_rgba(self) -> [T; 4];
-
-    fn from_rgba(rgba: [T; 4]) -> Self;
-
     fn get_pixel(data: &[u8], index: usize) -> Self;
+}
+
+macro_rules! pixel_impl {
+    ($ty:ty, $size:expr) => {
+        impl Pixel for $ty {
+            const SIZE: usize = $size;
+
+            fn get_pixel(data: &[u8], index: usize) -> Self {
+                Self(get_pixel(data, index, Self::SIZE))
+            }
+        }
+    };
+}
+pixel_impl!(Rg8, 2);
+pixel_impl!(Rg8Snorm, 2);
+pixel_impl!(Bgra4, 2);
+pixel_impl!(Rgb8, 3);
+pixel_impl!(Bgr8, 3);
+pixel_impl!(Rgba8, 4);
+pixel_impl!(Bgra8, 4);
+
+// TODO: impl f32 for snorm formats.
+pub trait ToRgba<T> {
+    fn to_rgba(self) -> [T; 4];
+}
+
+pub trait FromRgba<T> {
+    fn from_rgba(rgba: [T; 4]) -> Self;
 }
 
 fn get_pixel<const N: usize, T>(data: &[T], index: usize, size: usize) -> [T; N]
@@ -66,166 +89,150 @@ where
     data[index * size..index * size + size].try_into().unwrap()
 }
 
-impl Pixel<u8> for Rgba8 {
-    const SIZE: usize = 4;
-
+impl ToRgba<u8> for Rgba8 {
     fn to_rgba(self) -> [u8; 4] {
         self.0
     }
+}
 
+impl FromRgba<u8> for Rgba8 {
     fn from_rgba(rgba: [u8; 4]) -> Self {
         Self(rgba)
     }
+}
+
+impl Pixel for Rgbaf16 {
+    const SIZE: usize = 8;
 
     fn get_pixel(data: &[u8], index: usize) -> Self {
-        Self(get_pixel(data, index, Self::SIZE))
+        // TODO: Implement this automatically?
+        let bytes = get_pixel::<8, u8>(data, index, Self::SIZE);
+        Self([
+            f16::from_le_bytes(bytes[0..2].try_into().unwrap()),
+            f16::from_le_bytes(bytes[2..4].try_into().unwrap()),
+            f16::from_le_bytes(bytes[4..6].try_into().unwrap()),
+            f16::from_le_bytes(bytes[6..8].try_into().unwrap()),
+        ])
     }
 }
 
-impl Pixel<u8> for Rgbaf16 {
-    const SIZE: usize = 8;
-
+impl ToRgba<u8> for Rgbaf16 {
     fn to_rgba(self) -> [u8; 4] {
         self.0.map(|f| (f.to_f32() * 255.0) as u8)
     }
+}
 
+impl FromRgba<u8> for Rgbaf16 {
     fn from_rgba(rgba: [u8; 4]) -> Self {
         Self(rgba.map(|u| f16::from_f32(u as f32 / 255.0)))
     }
-
-    fn get_pixel(data: &[u8], index: usize) -> Self {
-        // TODO: Implement this automatically?
-        let bytes = get_pixel::<8, u8>(data, index, <Self as Pixel<f32>>::SIZE);
-        Self([
-            f16::from_le_bytes(bytes[0..2].try_into().unwrap()),
-            f16::from_le_bytes(bytes[2..4].try_into().unwrap()),
-            f16::from_le_bytes(bytes[4..6].try_into().unwrap()),
-            f16::from_le_bytes(bytes[6..8].try_into().unwrap()),
-        ])
-    }
 }
 
-impl Pixel<f32> for Rgbaf16 {
-    const SIZE: usize = 8;
-
+impl ToRgba<f32> for Rgbaf16 {
     fn to_rgba(self) -> [f32; 4] {
         self.0.map(f16::to_f32)
     }
+}
 
+impl FromRgba<f32> for Rgbaf16 {
     fn from_rgba(rgba: [f32; 4]) -> Self {
         Self(rgba.map(f16::from_f32))
     }
+}
+
+impl Pixel for Rgbaf32 {
+    const SIZE: usize = 16;
 
     fn get_pixel(data: &[u8], index: usize) -> Self {
         // TODO: Implement this automatically?
-        let bytes = get_pixel::<8, u8>(data, index, <Self as Pixel<f32>>::SIZE);
+        let bytes = get_pixel::<16, u8>(data, index, Self::SIZE);
         Self([
-            f16::from_le_bytes(bytes[0..2].try_into().unwrap()),
-            f16::from_le_bytes(bytes[2..4].try_into().unwrap()),
-            f16::from_le_bytes(bytes[4..6].try_into().unwrap()),
-            f16::from_le_bytes(bytes[6..8].try_into().unwrap()),
+            f32::from_le_bytes(bytes[0..4].try_into().unwrap()),
+            f32::from_le_bytes(bytes[4..8].try_into().unwrap()),
+            f32::from_le_bytes(bytes[8..12].try_into().unwrap()),
+            f32::from_le_bytes(bytes[12..16].try_into().unwrap()),
         ])
     }
 }
 
-impl Pixel<u8> for Rgbaf32 {
-    const SIZE: usize = 16;
-
+impl ToRgba<u8> for Rgbaf32 {
     fn to_rgba(self) -> [u8; 4] {
         self.0.map(|f| (f * 255.0) as u8)
     }
+}
 
+impl FromRgba<u8> for Rgbaf32 {
     fn from_rgba(rgba: [u8; 4]) -> Self {
         Self(rgba.map(|u| u as f32 / 255.0))
     }
-
-    fn get_pixel(data: &[u8], index: usize) -> Self {
-        // TODO: Implement this automatically?
-        let bytes = get_pixel::<16, u8>(data, index, <Self as Pixel<f32>>::SIZE);
-        Self([
-            f32::from_le_bytes(bytes[0..4].try_into().unwrap()),
-            f32::from_le_bytes(bytes[4..8].try_into().unwrap()),
-            f32::from_le_bytes(bytes[8..12].try_into().unwrap()),
-            f32::from_le_bytes(bytes[12..16].try_into().unwrap()),
-        ])
-    }
 }
 
-impl Pixel<f32> for Rgbaf32 {
-    const SIZE: usize = 16;
-
+impl ToRgba<f32> for Rgbaf32 {
     fn to_rgba(self) -> [f32; 4] {
         self.0
     }
+}
 
+impl FromRgba<f32> for Rgbaf32 {
     fn from_rgba(rgba: [f32; 4]) -> Self {
         Self(rgba)
     }
-
-    fn get_pixel(data: &[u8], index: usize) -> Self {
-        // TODO: Implement this automatically?
-        let bytes = get_pixel::<16, u8>(data, index, <Self as Pixel<f32>>::SIZE);
-        Self([
-            f32::from_le_bytes(bytes[0..4].try_into().unwrap()),
-            f32::from_le_bytes(bytes[4..8].try_into().unwrap()),
-            f32::from_le_bytes(bytes[8..12].try_into().unwrap()),
-            f32::from_le_bytes(bytes[12..16].try_into().unwrap()),
-        ])
-    }
 }
 
-impl Pixel<u8> for R8 {
+impl Pixel for R8 {
     const SIZE: usize = 1;
-
-    fn to_rgba(self) -> [u8; 4] {
-        [self.0, self.0, self.0, 255u8]
-    }
-
-    fn from_rgba(rgba: [u8; 4]) -> Self {
-        Self(rgba[0])
-    }
 
     fn get_pixel(data: &[u8], index: usize) -> Self {
         Self(data[index])
     }
 }
 
-impl Pixel<u8> for R8Snorm {
+impl ToRgba<u8> for R8 {
+    fn to_rgba(self) -> [u8; 4] {
+        [self.0, self.0, self.0, 255u8]
+    }
+}
+
+impl FromRgba<u8> for R8 {
+    fn from_rgba(rgba: [u8; 4]) -> Self {
+        Self(rgba[0])
+    }
+}
+
+impl Pixel for R8Snorm {
     const SIZE: usize = 1;
 
+    fn get_pixel(data: &[u8], index: usize) -> Self {
+        Self(data[index])
+    }
+}
+
+impl ToRgba<u8> for R8Snorm {
     fn to_rgba(self) -> [u8; 4] {
         let r = snorm_to_unorm(self.0);
         [r, r, r, 255u8]
     }
+}
 
+impl FromRgba<u8> for R8Snorm {
     fn from_rgba(rgba: [u8; 4]) -> Self {
         Self(unorm_to_snorm(rgba[0]))
     }
-
-    fn get_pixel(data: &[u8], index: usize) -> Self {
-        Self(data[index])
-    }
 }
 
-impl Pixel<u8> for Rg8 {
-    const SIZE: usize = 2;
-
+impl ToRgba<u8> for Rg8 {
     fn to_rgba(self) -> [u8; 4] {
         [self.0[0], self.0[1], 0, 255u8]
     }
+}
 
+impl FromRgba<u8> for Rg8 {
     fn from_rgba(rgba: [u8; 4]) -> Self {
         Self([rgba[0], rgba[1]])
     }
-
-    fn get_pixel(data: &[u8], index: usize) -> Self {
-        Self(get_pixel(data, index, Self::SIZE))
-    }
 }
 
-impl Pixel<u8> for Rg8Snorm {
-    const SIZE: usize = 2;
-
+impl ToRgba<u8> for Rg8Snorm {
     fn to_rgba(self) -> [u8; 4] {
         [
             snorm_to_unorm(self.0[0]),
@@ -234,67 +241,51 @@ impl Pixel<u8> for Rg8Snorm {
             255u8,
         ]
     }
+}
 
+impl FromRgba<u8> for Rg8Snorm {
     fn from_rgba(rgba: [u8; 4]) -> Self {
         Self([unorm_to_snorm(rgba[0]), unorm_to_snorm(rgba[1])])
     }
-
-    fn get_pixel(data: &[u8], index: usize) -> Self {
-        Self(get_pixel(data, index, Self::SIZE))
-    }
 }
 
-impl Pixel<u8> for Rgb8 {
-    const SIZE: usize = 3;
-
+impl ToRgba<u8> for Rgb8 {
     fn to_rgba(self) -> [u8; 4] {
         [self.0[0], self.0[1], self.0[2], 255u8]
     }
+}
 
+impl FromRgba<u8> for Rgb8 {
     fn from_rgba(rgba: [u8; 4]) -> Self {
         Self([rgba[0], rgba[1], rgba[2]])
     }
-
-    fn get_pixel(data: &[u8], index: usize) -> Self {
-        Self(get_pixel(data, index, Self::SIZE))
-    }
 }
 
-impl Pixel<u8> for Bgr8 {
-    const SIZE: usize = 3;
-
+impl ToRgba<u8> for Bgr8 {
     fn to_rgba(self) -> [u8; 4] {
         [self.0[2], self.0[1], self.0[0], 255u8]
     }
+}
 
+impl FromRgba<u8> for Bgr8 {
     fn from_rgba(rgba: [u8; 4]) -> Self {
         Self([rgba[2], rgba[1], rgba[0]])
     }
-
-    fn get_pixel(data: &[u8], index: usize) -> Self {
-        Self(get_pixel(data, index, Self::SIZE))
-    }
 }
 
-impl Pixel<u8> for Bgra8 {
-    const SIZE: usize = 4;
-
+impl ToRgba<u8> for Bgra8 {
     fn to_rgba(self) -> [u8; 4] {
         [self.0[2], self.0[1], self.0[0], self.0[3]]
     }
+}
 
+impl FromRgba<u8> for Bgra8 {
     fn from_rgba(rgba: [u8; 4]) -> Self {
         Self([rgba[2], rgba[1], rgba[0], rgba[3]])
     }
-
-    fn get_pixel(data: &[u8], index: usize) -> Self {
-        Self(get_pixel(data, index, Self::SIZE))
-    }
 }
 
-impl Pixel<u8> for Bgra4 {
-    const SIZE: usize = 2;
-
+impl ToRgba<u8> for Bgra4 {
     fn to_rgba(self) -> [u8; 4] {
         // TODO: How to implement this efficiently?
         // Expand 4 bit input channels to 8 bit output channels.
@@ -306,7 +297,9 @@ impl Pixel<u8> for Bgra4 {
             (self.0[1] >> 4) * 17,
         ]
     }
+}
 
+impl FromRgba<u8> for Bgra4 {
     fn from_rgba(rgba: [u8; 4]) -> Self {
         // TODO: How to implement this efficiently?
         // Pack each channel into 4 bits.
@@ -316,17 +309,13 @@ impl Pixel<u8> for Bgra4 {
             ((rgba[3] / 17) << 4) | (rgba[0] / 17),
         ])
     }
-
-    fn get_pixel(data: &[u8], index: usize) -> Self {
-        Self(get_pixel(data, index, Self::SIZE))
-    }
 }
 
-pub fn encode_rgba<P: Pixel<T> + Pod, T: Pod>(
-    width: u32,
-    height: u32,
-    data: &[T],
-) -> Result<Vec<u8>, SurfaceError> {
+pub fn encode_rgba<P, T>(width: u32, height: u32, data: &[T]) -> Result<Vec<u8>, SurfaceError>
+where
+    P: Pixel + FromRgba<T> + Pod,
+    T: Pod,
+{
     validate_length(width, height, 4, data)?;
     // TODO: Find a better way to convert to bytes.
     Ok(bytemuck::cast_slice(
@@ -337,11 +326,10 @@ pub fn encode_rgba<P: Pixel<T> + Pod, T: Pod>(
     .to_vec())
 }
 
-pub fn decode_rgba<P: Pixel<T>, T>(
-    width: u32,
-    height: u32,
-    data: &[u8],
-) -> Result<Vec<T>, SurfaceError> {
+pub fn decode_rgba<P, T>(width: u32, height: u32, data: &[u8]) -> Result<Vec<T>, SurfaceError>
+where
+    P: Pixel + ToRgba<T>,
+{
     validate_length(width, height, P::SIZE, data)?;
     Ok((0..width * height)
         .flat_map(|i| P::get_pixel(data, i as usize).to_rgba())
