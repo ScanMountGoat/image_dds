@@ -230,7 +230,7 @@ impl Pixel<u8> for Rg8Snorm {
         [
             snorm_to_unorm(self.0[0]),
             snorm_to_unorm(self.0[1]),
-            128u8,
+            snorm_to_unorm(0u8),
             255u8,
         ]
     }

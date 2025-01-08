@@ -220,10 +220,14 @@ impl BcnDecode<[u8; 4]> for Bc5S {
         for y in 0..BLOCK_HEIGHT {
             for x in 0..BLOCK_HEIGHT {
                 // It's convention to zero the blue channel when decompressing BC5.
-                // TODO: Should the blue channel be different for signed BC5?
-                let [r, g] = decompressed_rg[y][x].map(snorm_to_unorm);
+                let [r, g] = decompressed_rg[y][x];
 
-                decompressed[y][x] = [r, g, 128u8, 255u8];
+                decompressed[y][x] = [
+                    snorm_to_unorm(r),
+                    snorm_to_unorm(g),
+                    snorm_to_unorm(0u8),
+                    255u8,
+                ];
             }
         }
 
@@ -250,7 +254,7 @@ impl BcnDecode<[f32; 4]> for Bc5S {
         for y in 0..BLOCK_HEIGHT {
             for x in 0..BLOCK_HEIGHT {
                 // It's convention to zero the blue channel when decompressing BC5.
-                // TODO: Should the blue channel be different for signed BC5?
+                // TODO: Should the f32 blue channel be different for signed BC5 compared to u8?
                 let [r, g] = decompressed_rg[y][x];
                 decompressed[y][x] = [r, g, 0.5, 1.0];
             }
