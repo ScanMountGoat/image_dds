@@ -230,7 +230,7 @@ impl Pixel<u8> for Rg8Snorm {
         [
             snorm_to_unorm(self.0[0]),
             snorm_to_unorm(self.0[1]),
-            0,
+            128u8,
             255u8,
         ]
     }
@@ -502,7 +502,7 @@ mod tests {
     #[test]
     fn rgba8_from_rg8_snorm_valid() {
         assert_eq!(
-            vec![129, 130, 0, 255],
+            vec![129, 130, 128, 255],
             decode_rgba::<Rg8Snorm, u8>(1, 1, &[1, 2]).unwrap()
         );
     }
