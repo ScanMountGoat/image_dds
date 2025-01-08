@@ -95,12 +95,13 @@ impl Pixel<u8> for Rgbaf16 {
 
     fn get_pixel(data: &[u8], index: usize) -> Self {
         // TODO: Implement this automatically?
-        // TODO: Don't assume endianness.
-        Self(
-            bytemuck::cast_slice(&get_pixel::<8, u8>(data, index, <Self as Pixel<u8>>::SIZE))
-                .try_into()
-                .unwrap(),
-        )
+        let bytes = get_pixel::<8, u8>(data, index, <Self as Pixel<f32>>::SIZE);
+        Self([
+            f16::from_le_bytes(bytes[0..2].try_into().unwrap()),
+            f16::from_le_bytes(bytes[2..4].try_into().unwrap()),
+            f16::from_le_bytes(bytes[4..6].try_into().unwrap()),
+            f16::from_le_bytes(bytes[6..8].try_into().unwrap()),
+        ])
     }
 }
 
@@ -117,12 +118,13 @@ impl Pixel<f32> for Rgbaf16 {
 
     fn get_pixel(data: &[u8], index: usize) -> Self {
         // TODO: Implement this automatically?
-        // TODO: Don't assume endianness.
-        Self(
-            bytemuck::cast_slice(&get_pixel::<8, u8>(data, index, <Self as Pixel<f32>>::SIZE))
-                .try_into()
-                .unwrap(),
-        )
+        let bytes = get_pixel::<8, u8>(data, index, <Self as Pixel<f32>>::SIZE);
+        Self([
+            f16::from_le_bytes(bytes[0..2].try_into().unwrap()),
+            f16::from_le_bytes(bytes[2..4].try_into().unwrap()),
+            f16::from_le_bytes(bytes[4..6].try_into().unwrap()),
+            f16::from_le_bytes(bytes[6..8].try_into().unwrap()),
+        ])
     }
 }
 
@@ -139,12 +141,13 @@ impl Pixel<u8> for Rgbaf32 {
 
     fn get_pixel(data: &[u8], index: usize) -> Self {
         // TODO: Implement this automatically?
-        // TODO: Don't assume endianness.
-        Self(
-            bytemuck::cast_slice(&get_pixel::<16, u8>(data, index, <Self as Pixel<u8>>::SIZE))
-                .try_into()
-                .unwrap(),
-        )
+        let bytes = get_pixel::<16, u8>(data, index, <Self as Pixel<f32>>::SIZE);
+        Self([
+            f32::from_le_bytes(bytes[0..4].try_into().unwrap()),
+            f32::from_le_bytes(bytes[4..8].try_into().unwrap()),
+            f32::from_le_bytes(bytes[8..12].try_into().unwrap()),
+            f32::from_le_bytes(bytes[12..16].try_into().unwrap()),
+        ])
     }
 }
 
@@ -161,16 +164,13 @@ impl Pixel<f32> for Rgbaf32 {
 
     fn get_pixel(data: &[u8], index: usize) -> Self {
         // TODO: Implement this automatically?
-        // TODO: Don't assume endianness.
-        Self(
-            bytemuck::cast_slice(&get_pixel::<16, u8>(
-                data,
-                index,
-                <Self as Pixel<f32>>::SIZE,
-            ))
-            .try_into()
-            .unwrap(),
-        )
+        let bytes = get_pixel::<16, u8>(data, index, <Self as Pixel<f32>>::SIZE);
+        Self([
+            f32::from_le_bytes(bytes[0..4].try_into().unwrap()),
+            f32::from_le_bytes(bytes[4..8].try_into().unwrap()),
+            f32::from_le_bytes(bytes[8..12].try_into().unwrap()),
+            f32::from_le_bytes(bytes[12..16].try_into().unwrap()),
+        ])
     }
 }
 
