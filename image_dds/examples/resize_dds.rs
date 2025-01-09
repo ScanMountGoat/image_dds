@@ -34,7 +34,6 @@ fn main() {
     for layer in 0..surface.layers {
         for level in 0..surface.depth {
             let image = decoded.get_image(layer, level, 0).unwrap();
-            // TODO: This doesnt handle images not a multiple of the block dimensions?
             let resized_image = image::imageops::resize(
                 &image,
                 width,
