@@ -163,7 +163,6 @@ impl BcnDecode<[f32; 4]> for Bc4S {
             for x in 0..BLOCK_WIDTH {
                 // It's a convention in some programs display BC4 in the red channel.
                 // Use grayscale instead to avoid confusing it with colored data.
-                // TODO: Match how channels handled when compressing RGBA data to BC4?
                 let r = decompressed_r[y][x];
                 decompressed[y][x] = [r, r, r, 1.0];
             }

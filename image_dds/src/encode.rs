@@ -8,7 +8,7 @@ use crate::{
     downsample_rgba, error::SurfaceError, max_mipmap_count, mip_dimension, round_up, ImageFormat,
     Mipmaps, Quality, Surface, SurfaceRgba8,
 };
-use crate::{Pixel, SurfaceRgba32Float};
+use crate::{float_to_snorm, Pixel, SurfaceRgba32Float};
 
 impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
     /// Encode an RGBA8 surface to the given `format`.
@@ -424,6 +424,13 @@ impl Encode for f32 {
         // Use the same conversion code for both.
         use ImageFormat as F;
         match format {
+            F::R8Snorm => encode_rgba::<R8Snorm, f32>(width, height, data),
+            F::Rg8Snorm => encode_rgba::<Rg8Snorm, f32>(width, height, data),
+            F::BC4RSnorm | F::BC5RgSnorm => {
+                // intel_tex doesn't have a dedicated encoder for snorm formats.
+                let rgba8: Vec<_> = data.iter().map(|f| float_to_snorm(*f) as u8).collect();
+                u8::encode(width, height, &rgba8, format, quality)
+            }
             F::BC6hRgbUfloat | F::BC6hRgbSfloat => {
                 encode_bcn::<Bc6, f32>(width, height, data, quality)
             }

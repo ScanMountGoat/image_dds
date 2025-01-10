@@ -148,6 +148,8 @@ impl Decode for f32 {
     ) -> Result<Vec<Self>, SurfaceError> {
         use ImageFormat as F;
         match image_format {
+            F::R8Snorm => decode_rgba::<R8Snorm, f32>(width, height, data),
+            F::Rg8Snorm => decode_rgba::<Rg8Snorm, f32>(width, height, data),
             F::BC4RSnorm => decode_bcn::<Bc4S, f32>(width, height, data),
             F::BC5RgSnorm => decode_bcn::<Bc5S, f32>(width, height, data),
             F::BC6hRgbUfloat | F::BC6hRgbSfloat => decode_bcn::<Bc6, f32>(width, height, data),
