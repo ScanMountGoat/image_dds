@@ -97,7 +97,7 @@ impl<T: AsRef<[u8]>> Surface<T> {
     }
 }
 
-impl<T: AsRef<[T]>> Surface<T> {
+impl<T> Surface<Vec<T>> {
     /// Convert to a surface with borrowed data.
     pub fn as_ref(&self) -> Surface<&[T]> {
         Surface {
@@ -138,7 +138,7 @@ pub struct SurfaceRgba8<T> {
     pub data: T,
 }
 
-impl<T: AsRef<[T]>> SurfaceRgba8<T> {
+impl<T> SurfaceRgba8<Vec<T>> {
     /// Convert to a surface with borrowed data.
     pub fn as_ref(&self) -> SurfaceRgba8<&[T]> {
         SurfaceRgba8 {
@@ -328,7 +328,7 @@ pub struct SurfaceRgba32Float<T> {
     pub data: T,
 }
 
-impl<T: AsRef<[T]>> SurfaceRgba32Float<T> {
+impl<T> SurfaceRgba32Float<Vec<T>> {
     /// Convert to a surface with borrowed data.
     pub fn as_ref(&self) -> SurfaceRgba32Float<&[T]> {
         SurfaceRgba32Float {
