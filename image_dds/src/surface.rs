@@ -4,7 +4,7 @@ use crate::{
 };
 
 /// A surface with an image format known at runtime.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Surface<T> {
@@ -97,8 +97,23 @@ impl<T: AsRef<[u8]>> Surface<T> {
     }
 }
 
+impl<T: AsRef<[T]>> Surface<T> {
+    /// Convert to a surface with borrowed data.
+    pub fn as_ref(&self) -> Surface<&[T]> {
+        Surface {
+            width: self.width,
+            height: self.height,
+            depth: self.depth,
+            layers: self.layers,
+            mipmaps: self.mipmaps,
+            image_format: self.image_format,
+            data: self.data.as_ref(),
+        }
+    }
+}
+
 /// An uncompressed [ImageFormat::Rgba8Unorm] surface with 4 bytes per pixel.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SurfaceRgba8<T> {
@@ -121,6 +136,20 @@ pub struct SurfaceRgba8<T> {
     /// A surface with L layers and M mipmaps would have the following layout:
     /// Layer 0 Mip 0, Layer 0 Mip 1,  ..., Layer L-1 Mip M-1
     pub data: T,
+}
+
+impl<T: AsRef<[T]>> SurfaceRgba8<T> {
+    /// Convert to a surface with borrowed data.
+    pub fn as_ref(&self) -> SurfaceRgba8<&[T]> {
+        SurfaceRgba8 {
+            width: self.width,
+            height: self.height,
+            depth: self.depth,
+            layers: self.layers,
+            mipmaps: self.mipmaps,
+            data: self.data.as_ref(),
+        }
+    }
 }
 
 impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
@@ -274,7 +303,7 @@ impl SurfaceRgba8<Vec<u8>> {
 }
 
 /// An uncompressed [ImageFormat::Rgba32Float] surface with 16 bytes per pixel.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SurfaceRgba32Float<T> {
@@ -297,6 +326,20 @@ pub struct SurfaceRgba32Float<T> {
     /// A surface with L layers and M mipmaps would have the following layout:
     /// Layer 0 Mip 0, Layer 0 Mip 1,  ..., Layer L-1 Mip M-1
     pub data: T,
+}
+
+impl<T: AsRef<[T]>> SurfaceRgba32Float<T> {
+    /// Convert to a surface with borrowed data.
+    pub fn as_ref(&self) -> SurfaceRgba32Float<&[T]> {
+        SurfaceRgba32Float {
+            width: self.width,
+            height: self.height,
+            depth: self.depth,
+            layers: self.layers,
+            mipmaps: self.mipmaps,
+            data: self.data.as_ref(),
+        }
+    }
 }
 
 impl<T: AsRef<[f32]>> SurfaceRgba32Float<T> {

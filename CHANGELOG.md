@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## unreleased
+### Added
+* Added `Surface::as_ref`, `SurfaceRgba8::as_ref` and `SurfaceRgba32Float::as_ref` for converting to surfaces with borrowed data.
+
 ## 0.7.0 - 2025-01-10
 ### Added
 * Added `SurfaceRgba8::get_image` and `SurfaceRgba32Float::get_image` for more conveniently accessing mipmap data.
