@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## unreleased
 ### Added
 * Added `Surface::as_ref`, `SurfaceRgba8::as_ref` and `SurfaceRgba32Float::as_ref` for converting to surfaces with borrowed data.
+* Added derives for `Clone` and `Copy` to `Surface`, `SurfaceRgba8`, and `SurfaceRgba32Float`.
 
 ## 0.7.0 - 2025-01-10
 ### Added
