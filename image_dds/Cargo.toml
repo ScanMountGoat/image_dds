@@ -1,6 +1,6 @@
 [package]
 name = "image_dds"
-version = "0.7.0"
+version = "0.7.1"
 authors = ["ScanMountGoat <>"]
 description = "Convert images to and from compressed DDS formats"
 license = "MIT"
