@@ -86,7 +86,8 @@ macro_rules! pixel_impl {
         $(
             impl Pixel for $ty {
                 fn get_pixel(data: &[u8], index: usize) -> Self {
-                    Self(get_pixel(data, index, std::mem::size_of::<$ty>()))
+                    let bytes = get_pixel(data, index, std::mem::size_of::<$ty>());
+                    Self(bytes.try_into().unwrap())
                 }
             }
         )*
@@ -104,12 +105,9 @@ pub trait FromRgba<T> {
     fn from_rgba(rgba: [T; 4]) -> Self;
 }
 
-fn get_pixel<const N: usize, T>(data: &[T], index: usize, size: usize) -> [T; N]
-where
-    for<'a> [T; N]: TryFrom<&'a [T]>,
-    for<'a> <[T; N] as TryFrom<&'a [T]>>::Error: std::fmt::Debug,
-{
-    data[index * size..index * size + size].try_into().unwrap()
+fn get_pixel<T>(data: &[T], index: usize, size: usize) -> &[T] {
+    // TODO: Define another trait so we can return [P; N]?
+    &data[index * size..index * size + size]
 }
 
 impl ToRgba<u8> for Rgba8 {
@@ -127,7 +125,7 @@ impl FromRgba<u8> for Rgba8 {
 impl Pixel for Rgbaf16 {
     fn get_pixel(data: &[u8], index: usize) -> Self {
         // TODO: Implement this automatically?
-        let bytes = get_pixel::<8, u8>(data, index, std::mem::size_of::<Self>());
+        let bytes = get_pixel::<u8>(data, index, std::mem::size_of::<Self>());
         Self([
             f16::from_le_bytes(bytes[0..2].try_into().unwrap()),
             f16::from_le_bytes(bytes[2..4].try_into().unwrap()),
@@ -164,7 +162,7 @@ impl FromRgba<f32> for Rgbaf16 {
 impl Pixel for Rgbaf32 {
     fn get_pixel(data: &[u8], index: usize) -> Self {
         // TODO: Implement this automatically?
-        let bytes = get_pixel::<16, u8>(data, index, std::mem::size_of::<Self>());
+        let bytes = get_pixel::<u8>(data, index, std::mem::size_of::<Self>());
         Self([
             f32::from_le_bytes(bytes[0..4].try_into().unwrap()),
             f32::from_le_bytes(bytes[4..8].try_into().unwrap()),
@@ -361,8 +359,8 @@ impl FromRgba<u8> for Bgra4 {
 impl Pixel for R16 {
     fn get_pixel(data: &[u8], index: usize) -> Self {
         // TODO: Implement this automatically?
-        let bytes = get_pixel::<2, u8>(data, index, std::mem::size_of::<Self>());
-        Self(u16::from_le_bytes(bytes))
+        let bytes = get_pixel::<u8>(data, index, std::mem::size_of::<Self>());
+        Self(u16::from_le_bytes(bytes.try_into().unwrap()))
     }
 }
 
@@ -382,8 +380,8 @@ impl FromRgba<u8> for R16 {
 impl Pixel for R16Snorm {
     fn get_pixel(data: &[u8], index: usize) -> Self {
         // TODO: Implement this automatically?
-        let bytes = get_pixel::<2, u8>(data, index, std::mem::size_of::<Self>());
-        Self(u16::from_le_bytes(bytes))
+        let bytes = get_pixel::<u8>(data, index, std::mem::size_of::<Self>());
+        Self(u16::from_le_bytes(bytes.try_into().unwrap()))
     }
 }
 
@@ -403,7 +401,7 @@ impl FromRgba<u8> for R16Snorm {
 impl Pixel for Rg16 {
     fn get_pixel(data: &[u8], index: usize) -> Self {
         // TODO: Implement this automatically?
-        let bytes = get_pixel::<4, u8>(data, index, std::mem::size_of::<Self>());
+        let bytes = get_pixel::<u8>(data, index, std::mem::size_of::<Self>());
         Self([
             u16::from_le_bytes(bytes[0..2].try_into().unwrap()),
             u16::from_le_bytes(bytes[2..4].try_into().unwrap()),
@@ -431,7 +429,7 @@ impl FromRgba<u8> for Rg16 {
 impl Pixel for Rg16Snorm {
     fn get_pixel(data: &[u8], index: usize) -> Self {
         // TODO: Implement this automatically?
-        let bytes = get_pixel::<4, u8>(data, index, std::mem::size_of::<Self>());
+        let bytes = get_pixel::<u8>(data, index, std::mem::size_of::<Self>());
         Self([
             u16::from_le_bytes(bytes[0..2].try_into().unwrap()),
             u16::from_le_bytes(bytes[2..4].try_into().unwrap()),
@@ -462,7 +460,7 @@ impl FromRgba<u8> for Rg16Snorm {
 impl Pixel for Rgba16 {
     fn get_pixel(data: &[u8], index: usize) -> Self {
         // TODO: Implement this automatically?
-        let bytes = get_pixel::<8, u8>(data, index, std::mem::size_of::<Self>());
+        let bytes = get_pixel::<u8>(data, index, std::mem::size_of::<Self>());
         Self([
             u16::from_le_bytes(bytes[0..2].try_into().unwrap()),
             u16::from_le_bytes(bytes[2..4].try_into().unwrap()),
@@ -487,7 +485,7 @@ impl FromRgba<u8> for Rgba16 {
 impl Pixel for Rgba16Snorm {
     fn get_pixel(data: &[u8], index: usize) -> Self {
         // TODO: Implement this automatically?
-        let bytes = get_pixel::<8, u8>(data, index, std::mem::size_of::<Self>());
+        let bytes = get_pixel::<u8>(data, index, std::mem::size_of::<Self>());
         Self([
             u16::from_le_bytes(bytes[0..2].try_into().unwrap()),
             u16::from_le_bytes(bytes[2..4].try_into().unwrap()),
@@ -518,7 +516,7 @@ where
     // TODO: Find a better way to convert to bytes.
     Ok(bytemuck::cast_slice(
         &(0..width * height)
-            .map(|i| P::from_rgba(get_pixel(data, i as usize, 4)))
+            .map(|i| P::from_rgba(get_pixel(data, i as usize, 4).try_into().unwrap()))
             .collect::<Vec<_>>(),
     )
     .to_vec())
