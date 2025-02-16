@@ -164,7 +164,10 @@ impl Decode for f32 {
             F::BC6hRgbUfloat | F::BC6hRgbSfloat => decode_bcn::<Bc6, f32>(width, height, data),
             F::Rgba16Float => decode_rgba::<Rgbaf16, f32>(width, height, data),
             F::Rgba32Float => decode_rgba::<Rgbaf32, f32>(width, height, data),
-            // TODO: increased precision for 16-bit formats
+            // TODO: increased precision for 16-bit unorm formats
+            F::R16Snorm => decode_rgba::<R16Snorm, f32>(width, height, data),
+            F::Rg16Snorm => decode_rgba::<Rg16Snorm, f32>(width, height, data),
+            F::Rgba16Snorm => decode_rgba::<Rgba16Snorm, f32>(width, height, data),
             _ => {
                 // Use existing decoding for formats that don't store floating point data.
                 let rgba8 = u8::decode(width, height, image_format, data)?;

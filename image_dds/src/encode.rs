@@ -443,7 +443,10 @@ impl Encode for f32 {
             }
             F::Rgba16Float => encode_rgba::<Rgbaf16, f32>(width, height, data),
             F::Rgba32Float => encode_rgba::<Rgbaf32, f32>(width, height, data),
-            // TODO: increased precision for 16-bit formats
+            // TODO: increased precision for 16-bit unorm formats
+            F::R16Snorm => encode_rgba::<R16Snorm, f32>(width, height, data),
+            F::Rg16Snorm => encode_rgba::<Rg16Snorm, f32>(width, height, data),
+            F::Rgba16Snorm => encode_rgba::<Rgba16Snorm, f32>(width, height, data),
             _ => {
                 let rgba8: Vec<_> = data.iter().map(|f| (f * 255.0) as u8).collect();
                 u8::encode(width, height, &rgba8, format, quality)
