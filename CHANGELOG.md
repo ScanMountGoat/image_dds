@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## unreleased
+### Fixed
+* Fixed inaccuracies when encoding `Bgra4Unorm`.
+
 ## 0.7.1 - 2025-01-28
 ### Added
 * Added `Surface::as_ref`, `SurfaceRgba8::as_ref` and `SurfaceRgba32Float::as_ref` for converting to surfaces with borrowed data.

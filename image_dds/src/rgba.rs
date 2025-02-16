@@ -1,7 +1,10 @@
 use bytemuck::{Pod, Zeroable};
 use half::f16;
 
-use crate::{float_to_snorm, snorm_to_float, snorm_to_unorm, unorm_to_snorm, SurfaceError};
+use crate::{
+    float_to_snorm, snorm_to_float, snorm_to_unorm, unorm4_to_unorm8, unorm8_to_unorm4,
+    unorm_to_snorm, SurfaceError,
+};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -317,26 +320,24 @@ impl FromRgba<u8> for Bgra8 {
 
 impl ToRgba<u8> for Bgra4 {
     fn to_rgba(self) -> [u8; 4] {
-        // TODO: How to implement this efficiently?
         // Expand 4 bit input channels to 8 bit output channels.
         // Most significant bit -> ARGB -> least significant bit.
         [
-            (self.0[1] & 0xF) * 17,
-            (self.0[0] >> 4) * 17,
-            (self.0[0] & 0xF) * 17,
-            (self.0[1] >> 4) * 17,
+            unorm4_to_unorm8(self.0[1] & 0xF),
+            unorm4_to_unorm8(self.0[0] >> 4),
+            unorm4_to_unorm8(self.0[0] & 0xF),
+            unorm4_to_unorm8(self.0[1] >> 4),
         ]
     }
 }
 
 impl FromRgba<u8> for Bgra4 {
     fn from_rgba(rgba: [u8; 4]) -> Self {
-        // TODO: How to implement this efficiently?
         // Pack each channel into 4 bits.
         // Most significant bit -> ARGB -> least significant bit.
         Self([
-            ((rgba[1] / 17) << 4) | (rgba[2] / 17),
-            ((rgba[3] / 17) << 4) | (rgba[0] / 17),
+            ((unorm8_to_unorm4(rgba[1])) << 4) | (unorm8_to_unorm4(rgba[2])),
+            ((unorm8_to_unorm4(rgba[3])) << 4) | (unorm8_to_unorm4(rgba[0])),
         ])
     }
 }

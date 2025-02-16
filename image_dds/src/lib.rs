@@ -424,6 +424,15 @@ fn float_to_snorm(x: f32) -> i8 {
     ((x.clamp(-1.0, 1.0)) * 127.0).round() as i8
 }
 
+// https://rundevelopment.github.io/blog/fast-unorm-conversions
+fn unorm4_to_unorm8(x: u8) -> u8 {
+    x * 17
+}
+
+fn unorm8_to_unorm4(x: u8) -> u8 {
+    ((x as u16 * 15 + 135) >> 8) as u8
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -640,5 +649,27 @@ mod tests {
         }
         // Explictly test the value with no true inverse.
         assert_eq!(snorm_to_float(128), -1.0);
+    }
+
+    fn unorm4_to_unorm8_reference(x: u8) -> u8 {
+        (x as f32 / 15.0 * 255.0).round() as u8
+    }
+
+    fn unorm8_to_unorm4_reference(x: u8) -> u8 {
+        (x as f32 / 255.0 * 15.0).round() as u8
+    }
+
+    #[test]
+    fn convert_unorm8_to_unorm4() {
+        for i in 0..=255 {
+            assert_eq!(unorm8_to_unorm4(i), unorm8_to_unorm4_reference(i));
+        }
+    }
+
+    #[test]
+    fn convert_unorm4_to_unorm8() {
+        for i in 0..=15 {
+            assert_eq!(unorm4_to_unorm8(i), unorm4_to_unorm8_reference(i));
+        }
     }
 }
