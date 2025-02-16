@@ -2,8 +2,9 @@ use bytemuck::{Pod, Zeroable};
 use half::f16;
 
 use crate::{
-    float_to_snorm, snorm_to_float, snorm_to_unorm, unorm4_to_unorm8, unorm8_to_unorm4,
-    unorm_to_snorm, SurfaceError,
+    float_to_snorm8, snorm16_to_unorm8, snorm8_to_float, snorm8_to_unorm8, unorm16_to_unorm8,
+    unorm4_to_unorm8, unorm8_to_snorm16, unorm8_to_snorm8, unorm8_to_unorm16, unorm8_to_unorm4,
+    SurfaceError,
 };
 
 #[repr(C)]
@@ -50,6 +51,32 @@ pub struct Bgra8([u8; 4]);
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct Bgra4([u8; 2]);
 
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+pub struct R16(u16);
+
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+pub struct R16Snorm(u16);
+
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+pub struct Rg16([u16; 2]);
+
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+pub struct Rg16Snorm([u16; 2]);
+
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+pub struct Rgba16([u16; 4]);
+
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+pub struct Rgba16Snorm([u16; 4]);
+
+// TODO: Implement this automatically?
+// TODO: Don't assume system endianness?
 pub trait Pixel {
     const SIZE: usize;
 
@@ -75,6 +102,8 @@ pixel_impl!(Bgr8, 3);
 pixel_impl!(Rgba8, 4);
 pixel_impl!(Bgra8, 4);
 
+// TODO: Implement using macro or generic function?
+// num channels, channel swizzles, function or value for each channel conversion?
 pub trait ToRgba<T> {
     fn to_rgba(self) -> [T; 4];
 }
@@ -211,33 +240,33 @@ impl Pixel for R8Snorm {
 
 impl ToRgba<u8> for R8Snorm {
     fn to_rgba(self) -> [u8; 4] {
-        let r = snorm_to_unorm(self.0);
+        let r = snorm8_to_unorm8(self.0);
         [r, r, r, 255u8]
     }
 }
 
 impl FromRgba<u8> for R8Snorm {
     fn from_rgba(rgba: [u8; 4]) -> Self {
-        Self(unorm_to_snorm(rgba[0]))
+        Self(unorm8_to_snorm8(rgba[0]))
     }
 }
 
 impl ToRgba<f32> for R8Snorm {
     fn to_rgba(self) -> [f32; 4] {
-        let r = snorm_to_float(self.0);
+        let r = snorm8_to_float(self.0);
         [r, r, r, 1.0]
     }
 }
 
 impl FromRgba<f32> for R8Snorm {
     fn from_rgba(rgba: [f32; 4]) -> Self {
-        Self(float_to_snorm(rgba[0]) as u8)
+        Self(float_to_snorm8(rgba[0]) as u8)
     }
 }
 
 impl ToRgba<u8> for Rg8 {
     fn to_rgba(self) -> [u8; 4] {
-        [self.0[0], self.0[1], 0, 255u8]
+        [self.0[0], self.0[1], 0u8, 255u8]
     }
 }
 
@@ -250,9 +279,9 @@ impl FromRgba<u8> for Rg8 {
 impl ToRgba<u8> for Rg8Snorm {
     fn to_rgba(self) -> [u8; 4] {
         [
-            snorm_to_unorm(self.0[0]),
-            snorm_to_unorm(self.0[1]),
-            snorm_to_unorm(0u8),
+            snorm8_to_unorm8(self.0[0]),
+            snorm8_to_unorm8(self.0[1]),
+            snorm8_to_unorm8(0u8),
             255u8,
         ]
     }
@@ -260,7 +289,7 @@ impl ToRgba<u8> for Rg8Snorm {
 
 impl FromRgba<u8> for Rg8Snorm {
     fn from_rgba(rgba: [u8; 4]) -> Self {
-        Self([unorm_to_snorm(rgba[0]), unorm_to_snorm(rgba[1])])
+        Self([unorm8_to_snorm8(rgba[0]), unorm8_to_snorm8(rgba[1])])
     }
 }
 
@@ -268,9 +297,9 @@ impl ToRgba<f32> for Rg8Snorm {
     fn to_rgba(self) -> [f32; 4] {
         // TODO: Is this the correct blue channel value?
         [
-            snorm_to_float(self.0[0]),
-            snorm_to_float(self.0[1]),
-            snorm_to_float(0u8),
+            snorm8_to_float(self.0[0]),
+            snorm8_to_float(self.0[1]),
+            snorm8_to_float(0u8),
             1.0,
         ]
     }
@@ -278,7 +307,10 @@ impl ToRgba<f32> for Rg8Snorm {
 
 impl FromRgba<f32> for Rg8Snorm {
     fn from_rgba(rgba: [f32; 4]) -> Self {
-        Self([float_to_snorm(rgba[0]) as u8, float_to_snorm(rgba[1]) as u8])
+        Self([
+            float_to_snorm8(rgba[0]) as u8,
+            float_to_snorm8(rgba[1]) as u8,
+        ])
     }
 }
 
@@ -342,9 +374,172 @@ impl FromRgba<u8> for Bgra4 {
     }
 }
 
+impl Pixel for R16 {
+    const SIZE: usize = 2;
+
+    fn get_pixel(data: &[u8], index: usize) -> Self {
+        // TODO: Implement this automatically?
+        let bytes = get_pixel::<2, u8>(data, index, Self::SIZE);
+        Self(u16::from_le_bytes(bytes))
+    }
+}
+
+impl ToRgba<u8> for R16 {
+    fn to_rgba(self) -> [u8; 4] {
+        let r = unorm16_to_unorm8(self.0);
+        [r, r, r, 255u8]
+    }
+}
+
+impl FromRgba<u8> for R16 {
+    fn from_rgba(rgba: [u8; 4]) -> Self {
+        Self(unorm8_to_unorm16(rgba[0]))
+    }
+}
+
+impl Pixel for R16Snorm {
+    const SIZE: usize = 2;
+
+    fn get_pixel(data: &[u8], index: usize) -> Self {
+        // TODO: Implement this automatically?
+        let bytes = get_pixel::<2, u8>(data, index, Self::SIZE);
+        Self(u16::from_le_bytes(bytes))
+    }
+}
+
+impl ToRgba<u8> for R16Snorm {
+    fn to_rgba(self) -> [u8; 4] {
+        let r = snorm16_to_unorm8(self.0);
+        [r, r, r, 255u8]
+    }
+}
+
+impl FromRgba<u8> for R16Snorm {
+    fn from_rgba(rgba: [u8; 4]) -> Self {
+        Self(unorm8_to_snorm16(rgba[0]) as u16)
+    }
+}
+
+impl Pixel for Rg16 {
+    const SIZE: usize = 4;
+
+    fn get_pixel(data: &[u8], index: usize) -> Self {
+        // TODO: Implement this automatically?
+        let bytes = get_pixel::<4, u8>(data, index, Self::SIZE);
+        Self([
+            u16::from_le_bytes(bytes[0..2].try_into().unwrap()),
+            u16::from_le_bytes(bytes[2..4].try_into().unwrap()),
+        ])
+    }
+}
+
+impl ToRgba<u8> for Rg16 {
+    fn to_rgba(self) -> [u8; 4] {
+        [
+            unorm16_to_unorm8(self.0[0]),
+            unorm16_to_unorm8(self.0[1]),
+            0u8,
+            255u8,
+        ]
+    }
+}
+
+impl FromRgba<u8> for Rg16 {
+    fn from_rgba(rgba: [u8; 4]) -> Self {
+        Self([unorm8_to_unorm16(rgba[0]), unorm8_to_unorm16(rgba[1])])
+    }
+}
+
+impl Pixel for Rg16Snorm {
+    const SIZE: usize = 4;
+
+    fn get_pixel(data: &[u8], index: usize) -> Self {
+        // TODO: Implement this automatically?
+        let bytes = get_pixel::<4, u8>(data, index, Self::SIZE);
+        Self([
+            u16::from_le_bytes(bytes[0..2].try_into().unwrap()),
+            u16::from_le_bytes(bytes[2..4].try_into().unwrap()),
+        ])
+    }
+}
+
+impl ToRgba<u8> for Rg16Snorm {
+    fn to_rgba(self) -> [u8; 4] {
+        [
+            snorm16_to_unorm8(self.0[0]),
+            snorm16_to_unorm8(self.0[1]),
+            snorm16_to_unorm8(0u16),
+            255u8,
+        ]
+    }
+}
+
+impl FromRgba<u8> for Rg16Snorm {
+    fn from_rgba(rgba: [u8; 4]) -> Self {
+        Self([
+            unorm8_to_snorm16(rgba[0]) as u16,
+            unorm8_to_snorm16(rgba[1]) as u16,
+        ])
+    }
+}
+
+impl Pixel for Rgba16 {
+    const SIZE: usize = 8;
+
+    fn get_pixel(data: &[u8], index: usize) -> Self {
+        // TODO: Implement this automatically?
+        let bytes = get_pixel::<8, u8>(data, index, Self::SIZE);
+        Self([
+            u16::from_le_bytes(bytes[0..2].try_into().unwrap()),
+            u16::from_le_bytes(bytes[2..4].try_into().unwrap()),
+            u16::from_le_bytes(bytes[4..6].try_into().unwrap()),
+            u16::from_le_bytes(bytes[6..8].try_into().unwrap()),
+        ])
+    }
+}
+
+impl ToRgba<u8> for Rgba16 {
+    fn to_rgba(self) -> [u8; 4] {
+        self.0.map(unorm16_to_unorm8)
+    }
+}
+
+impl FromRgba<u8> for Rgba16 {
+    fn from_rgba(rgba: [u8; 4]) -> Self {
+        Self(rgba.map(unorm8_to_unorm16))
+    }
+}
+
+impl Pixel for Rgba16Snorm {
+    const SIZE: usize = 8;
+
+    fn get_pixel(data: &[u8], index: usize) -> Self {
+        // TODO: Implement this automatically?
+        let bytes = get_pixel::<8, u8>(data, index, Self::SIZE);
+        Self([
+            u16::from_le_bytes(bytes[0..2].try_into().unwrap()),
+            u16::from_le_bytes(bytes[2..4].try_into().unwrap()),
+            u16::from_le_bytes(bytes[4..6].try_into().unwrap()),
+            u16::from_le_bytes(bytes[6..8].try_into().unwrap()),
+        ])
+    }
+}
+
+impl ToRgba<u8> for Rgba16Snorm {
+    fn to_rgba(self) -> [u8; 4] {
+        self.0.map(snorm16_to_unorm8)
+    }
+}
+
+impl FromRgba<u8> for Rgba16Snorm {
+    fn from_rgba(rgba: [u8; 4]) -> Self {
+        Self(rgba.map(|u| unorm8_to_snorm16(u) as u16))
+    }
+}
+
 pub fn encode_rgba<P, T>(width: u32, height: u32, data: &[T]) -> Result<Vec<u8>, SurfaceError>
 where
-    P: Pixel + FromRgba<T> + Pod,
+    P: FromRgba<T> + Pod,
     T: Pod,
 {
     validate_length(width, height, 4, data)?;
@@ -933,6 +1128,247 @@ mod tests {
             Err(SurfaceError::NotEnoughData {
                 expected: 2,
                 actual: 1
+            })
+        );
+    }
+
+    #[test]
+    fn r16_from_rgba8_valid() {
+        assert_eq!(
+            vec![127, 127],
+            encode_rgba::<R16, u8>(1, 1, &[127, 128, 129, 130]).unwrap()
+        );
+    }
+
+    #[test]
+    fn r16_from_rgba8_invalid() {
+        let result = encode_rgba::<R16, u8>(1, 1, &[1, 2, 3]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 4,
+                actual: 3
+            })
+        );
+    }
+
+    #[test]
+    fn rgba8_from_r16_valid() {
+        assert_eq!(
+            vec![127, 127, 127, 255],
+            decode_rgba::<R16, u8>(1, 1, &[127, 127]).unwrap()
+        );
+    }
+
+    #[test]
+    fn rgba8_from_r16_invalid() {
+        let result = decode_rgba::<R16, u8>(1, 1, &[1]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 2,
+                actual: 1
+            })
+        );
+    }
+
+    #[test]
+    fn r16_snorm_from_rgba8_valid() {
+        assert_eq!(
+            vec![128, 255],
+            encode_rgba::<R16Snorm, u8>(1, 1, &[127, 128, 129, 130]).unwrap()
+        );
+    }
+
+    #[test]
+    fn r16_snorm_from_rgba8_invalid() {
+        let result = encode_rgba::<R16Snorm, u8>(1, 1, &[1, 2, 3]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 4,
+                actual: 3
+            })
+        );
+    }
+
+    #[test]
+    fn rgba8_from_r16_snorm_valid() {
+        assert_eq!(
+            vec![255, 255, 255, 255],
+            decode_rgba::<R16Snorm, u8>(1, 1, &[127, 127]).unwrap()
+        );
+    }
+
+    #[test]
+    fn rgba8_from_r16_snorm_invalid() {
+        let result = decode_rgba::<R16Snorm, u8>(1, 1, &[1]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 2,
+                actual: 1
+            })
+        );
+    }
+
+    #[test]
+    fn rg16_from_rgba8_valid() {
+        assert_eq!(
+            vec![127, 127, 128, 128],
+            encode_rgba::<Rg16, u8>(1, 1, &[127, 128, 129, 130]).unwrap()
+        );
+    }
+
+    #[test]
+    fn rg16_from_rgba8_invalid() {
+        let result = encode_rgba::<Rg16, u8>(1, 1, &[1, 2, 3]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 4,
+                actual: 3
+            })
+        );
+    }
+
+    #[test]
+    fn rgba8_from_rg16_valid() {
+        assert_eq!(
+            vec![127, 128, 0, 255],
+            decode_rgba::<Rg16, u8>(1, 1, &[127, 127, 128, 128]).unwrap()
+        );
+    }
+
+    #[test]
+    fn rgba8_from_rg16_invalid() {
+        let result = decode_rgba::<Rg16, u8>(1, 1, &[1, 1, 1]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 4,
+                actual: 3
+            })
+        );
+    }
+
+    #[test]
+    fn rg16_snorm_from_rgba8_valid() {
+        assert_eq!(
+            vec![128, 255, 128, 0],
+            encode_rgba::<Rg16Snorm, u8>(1, 1, &[127, 128, 129, 130]).unwrap()
+        );
+    }
+
+    #[test]
+    fn rg16_snorm_from_rgba8_invalid() {
+        let result = encode_rgba::<Rg16Snorm, u8>(1, 1, &[1, 2, 3]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 4,
+                actual: 3
+            })
+        );
+    }
+
+    #[test]
+    fn rgba8_from_rg16_snorm_valid() {
+        assert_eq!(
+            vec![255, 0, 128, 255],
+            decode_rgba::<Rg16Snorm, u8>(1, 1, &[127, 127, 128, 128]).unwrap()
+        );
+    }
+
+    #[test]
+    fn rgba8_from_rg16_snorm_invalid() {
+        let result = decode_rgba::<Rg16Snorm, u8>(1, 1, &[1, 1, 1]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 4,
+                actual: 3
+            })
+        );
+    }
+
+    #[test]
+    fn rgba16_from_rgba8_valid() {
+        assert_eq!(
+            vec![127, 127, 128, 128, 129, 129, 130, 130],
+            encode_rgba::<Rgba16, u8>(1, 1, &[127, 128, 129, 130]).unwrap()
+        );
+    }
+
+    #[test]
+    fn rgba16_from_rgba8_invalid() {
+        let result = encode_rgba::<Rgba16, u8>(1, 1, &[1, 2, 3]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 4,
+                actual: 3
+            })
+        );
+    }
+
+    #[test]
+    fn rgba8_from_rgba16_valid() {
+        assert_eq!(
+            vec![127, 128, 129, 130],
+            decode_rgba::<Rgba16, u8>(1, 1, &[127, 127, 128, 128, 129, 129, 130, 130]).unwrap()
+        );
+    }
+
+    #[test]
+    fn rgba8_from_rgba16_invalid() {
+        let result = decode_rgba::<Rgba16, u8>(1, 1, &[0; 7]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 8,
+                actual: 7
+            })
+        );
+    }
+
+    #[test]
+    fn rgba16_snorm_from_rgba8_valid() {
+        assert_eq!(
+            vec![128, 255, 128, 0, 129, 1, 130, 2],
+            encode_rgba::<Rgba16Snorm, u8>(1, 1, &[127, 128, 129, 130]).unwrap()
+        );
+    }
+
+    #[test]
+    fn rgba16_snorm_from_rgba8_invalid() {
+        let result = encode_rgba::<Rgba16Snorm, u8>(1, 1, &[1, 2, 3]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 4,
+                actual: 3
+            })
+        );
+    }
+
+    #[test]
+    fn rgba8_from_rgba16_snorm_valid() {
+        assert_eq!(
+            vec![255, 0, 1, 2],
+            decode_rgba::<Rgba16Snorm, u8>(1, 1, &[127, 127, 128, 128, 129, 129, 130, 130])
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn rgba8_from_rgba16_snorm_invalid() {
+        let result = decode_rgba::<Rgba16Snorm, u8>(1, 1, &[0; 7]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 8,
+                actual: 7
             })
         );
     }

@@ -2,13 +2,14 @@ use std::borrow::Cow;
 
 use crate::bcn::{encode_bcn, Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7};
 use crate::rgba::{
-    encode_rgba, Bgr8, Bgra4, Bgra8, R8Snorm, Rg8, Rg8Snorm, Rgba8, Rgbaf16, Rgbaf32, R8,
+    encode_rgba, Bgr8, Bgra4, Bgra8, R16Snorm, R8Snorm, Rg16, Rg16Snorm, Rg8, Rg8Snorm, Rgba16,
+    Rgba16Snorm, Rgba8, Rgbaf16, Rgbaf32, R16, R8,
 };
 use crate::{
     downsample_rgba, error::SurfaceError, max_mipmap_count, mip_dimension, round_up, ImageFormat,
     Mipmaps, Quality, Surface, SurfaceRgba8,
 };
-use crate::{float_to_snorm, Pixel, SurfaceRgba32Float};
+use crate::{float_to_snorm8, Pixel, SurfaceRgba32Float};
 
 impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
     /// Encode an RGBA8 surface to the given `format`.
@@ -408,6 +409,12 @@ impl Encode for u8 {
             F::Bgra8Unorm | F::Bgra8UnormSrgb => encode_rgba::<Bgra8, u8>(width, height, data),
             F::Bgra4Unorm => encode_rgba::<Bgra4, u8>(width, height, data),
             F::Bgr8Unorm => encode_rgba::<Bgr8, u8>(width, height, data),
+            F::R16Unorm => encode_rgba::<R16, u8>(width, height, data),
+            F::R16Snorm => encode_rgba::<R16Snorm, u8>(width, height, data),
+            F::Rg16Unorm => encode_rgba::<Rg16, u8>(width, height, data),
+            F::Rg16Snorm => encode_rgba::<Rg16Snorm, u8>(width, height, data),
+            F::Rgba16Unorm => encode_rgba::<Rgba16, u8>(width, height, data),
+            F::Rgba16Snorm => encode_rgba::<Rgba16Snorm, u8>(width, height, data),
         }
     }
 }
@@ -428,7 +435,7 @@ impl Encode for f32 {
             F::Rg8Snorm => encode_rgba::<Rg8Snorm, f32>(width, height, data),
             F::BC4RSnorm | F::BC5RgSnorm => {
                 // intel_tex doesn't have a dedicated encoder for snorm formats.
-                let rgba8: Vec<_> = data.iter().map(|f| float_to_snorm(*f) as u8).collect();
+                let rgba8: Vec<_> = data.iter().map(|f| float_to_snorm8(*f) as u8).collect();
                 u8::encode(width, height, &rgba8, format, quality)
             }
             F::BC6hRgbUfloat | F::BC6hRgbSfloat => {
@@ -436,6 +443,7 @@ impl Encode for f32 {
             }
             F::Rgba16Float => encode_rgba::<Rgbaf16, f32>(width, height, data),
             F::Rgba32Float => encode_rgba::<Rgbaf32, f32>(width, height, data),
+            // TODO: increased precision for 16-bit formats
             _ => {
                 let rgba8: Vec<_> = data.iter().map(|f| (f * 255.0) as u8).collect();
                 u8::encode(width, height, &rgba8, format, quality)

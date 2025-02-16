@@ -70,6 +70,8 @@ pub fn imagef32_from_dds(dds: &Dds, mipmap: u32) -> Result<image::Rgba32FImage, 
 
 impl<T: AsRef<[u8]>> Surface<T> {
     /// Create a DDS file with the same image data and format.
+    ///
+    /// Creates a DXGI DDS for most formats and D3D DDS for some legacy formats.
     pub fn to_dds(&self) -> Result<crate::ddsfile::Dds, CreateDdsError> {
         let mut dds = dxgi_from_image_format(self.image_format)
             .map(|format| {
@@ -247,6 +249,12 @@ fn image_format_from_dxgi(format: DxgiFormat) -> Option<ImageFormat> {
         DxgiFormat::BC7_UNorm => Some(ImageFormat::BC7RgbaUnorm),
         DxgiFormat::BC7_UNorm_sRGB => Some(ImageFormat::BC7RgbaUnormSrgb),
         DxgiFormat::B4G4R4A4_UNorm => Some(ImageFormat::Bgra4Unorm),
+        DxgiFormat::R16G16B16A16_UNorm => Some(ImageFormat::Rgba16Unorm),
+        DxgiFormat::R16G16B16A16_SNorm => Some(ImageFormat::Rgba16Snorm),
+        DxgiFormat::R16G16_UNorm => Some(ImageFormat::Rg16Unorm),
+        DxgiFormat::R16G16_SNorm => Some(ImageFormat::Rg16Snorm),
+        DxgiFormat::R16_UNorm => Some(ImageFormat::R16Unorm),
+        DxgiFormat::R16_SNorm => Some(ImageFormat::R16Snorm),
         _ => None,
     }
 }
@@ -263,8 +271,12 @@ fn image_format_from_d3d(format: D3DFormat) -> Option<ImageFormat> {
         D3DFormat::A8R8G8B8 => Some(ImageFormat::Bgra8Unorm),
         D3DFormat::R8G8B8 => Some(ImageFormat::Bgr8Unorm),
         D3DFormat::A8B8G8R8 => Some(ImageFormat::Rgba8Unorm),
+        D3DFormat::G16R16F => todo!(),
         D3DFormat::A16B16G16R16F => Some(ImageFormat::Rgba16Float),
+        D3DFormat::G32R32F => todo!(),
         D3DFormat::A32B32G32R32F => Some(ImageFormat::Rgba32Float),
+        D3DFormat::G16R16 => Some(ImageFormat::Rg16Unorm),
+        D3DFormat::A16B16G16R16 => Some(ImageFormat::Rgba16Unorm),
         _ => None,
     }
 }
@@ -315,6 +327,12 @@ fn d3d_from_image_format(value: ImageFormat) -> Option<D3DFormat> {
         ImageFormat::Bgra8UnormSrgb => Some(D3DFormat::A8R8G8B8),
         ImageFormat::Bgra4Unorm => Some(D3DFormat::A4R4G4B4),
         ImageFormat::Bgr8Unorm => Some(D3DFormat::R8G8B8),
+        ImageFormat::R16Unorm => None,
+        ImageFormat::R16Snorm => None,
+        ImageFormat::Rg16Unorm => Some(D3DFormat::G16R16),
+        ImageFormat::Rg16Snorm => None,
+        ImageFormat::Rgba16Unorm => Some(D3DFormat::A16B16G16R16),
+        ImageFormat::Rgba16Snorm => None,
     }
 }
 
@@ -346,6 +364,12 @@ fn dxgi_from_image_format(value: ImageFormat) -> Option<DxgiFormat> {
         ImageFormat::Bgra8UnormSrgb => Some(DxgiFormat::B8G8R8A8_UNorm_sRGB),
         ImageFormat::Bgra4Unorm => Some(DxgiFormat::B4G4R4A4_UNorm),
         ImageFormat::Bgr8Unorm => None,
+        ImageFormat::R16Unorm => Some(DxgiFormat::R16_UNorm),
+        ImageFormat::R16Snorm => Some(DxgiFormat::R16_SNorm),
+        ImageFormat::Rg16Unorm => Some(DxgiFormat::R16G16_UNorm),
+        ImageFormat::Rg16Snorm => Some(DxgiFormat::R16G16_SNorm),
+        ImageFormat::Rgba16Unorm => Some(DxgiFormat::R16G16B16A16_UNorm),
+        ImageFormat::Rgba16Snorm => Some(DxgiFormat::R16G16B16A16_SNorm),
     }
 }
 

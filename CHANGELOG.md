@@ -6,8 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## unreleased
-### Fixed
-* Fixed inaccuracies when encoding `Bgra4Unorm`.
+### Added
+* Added support for `R16Unorm`, `R16Snorm`, `Rg16Unorm`, `Rg16Snorm`, `Rgba16Unorm`, and `Rgba16Snorm`.
+
+### Changed
+* Improved accuracy for encoding to `Bgra4Unorm`.
 
 ## 0.7.1 - 2025-01-28
 ### Added

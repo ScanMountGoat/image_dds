@@ -1,6 +1,6 @@
 use bytemuck::Pod;
 
-use crate::{error::SurfaceError, mip_size, snorm_to_unorm};
+use crate::{error::SurfaceError, mip_size, snorm8_to_unorm8};
 
 use super::{Bc1, Bc2, Bc3, Bc4, Bc4S, Bc5, Bc5S, Bc6, Bc7, BLOCK_HEIGHT, BLOCK_WIDTH, CHANNELS};
 
@@ -134,7 +134,7 @@ impl BcnDecode<[u8; 4]> for Bc4S {
                 // It's a convention in some programs to display BC4 in the red channel.
                 // Use grayscale instead to avoid confusing it with colored data.
                 // TODO: Match how channels handled when compressing RGBA data to BC4?
-                let r = snorm_to_unorm(decompressed_r[y][x]);
+                let r = snorm8_to_unorm8(decompressed_r[y][x]);
                 decompressed[y][x] = [r, r, r, 255u8];
             }
         }
@@ -222,9 +222,9 @@ impl BcnDecode<[u8; 4]> for Bc5S {
                 let [r, g] = decompressed_rg[y][x];
 
                 decompressed[y][x] = [
-                    snorm_to_unorm(r),
-                    snorm_to_unorm(g),
-                    snorm_to_unorm(0u8),
+                    snorm8_to_unorm8(r),
+                    snorm8_to_unorm8(g),
+                    snorm8_to_unorm8(0u8),
                     255u8,
                 ];
             }

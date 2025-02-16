@@ -157,6 +157,12 @@ pub enum ImageFormat {
     /// BPTC (unorm)
     BC7RgbaUnorm,
     BC7RgbaUnormSrgb,
+    R16Unorm,
+    R16Snorm,
+    Rg16Unorm,
+    Rg16Snorm,
+    Rgba16Unorm,
+    Rgba16Snorm,
 }
 
 impl ImageFormat {
@@ -177,18 +183,7 @@ impl ImageFormat {
             ImageFormat::BC6hRgbSfloat => (4, 4, 1),
             ImageFormat::BC7RgbaUnorm => (4, 4, 1),
             ImageFormat::BC7RgbaUnormSrgb => (4, 4, 1),
-            ImageFormat::R8Unorm => (1, 1, 1),
-            ImageFormat::R8Snorm => (1, 1, 1),
-            ImageFormat::Rg8Unorm => (1, 1, 1),
-            ImageFormat::Rg8Snorm => (1, 1, 1),
-            ImageFormat::Rgba8Unorm => (1, 1, 1),
-            ImageFormat::Rgba8UnormSrgb => (1, 1, 1),
-            ImageFormat::Rgba16Float => (1, 1, 1),
-            ImageFormat::Rgba32Float => (1, 1, 1),
-            ImageFormat::Bgra8Unorm => (1, 1, 1),
-            ImageFormat::Bgra8UnormSrgb => (1, 1, 1),
-            ImageFormat::Bgra4Unorm => (1, 1, 1),
-            ImageFormat::Bgr8Unorm => (1, 1, 1),
+            _ => (1, 1, 1),
         }
     }
 
@@ -221,6 +216,12 @@ impl ImageFormat {
             ImageFormat::BC7RgbaUnormSrgb => 16,
             ImageFormat::Bgra4Unorm => 2,
             ImageFormat::Bgr8Unorm => 3,
+            ImageFormat::R16Unorm => 2,
+            ImageFormat::R16Snorm => 2,
+            ImageFormat::Rg16Unorm => 4,
+            ImageFormat::Rg16Snorm => 4,
+            ImageFormat::Rgba16Unorm => 8,
+            ImageFormat::Rgba16Snorm => 8,
         }
     }
 }
@@ -394,7 +395,7 @@ fn mip_size(
         .and_then(|v| v.checked_mul(block_size_in_bytes))
 }
 
-fn snorm_to_unorm(x: u8) -> u8 {
+fn snorm8_to_unorm8(x: u8) -> u8 {
     // Validated against decoding R8Snorm DDS with GPU and paint.net (DirectXTex).
     if x < 128 {
         x + 128
@@ -405,7 +406,7 @@ fn snorm_to_unorm(x: u8) -> u8 {
     }
 }
 
-fn unorm_to_snorm(x: u8) -> u8 {
+fn unorm8_to_snorm8(x: u8) -> u8 {
     // Inverse of snorm_to_unorm.
     if x >= 128 {
         x - 128
@@ -416,12 +417,20 @@ fn unorm_to_snorm(x: u8) -> u8 {
     }
 }
 
-fn snorm_to_float(x: u8) -> f32 {
+fn snorm8_to_float(x: u8) -> f32 {
     ((x as i8) as f32 / 127.0).max(-1.0)
 }
 
-fn float_to_snorm(x: f32) -> i8 {
+fn float_to_snorm8(x: f32) -> i8 {
     ((x.clamp(-1.0, 1.0)) * 127.0).round() as i8
+}
+
+fn snorm16_to_float(x: u16) -> f32 {
+    ((x as i16) as f32 / 32767.0).max(-1.0)
+}
+
+fn float_to_snorm16(x: f32) -> i16 {
+    ((x.clamp(-1.0, 1.0)) * 32767.0).round() as i16
 }
 
 // https://rundevelopment.github.io/blog/fast-unorm-conversions
@@ -431,6 +440,25 @@ fn unorm4_to_unorm8(x: u8) -> u8 {
 
 fn unorm8_to_unorm4(x: u8) -> u8 {
     ((x as u16 * 15 + 135) >> 8) as u8
+}
+
+fn unorm16_to_unorm8(x: u16) -> u8 {
+    ((x as u32 * 255 + 32895) >> 16) as u8
+}
+
+fn unorm8_to_unorm16(x: u8) -> u16 {
+    x as u16 * 257
+}
+
+// TODO: Find an efficient way to do this and add tests.
+fn snorm16_to_unorm8(x: u16) -> u8 {
+    // Remap [-1, 1] to [0, 1] to fit in an unsigned integer.
+    ((snorm16_to_float(x) * 0.5 + 0.5) * 255.0).round() as u8
+}
+
+fn unorm8_to_snorm16(x: u8) -> i16 {
+    // Remap [0, 1] to [-1, 1] to fit in a signed integer.
+    (((x as f32 / 255.0) * 2.0 - 1.0) * 32767.0).round() as i16
 }
 
 #[cfg(test)]
@@ -603,52 +631,52 @@ mod tests {
         );
     }
 
-    fn snorm_to_unorm_reference(x: u8) -> u8 {
+    fn snorm8_to_unorm8_reference(x: u8) -> u8 {
         // Remap [-1, 1] to [0, 1] to fit in an unsigned integer.
-        ((snorm_to_float(x) * 0.5 + 0.5) * 255.0).round() as u8
+        ((snorm8_to_float(x) * 0.5 + 0.5) * 255.0).round() as u8
     }
 
-    fn unorm_to_snorm_reference(x: u8) -> i8 {
+    fn unorm8_to_snorm8_reference(x: u8) -> i8 {
         // Remap [0, 1] to [-1, 1] to fit in a signed integer.
         (((x as f32 / 255.0) * 2.0 - 1.0) * 127.0).round() as i8
     }
 
     #[test]
-    fn convert_snorm_to_unorm() {
+    fn convert_snorm8_to_unorm8() {
         // 128, ..., 255, 0, ..., 126
         for i in 0..=255 {
-            assert_eq!(snorm_to_unorm(i), snorm_to_unorm_reference(i));
+            assert_eq!(snorm8_to_unorm8(i), snorm8_to_unorm8_reference(i));
         }
     }
 
     #[test]
-    fn convert_unorm_to_snorm() {
+    fn convert_unorm8_to_snorm8() {
         // 129, ..., 255, 0, ..., 127
         for i in 0..=255 {
-            assert_eq!(unorm_to_snorm(i) as i8, unorm_to_snorm_reference(i));
+            assert_eq!(unorm8_to_snorm8(i) as i8, unorm8_to_snorm8_reference(i));
         }
     }
 
     #[test]
-    fn snorm_unorm_inverse() {
+    fn snorm8_unorm8_inverse() {
         for i in 0..=255 {
             if i != 128 {
-                assert_eq!(unorm_to_snorm(snorm_to_unorm(i)), i);
+                assert_eq!(unorm8_to_snorm8(snorm8_to_unorm8(i)), i);
             }
         }
         // Explictly test the value with no true inverse.
-        assert_eq!(unorm_to_snorm(128), 0);
+        assert_eq!(unorm8_to_snorm8(128), 0);
     }
 
     #[test]
-    fn snorm_unorm_float() {
+    fn snorm8_unorm8_float() {
         for i in 0..=255 {
             if i != 128 {
-                assert_eq!(float_to_snorm(snorm_to_float(i)), i as i8);
+                assert_eq!(float_to_snorm8(snorm8_to_float(i)), i as i8);
             }
         }
         // Explictly test the value with no true inverse.
-        assert_eq!(snorm_to_float(128), -1.0);
+        assert_eq!(snorm8_to_float(128), -1.0);
     }
 
     fn unorm4_to_unorm8_reference(x: u8) -> u8 {
@@ -671,5 +699,38 @@ mod tests {
         for i in 0..=15 {
             assert_eq!(unorm4_to_unorm8(i), unorm4_to_unorm8_reference(i));
         }
+    }
+
+    fn unorm16_to_unorm8_reference(x: u16) -> u8 {
+        (x as f32 / 65535.0 * 255.0).round() as u8
+    }
+
+    fn unorm8_to_unorm16_reference(x: u8) -> u16 {
+        (x as f32 / 255.0 * 65535.0).round() as u16
+    }
+
+    #[test]
+    fn convert_unorm8_to_unorm16() {
+        for i in 0..=255 {
+            assert_eq!(unorm8_to_unorm16(i), unorm8_to_unorm16_reference(i));
+        }
+    }
+
+    #[test]
+    fn convert_unorm16_to_unorm8() {
+        for i in 0..=65535 {
+            assert_eq!(unorm16_to_unorm8(i), unorm16_to_unorm8_reference(i));
+        }
+    }
+
+    #[test]
+    fn snorm16_unorm16_float() {
+        for i in 0..=65535 {
+            if i != 32768 {
+                assert_eq!(float_to_snorm16(snorm16_to_float(i)), i as i16);
+            }
+        }
+        // Explictly test the value with no true inverse.
+        assert_eq!(snorm16_to_float(32768), -1.0);
     }
 }
