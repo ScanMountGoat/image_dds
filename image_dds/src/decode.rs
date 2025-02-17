@@ -6,7 +6,7 @@ use crate::{
     mip_dimension,
     rgba::{
         decode_rgba, Bgr8, Bgra4, Bgra8, R16Snorm, R8Snorm, Rg16, Rg16Snorm, Rg8, Rg8Snorm, Rgba16,
-        Rgba16Snorm, Rgba8, Rgbaf16, Rgbaf32, R16, R8,
+        Rgba16Snorm, Rgba8, Rgbaf16, Rgbaf32, Rgf16, Rgf32, R16, R8,
     },
     ImageFormat, Surface, SurfaceRgba32Float, SurfaceRgba8,
 };
@@ -144,6 +144,8 @@ impl Decode for u8 {
             F::Rg16Snorm => decode_rgba::<Rg16Snorm, u8>(width, height, data),
             F::Rgba16Unorm => decode_rgba::<Rgba16, u8>(width, height, data),
             F::Rgba16Snorm => decode_rgba::<Rgba16Snorm, u8>(width, height, data),
+            F::Rg16Float => decode_rgba::<Rgf16, u8>(width, height, data),
+            F::Rg32Float => decode_rgba::<Rgf32, u8>(width, height, data),
         }
     }
 }
@@ -162,7 +164,9 @@ impl Decode for f32 {
             F::BC4RSnorm => decode_bcn::<Bc4S, f32>(width, height, data),
             F::BC5RgSnorm => decode_bcn::<Bc5S, f32>(width, height, data),
             F::BC6hRgbUfloat | F::BC6hRgbSfloat => decode_bcn::<Bc6, f32>(width, height, data),
+            F::Rg16Float => decode_rgba::<Rgf16, f32>(width, height, data),
             F::Rgba16Float => decode_rgba::<Rgbaf16, f32>(width, height, data),
+            F::Rg32Float => decode_rgba::<Rgf32, f32>(width, height, data),
             F::Rgba32Float => decode_rgba::<Rgbaf32, f32>(width, height, data),
             // TODO: increased precision for 16-bit unorm formats
             F::R16Snorm => decode_rgba::<R16Snorm, f32>(width, height, data),

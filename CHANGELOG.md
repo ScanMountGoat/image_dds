@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## unreleased
 ### Added
 * Added support for `R16Unorm`, `R16Snorm`, `Rg16Unorm`, `Rg16Snorm`, `Rgba16Unorm`, and `Rgba16Snorm`.
+* Added support for `Rg16Float`, and `Rg32Float`.
 
 ### Changed
 * Improved accuracy for encoding to `Bgra4Unorm`.

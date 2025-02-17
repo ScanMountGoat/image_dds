@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use crate::bcn::{encode_bcn, Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7};
 use crate::rgba::{
     encode_rgba, Bgr8, Bgra4, Bgra8, R16Snorm, R8Snorm, Rg16, Rg16Snorm, Rg8, Rg8Snorm, Rgba16,
-    Rgba16Snorm, Rgba8, Rgbaf16, Rgbaf32, R16, R8,
+    Rgba16Snorm, Rgba8, Rgbaf16, Rgbaf32, Rgf16, Rgf32, R16, R8,
 };
 use crate::{
     downsample_rgba, error::SurfaceError, max_mipmap_count, mip_dimension, round_up, ImageFormat,
@@ -415,6 +415,8 @@ impl Encode for u8 {
             F::Rg16Snorm => encode_rgba::<Rg16Snorm, u8>(width, height, data),
             F::Rgba16Unorm => encode_rgba::<Rgba16, u8>(width, height, data),
             F::Rgba16Snorm => encode_rgba::<Rgba16Snorm, u8>(width, height, data),
+            F::Rg16Float => encode_rgba::<Rgf16, u8>(width, height, data),
+            F::Rg32Float => encode_rgba::<Rgf32, u8>(width, height, data),
         }
     }
 }
