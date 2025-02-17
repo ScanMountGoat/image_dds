@@ -2,8 +2,8 @@ use std::borrow::Cow;
 
 use crate::bcn::{encode_bcn, Bc1, Bc2, Bc3, Bc4, Bc5, Bc6, Bc7};
 use crate::rgba::{
-    encode_rgba, Bgr8, Bgra4, Bgra8, R16Snorm, R8Snorm, Rg16, Rg16Snorm, Rg8, Rg8Snorm, Rgba16,
-    Rgba16Snorm, Rgba8, Rgbaf16, Rgbaf32, Rgf16, Rgf32, R16, R8,
+    encode_rgba, Bgr8, Bgra4, Bgra8, R16Snorm, R8Snorm, Rf16, Rf32, Rg16, Rg16Snorm, Rg8, Rg8Snorm,
+    Rgba16, Rgba16Snorm, Rgba8, Rgbaf16, Rgbaf32, Rgf16, Rgf32, R16, R8,
 };
 use crate::{
     downsample_rgba, error::SurfaceError, max_mipmap_count, mip_dimension, round_up, ImageFormat,
@@ -417,6 +417,8 @@ impl Encode for u8 {
             F::Rgba16Snorm => encode_rgba::<Rgba16Snorm, u8>(width, height, data),
             F::Rg16Float => encode_rgba::<Rgf16, u8>(width, height, data),
             F::Rg32Float => encode_rgba::<Rgf32, u8>(width, height, data),
+            F::R16Float => encode_rgba::<Rf32, u8>(width, height, data),
+            F::R32Float => encode_rgba::<Rf32, u8>(width, height, data),
         }
     }
 }
@@ -443,7 +445,11 @@ impl Encode for f32 {
             F::BC6hRgbUfloat | F::BC6hRgbSfloat => {
                 encode_bcn::<Bc6, f32>(width, height, data, quality)
             }
+            F::R16Float => encode_rgba::<Rf16, f32>(width, height, data),
+            F::Rg16Float => encode_rgba::<Rgf16, f32>(width, height, data),
             F::Rgba16Float => encode_rgba::<Rgbaf16, f32>(width, height, data),
+            F::R32Float => encode_rgba::<Rf32, f32>(width, height, data),
+            F::Rg32Float => encode_rgba::<Rgf32, f32>(width, height, data),
             F::Rgba32Float => encode_rgba::<Rgbaf32, f32>(width, height, data),
             // TODO: increased precision for 16-bit unorm formats
             F::R16Snorm => encode_rgba::<R16Snorm, f32>(width, height, data),

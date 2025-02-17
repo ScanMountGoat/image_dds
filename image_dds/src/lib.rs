@@ -163,7 +163,9 @@ pub enum ImageFormat {
     Rg16Snorm,
     Rgba16Unorm,
     Rgba16Snorm,
+    R16Float,
     Rg16Float,
+    R32Float,
     Rg32Float,
 }
 
@@ -226,6 +228,8 @@ impl ImageFormat {
             ImageFormat::Rgba16Snorm => 8,
             ImageFormat::Rg16Float => 4,
             ImageFormat::Rg32Float => 8,
+            ImageFormat::R16Float => 2,
+            ImageFormat::R32Float => 4,
         }
     }
 }
