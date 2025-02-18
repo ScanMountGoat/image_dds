@@ -9,7 +9,10 @@ use crate::{
     downsample_rgba, error::SurfaceError, max_mipmap_count, mip_dimension, round_up, ImageFormat,
     Mipmaps, Quality, Surface, SurfaceRgba8,
 };
-use crate::{rgba::convert::float_to_snorm8, Pixel, SurfaceRgba32Float};
+use crate::{
+    rgba::convert::{float_to_snorm8, Channel},
+    SurfaceRgba32Float,
+};
 
 impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
     /// Encode an RGBA8 surface to the given `format`.
@@ -26,7 +29,6 @@ impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
     }
 }
 
-// TODO: Tests for this?
 impl<T: AsRef<[f32]>> SurfaceRgba32Float<T> {
     /// Encode an RGBAF32 surface to the given `format`.
     ///
@@ -50,7 +52,7 @@ fn encode_surface<S, P>(
 ) -> Result<Surface<Vec<u8>>, SurfaceError>
 where
     S: GetMipmap<P>,
-    P: Default + Copy + Encode + Pixel,
+    P: Encode + Channel + Default,
 {
     // TODO: Encode the correct number of array layers.
     let num_mipmaps = match mipmaps {
@@ -103,7 +105,7 @@ fn encode_mipmaps_rgba<S, P>(
 ) -> Result<(), SurfaceError>
 where
     S: GetMipmap<P>,
-    P: Default + Copy + Encode + Pixel,
+    P: Default + Encode + Channel,
 {
     let block_dimensions = format.block_dimensions();
 
@@ -142,7 +144,7 @@ struct MipData<T> {
     data: Vec<T>,
 }
 
-impl<T: Pixel> MipData<T> {
+impl<T: Channel> MipData<T> {
     fn downsample(
         &self,
         base_width: u32,

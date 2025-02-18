@@ -46,6 +46,7 @@ mod bcn;
 mod rgba;
 mod surface;
 
+use rgba::convert::Channel;
 pub use surface::{Surface, SurfaceRgba32Float, SurfaceRgba8};
 
 pub mod error;
@@ -247,33 +248,7 @@ pub fn mip_dimension(base_dimension: u32, mipmap: u32) -> u32 {
     (base_dimension >> mipmap).max(1)
 }
 
-// TODO: Is this the best way to handle this?
-trait Pixel: Default + Copy {
-    fn from_f32(f: f32) -> Self;
-    fn to_f32(&self) -> f32;
-}
-
-impl Pixel for u8 {
-    fn from_f32(f: f32) -> Self {
-        f as Self
-    }
-
-    fn to_f32(&self) -> f32 {
-        *self as f32
-    }
-}
-
-impl Pixel for f32 {
-    fn from_f32(f: f32) -> Self {
-        f
-    }
-
-    fn to_f32(&self) -> f32 {
-        *self
-    }
-}
-
-fn downsample_rgba<T: Pixel>(
+fn downsample_rgba<T: Channel>(
     new_width: usize,
     new_height: usize,
     new_depth: usize,
@@ -284,7 +259,7 @@ fn downsample_rgba<T: Pixel>(
 ) -> Vec<T> {
     // Halve the width and height by averaging pixels.
     // This is faster than resizing using the image crate.
-    let mut new_data = vec![T::default(); new_width * new_height * new_depth * 4];
+    let mut new_data = vec![T::ZERO; new_width * new_height * new_depth * 4];
     for z in 0..new_depth {
         for x in 0..new_width {
             for y in 0..new_height {

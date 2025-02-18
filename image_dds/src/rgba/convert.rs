@@ -1,6 +1,6 @@
 use half::f16;
 
-pub trait Channel {
+pub trait Channel: Copy {
     fn to_unorm8(self) -> u8;
     fn from_unorm8(u: u8) -> Self;
     fn to_f32(self) -> f32;

@@ -132,7 +132,7 @@ impl<T: Channel> FromRgba<u8> for R<T> {
     }
 }
 
-impl<T: Channel + Copy> ToRgba<u8> for R<T> {
+impl<T: Channel> ToRgba<u8> for R<T> {
     fn to_rgba(self) -> [u8; 4] {
         let r = T::to_unorm8(self.0[0]);
         [r, r, r, 255u8]
@@ -145,7 +145,7 @@ impl<T: Channel> FromRgba<f32> for R<T> {
     }
 }
 
-impl<T: Channel + Copy> ToRgba<f32> for R<T> {
+impl<T: Channel> ToRgba<f32> for R<T> {
     fn to_rgba(self) -> [f32; 4] {
         let r = T::to_f32(self.0[0]);
         [r, r, r, 1.0]
@@ -162,7 +162,7 @@ impl<T: Channel> FromRgba<u8> for Rg<T> {
     }
 }
 
-impl<T: Channel + Copy> ToRgba<u8> for Rg<T> {
+impl<T: Channel> ToRgba<u8> for Rg<T> {
     fn to_rgba(self) -> [u8; 4] {
         // The blue channel converts 0 for unorm/snorm by convention.
         [
@@ -180,7 +180,7 @@ impl<T: Channel> FromRgba<f32> for Rg<T> {
     }
 }
 
-impl<T: Channel + Copy> ToRgba<f32> for Rg<T> {
+impl<T: Channel> ToRgba<f32> for Rg<T> {
     fn to_rgba(self) -> [f32; 4] {
         // The blue channel converts 0 for unorm/snorm by convention.
         [
@@ -206,7 +206,7 @@ impl<T: Channel> FromRgba<u8> for Rgb<T> {
     }
 }
 
-impl<T: Channel + Copy> ToRgba<u8> for Rgb<T> {
+impl<T: Channel> ToRgba<u8> for Rgb<T> {
     fn to_rgba(self) -> [u8; 4] {
         [
             T::to_unorm8(self.0[0]),
@@ -227,7 +227,7 @@ impl<T: Channel> FromRgba<f32> for Rgb<T> {
     }
 }
 
-impl<T: Channel + Copy> ToRgba<f32> for Rgb<T> {
+impl<T: Channel> ToRgba<f32> for Rgb<T> {
     fn to_rgba(self) -> [f32; 4] {
         [
             T::to_f32(self.0[0]),
