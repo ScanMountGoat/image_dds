@@ -453,7 +453,9 @@ impl Encode for f32 {
             F::R32Float => encode_rgba::<Rf32, f32>(width, height, data),
             F::Rg32Float => encode_rgba::<Rgf32, f32>(width, height, data),
             F::Rgba32Float => encode_rgba::<Rgbaf32, f32>(width, height, data),
-            // TODO: increased precision for 16-bit unorm formats
+            F::R16Unorm => encode_rgba::<R16, f32>(width, height, data),
+            F::Rg16Unorm => encode_rgba::<Rg16, f32>(width, height, data),
+            F::Rgba16Unorm => encode_rgba::<Rgba16, f32>(width, height, data),
             F::R16Snorm => encode_rgba::<R16Snorm, f32>(width, height, data),
             F::Rg16Snorm => encode_rgba::<Rg16Snorm, f32>(width, height, data),
             F::Rgba16Snorm => encode_rgba::<Rgba16Snorm, f32>(width, height, data),

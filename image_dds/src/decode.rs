@@ -174,7 +174,9 @@ impl Decode for f32 {
             F::R32Float => decode_rgba::<Rf32, f32>(width, height, data),
             F::Rg32Float => decode_rgba::<Rgf32, f32>(width, height, data),
             F::Rgba32Float => decode_rgba::<Rgbaf32, f32>(width, height, data),
-            // TODO: increased precision for 16-bit unorm formats
+            F::R16Unorm => decode_rgba::<R16, f32>(width, height, data),
+            F::Rg16Unorm => decode_rgba::<Rg16, f32>(width, height, data),
+            F::Rgba16Unorm => decode_rgba::<Rgba16, f32>(width, height, data),
             F::R16Snorm => decode_rgba::<R16Snorm, f32>(width, height, data),
             F::Rg16Snorm => decode_rgba::<Rg16Snorm, f32>(width, height, data),
             F::Rgba16Snorm => decode_rgba::<Rgba16Snorm, f32>(width, height, data),
