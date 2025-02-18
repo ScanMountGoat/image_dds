@@ -1,6 +1,6 @@
 use bytemuck::Pod;
 
-use crate::{error::SurfaceError, mip_size, snorm8_to_unorm8};
+use crate::{error::SurfaceError, mip_size, rgba::convert::snorm8_to_unorm8};
 
 use super::{Bc1, Bc2, Bc3, Bc4, Bc4S, Bc5, Bc5S, Bc6, Bc7, BLOCK_HEIGHT, BLOCK_WIDTH, CHANNELS};
 

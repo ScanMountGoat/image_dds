@@ -9,7 +9,7 @@ use crate::{
     downsample_rgba, error::SurfaceError, max_mipmap_count, mip_dimension, round_up, ImageFormat,
     Mipmaps, Quality, Surface, SurfaceRgba8,
 };
-use crate::{float_to_snorm8, Pixel, SurfaceRgba32Float};
+use crate::{rgba::convert::float_to_snorm8, Pixel, SurfaceRgba32Float};
 
 impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
     /// Encode an RGBA8 surface to the given `format`.
