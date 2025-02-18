@@ -14,6 +14,7 @@ pub type Rgba8 = Rgba<u8>;
 
 pub type R8Snorm = R<i8>;
 pub type Rg8Snorm = Rg<i8>;
+pub type Rgba8Snorm = Rgba<i8>;
 
 pub type Rf16 = R<f16>;
 pub type Rgf16 = Rg<f16>;
@@ -61,20 +62,21 @@ macro_rules! pixel_impl {
 // TODO: Implement automatically for generic types?
 pixel_impl!(
     R8,
-    R8Snorm,
-    R16,
-    R16Snorm,
     Rg8,
-    Rg8Snorm,
-    Rg16,
-    Rg16Snorm,
-    Bgra4,
     Rgb8,
-    Bgr8,
     Rgba8,
-    Bgra8,
-    Rgba16,
+    R8Snorm,
+    Rg8Snorm,
+    Rgba8Snorm,
+    R16Snorm,
+    Rg16Snorm,
     Rgba16Snorm,
+    R16,
+    Rg16,
+    Rgba16,
+    Bgra4,
+    Bgr8,
+    Bgra8,
     Rf16,
     Rgf16,
     Rgbaf16,
@@ -726,6 +728,86 @@ mod tests {
             Err(SurfaceError::NotEnoughData {
                 expected: 2,
                 actual: 1
+            })
+        );
+    }
+
+    #[test]
+    fn rgba8_snorm_from_rgba8_valid() {
+        assert_eq!(
+            vec![130, 131, 132, 133],
+            encode_rgba::<Rgba8Snorm, u8>(1, 1, &[1, 2, 3, 4]).unwrap()
+        );
+    }
+
+    #[test]
+    fn rgba8_snorm_from_rgba8_invalid() {
+        let result = encode_rgba::<Rgba8Snorm, u8>(1, 1, &[1, 2, 3]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 4,
+                actual: 3
+            })
+        );
+    }
+
+    #[test]
+    fn rgba8_snorm_from_rgbaf32_valid() {
+        assert_eq!(
+            vec![129, 0, 127, 127],
+            encode_rgba::<Rgba8Snorm, f32>(1, 1, &[-1.0, 0.0, 1.0, 1.0]).unwrap()
+        );
+    }
+
+    #[test]
+    fn rgba8_snorm_from_rgbaf32_invalid() {
+        let result = encode_rgba::<Rgba8Snorm, f32>(1, 1, &[-1.0, 0.0, 1.0]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 4,
+                actual: 3
+            })
+        );
+    }
+
+    #[test]
+    fn rgba8_from_rgba8_snorm_valid() {
+        assert_eq!(
+            vec![129, 130, 131, 132],
+            decode_rgba::<Rgba8Snorm, u8>(1, 1, &[1, 2, 3, 4]).unwrap()
+        );
+    }
+
+    #[test]
+    fn rgba8_from_rgba8_snorm_invalid() {
+        let result = decode_rgba::<Rgba8Snorm, u8>(1, 1, &[0; 3]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 4,
+                actual: 3
+            })
+        );
+    }
+
+    #[test]
+    fn rgbaf32_from_rgba8_snorm_valid() {
+        assert_eq!(
+            vec![-1.0, 0.0, -1.0, 1.0],
+            decode_rgba::<Rgba8Snorm, f32>(1, 1, &[128, 0, 129, 127]).unwrap()
+        );
+    }
+
+    #[test]
+    fn rgbaf32_from_rgba8_snorm_invalid() {
+        let result = decode_rgba::<Rgba8Snorm, f32>(1, 1, &[0; 3]);
+        assert_eq!(
+            result,
+            Err(SurfaceError::NotEnoughData {
+                expected: 4,
+                actual: 3
             })
         );
     }

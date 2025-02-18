@@ -6,7 +6,7 @@ use crate::{
     mip_dimension,
     rgba::{
         decode_rgba, Bgr8, Bgra4, Bgra8, R16Snorm, R8Snorm, Rf16, Rf32, Rg16, Rg16Snorm, Rg8,
-        Rg8Snorm, Rgba16, Rgba16Snorm, Rgba8, Rgbaf16, Rgbaf32, Rgf16, Rgf32, R16, R8,
+        Rg8Snorm, Rgba16, Rgba16Snorm, Rgba8, Rgba8Snorm, Rgbaf16, Rgbaf32, Rgf16, Rgf32, R16, R8,
     },
     ImageFormat, Surface, SurfaceRgba32Float, SurfaceRgba8,
 };
@@ -136,6 +136,7 @@ impl Decode for u8 {
             F::Rgba16Float => decode_rgba::<Rgbaf16, u8>(width, height, data),
             F::Rgba32Float => decode_rgba::<Rgbaf32, u8>(width, height, data),
             F::Bgra8Unorm | F::Bgra8UnormSrgb => decode_rgba::<Bgra8, u8>(width, height, data),
+            F::Rgba8Snorm => decode_rgba::<Rgba8Snorm, u8>(width, height, data),
             F::Bgra4Unorm => decode_rgba::<Bgra4, u8>(width, height, data),
             F::Bgr8Unorm => decode_rgba::<Bgr8, u8>(width, height, data),
             F::R16Unorm => decode_rgba::<R16, u8>(width, height, data),
@@ -163,6 +164,7 @@ impl Decode for f32 {
         match image_format {
             F::R8Snorm => decode_rgba::<R8Snorm, f32>(width, height, data),
             F::Rg8Snorm => decode_rgba::<Rg8Snorm, f32>(width, height, data),
+            F::Rgba8Snorm => decode_rgba::<Rgba8Snorm, f32>(width, height, data),
             F::BC4RSnorm => decode_bcn::<Bc4S, f32>(width, height, data),
             F::BC5RgSnorm => decode_bcn::<Bc5S, f32>(width, height, data),
             F::BC6hRgbUfloat | F::BC6hRgbSfloat => decode_bcn::<Bc6, f32>(width, height, data),
