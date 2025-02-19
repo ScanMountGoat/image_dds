@@ -158,6 +158,7 @@ pub enum ImageFormat {
     /// BPTC (unorm)
     BC7RgbaUnorm,
     BC7RgbaUnormSrgb,
+    Rgba8Snorm,
     R16Unorm,
     R16Snorm,
     Rg16Unorm,
@@ -168,7 +169,7 @@ pub enum ImageFormat {
     Rg16Float,
     R32Float,
     Rg32Float,
-    Rgba8Snorm,
+    Rgb32Float,
 }
 
 impl ImageFormat {
@@ -233,6 +234,7 @@ impl ImageFormat {
             ImageFormat::R16Float => 2,
             ImageFormat::R32Float => 4,
             ImageFormat::Rgba8Snorm => 4,
+            ImageFormat::Rgb32Float => 12,
         }
     }
 }
