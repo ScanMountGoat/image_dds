@@ -261,6 +261,7 @@ fn image_format_from_dxgi(format: DxgiFormat) -> Option<ImageFormat> {
         DxgiFormat::R32G32_Float => Some(ImageFormat::Rg32Float),
         DxgiFormat::R8G8B8A8_SNorm => Some(ImageFormat::Rgba8Snorm),
         DxgiFormat::R32G32B32_Float => Some(ImageFormat::Rgb32Float),
+        DxgiFormat::B5G5R5A1_UNorm => Some(ImageFormat::Rgb5A1Unorm),
         _ => None,
     }
 }
@@ -283,6 +284,7 @@ fn image_format_from_d3d(format: D3DFormat) -> Option<ImageFormat> {
         D3DFormat::A32B32G32R32F => Some(ImageFormat::Rgba32Float),
         D3DFormat::G16R16 => Some(ImageFormat::Rg16Unorm),
         D3DFormat::A16B16G16R16 => Some(ImageFormat::Rgba16Unorm),
+        D3DFormat::A1R5G5B5 => Some(ImageFormat::Rgb5A1Unorm),
         _ => None,
     }
 }
@@ -306,6 +308,7 @@ fn image_format_from_fourcc(fourcc: FourCC) -> Option<ImageFormat> {
 }
 
 fn d3d_from_image_format(value: ImageFormat) -> Option<D3DFormat> {
+    // bc4 and bc5 are handled by fourcc.
     match value {
         ImageFormat::BC1RgbaUnorm => Some(D3DFormat::DXT1),
         ImageFormat::BC1RgbaUnormSrgb => Some(D3DFormat::DXT1),
@@ -313,10 +316,10 @@ fn d3d_from_image_format(value: ImageFormat) -> Option<D3DFormat> {
         ImageFormat::BC2RgbaUnormSrgb => Some(D3DFormat::DXT2),
         ImageFormat::BC3RgbaUnorm => Some(D3DFormat::DXT5),
         ImageFormat::BC3RgbaUnormSrgb => Some(D3DFormat::DXT5),
-        ImageFormat::BC4RUnorm => None,  // fourcc
-        ImageFormat::BC4RSnorm => None,  // fourcc
-        ImageFormat::BC5RgUnorm => None, // fourcc
-        ImageFormat::BC5RgSnorm => None, // fourcc
+        ImageFormat::BC4RUnorm => None,
+        ImageFormat::BC4RSnorm => None,
+        ImageFormat::BC5RgUnorm => None,
+        ImageFormat::BC5RgSnorm => None,
         ImageFormat::BC6hRgbUfloat => None,
         ImageFormat::BC6hRgbSfloat => None,
         ImageFormat::BC7RgbaUnorm => None,
@@ -345,6 +348,7 @@ fn d3d_from_image_format(value: ImageFormat) -> Option<D3DFormat> {
         ImageFormat::R32Float => Some(D3DFormat::R32F),
         ImageFormat::Rgba8Snorm => None,
         ImageFormat::Rgb32Float => None,
+        ImageFormat::Rgb5A1Unorm => Some(D3DFormat::A1R5G5B5),
     }
 }
 
@@ -388,6 +392,7 @@ fn dxgi_from_image_format(value: ImageFormat) -> Option<DxgiFormat> {
         ImageFormat::R32Float => Some(DxgiFormat::R32_Float),
         ImageFormat::Rgba8Snorm => Some(DxgiFormat::R8G8B8A8_SNorm),
         ImageFormat::Rgb32Float => Some(DxgiFormat::R32G32B32_Float),
+        ImageFormat::Rgb5A1Unorm => Some(DxgiFormat::B5G5R5A1_UNorm),
     }
 }
 

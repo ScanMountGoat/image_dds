@@ -44,6 +44,10 @@ pub struct Bgra8([u8; 4]);
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct Bgra4([u8; 2]);
 
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+pub struct Bgr5A1([u8; 2]);
+
 pub trait GetPixel {
     fn get_pixel(data: &[u8], index: usize) -> Self;
 }
@@ -83,7 +87,8 @@ pixel_impl!(
     Rf32,
     Rgf32,
     Rgbf32,
-    Rgbaf32
+    Rgbaf32,
+    Bgr5A1
 );
 
 pub trait ToRgba<T> {
@@ -269,9 +274,10 @@ impl<T: Channel> ToRgba<f32> for Rgba<T> {
 }
 
 fn pixel_from_bytes<const N: usize, P: FromBytes>(data: &[u8], index: usize) -> [P; N] {
+    let pixel_size = std::mem::size_of::<[P; N]>();
+    let size = std::mem::size_of::<P>();
     std::array::from_fn(|i| {
-        let size = std::mem::size_of::<P>();
-        let start = (index + i) * size;
+        let start = index * pixel_size + i * size;
         P::from_bytes(&data[start..start + size])
     })
 }
@@ -307,7 +313,7 @@ impl FromRgba<u8> for Bgra8 {
 impl ToRgba<u8> for Bgra4 {
     fn to_rgba(self) -> [u8; 4] {
         // Expand 4 bit input channels to 8 bit output channels.
-        // Most significant bit -> ARGB -> least significant bit.
+        // Most significant bit -> AAAARRRRGGGGBBBB -> least significant bit.
         [
             unorm4_to_unorm8(self.0[1] & 0xF),
             unorm4_to_unorm8(self.0[0] >> 4),
@@ -320,11 +326,46 @@ impl ToRgba<u8> for Bgra4 {
 impl FromRgba<u8> for Bgra4 {
     fn from_rgba(rgba: [u8; 4]) -> Self {
         // Pack each channel into 4 bits.
-        // Most significant bit -> ARGB -> least significant bit.
+        // Most significant bit -> AAAARRRRGGGGBBBB -> least significant bit.
         Self([
             ((unorm8_to_unorm4(rgba[1])) << 4) | (unorm8_to_unorm4(rgba[2])),
             ((unorm8_to_unorm4(rgba[3])) << 4) | (unorm8_to_unorm4(rgba[0])),
         ])
+    }
+}
+
+impl ToRgba<u8> for Bgr5A1 {
+    fn to_rgba(self) -> [u8; 4] {
+        // Expand 5 bit input channels to 8 bit output channels.
+        // Most significant bit -> GGGBBBBBARRRRRGG -> least significant bit.
+        let bytes = u16::from_be_bytes(self.0);
+        [
+            unorm5_to_unorm8(((bytes >> 2) & 0x1F) as u8),
+            unorm5_to_unorm8((bytes.rotate_left(3) & 0x1F) as u8),
+            unorm5_to_unorm8(((bytes >> 8) & 0x1F) as u8),
+            if ((bytes >> 7) & 0x1) == 1 {
+                255u8
+            } else {
+                0u8
+            },
+        ]
+    }
+}
+
+impl FromRgba<u8> for Bgr5A1 {
+    fn from_rgba(rgba: [u8; 4]) -> Self {
+        // Pack RGB channels into 5 bits and alpha into 1 bit.
+        // TODO: What's the best way to truncate alpha?
+        let r = unorm8_to_unorm5(rgba[0]);
+        let g = unorm8_to_unorm5(rgba[1]);
+        let b = unorm8_to_unorm5(rgba[2]);
+        let a = (rgba[3] > 0) as u8;
+
+        let bytes = ((r as u16) << 2)
+            | ((g as u16).rotate_right(3))
+            | ((b as u16) << 8)
+            | ((a as u16) << 7);
+        Self(bytes.to_be_bytes())
     }
 }
 
@@ -418,6 +459,7 @@ mod tests {
         assert_eq!(decode_rgba::<Rgf32, u8>(1, 1, &[]), err(8));
         assert_eq!(decode_rgba::<Rgbf32, u8>(1, 1, &[]), err(12));
         assert_eq!(decode_rgba::<Rgbaf32, u8>(1, 1, &[]), err(16));
+        assert_eq!(decode_rgba::<Bgr5A1, u8>(1, 1, &[]), err(2));
     }
 
     #[test]
@@ -449,6 +491,7 @@ mod tests {
         assert_eq!(encode_rgba::<Rgf32, u8>(1, 1, &[]), err);
         assert_eq!(encode_rgba::<Rgbf32, u8>(1, 1, &[]), err);
         assert_eq!(encode_rgba::<Rgbaf32, u8>(1, 1, &[]), err);
+        assert_eq!(encode_rgba::<Bgr5A1, u8>(1, 1, &[]), err);
     }
 
     #[test]
@@ -917,6 +960,22 @@ mod tests {
         assert_eq!(
             vec![255, 51, 0, 204],
             decode_rgba::<Bgra4, u8>(1, 1, &[0x30, 0xCF]).unwrap()
+        );
+    }
+
+    #[test]
+    fn bgr5a1_from_rgba8() {
+        assert_eq!(
+            vec![0x28, 0xB5, 0x29, 0xB9],
+            encode_rgba::<Bgr5A1, u8>(2, 1, &[107, 74, 66, 255, 115, 74, 74, 255]).unwrap()
+        );
+    }
+
+    #[test]
+    fn rgba8_from_bgr5a1() {
+        assert_eq!(
+            vec![107, 74, 66, 255, 115, 74, 74, 255],
+            decode_rgba::<Bgr5A1, u8>(2, 1, &[0x28, 0xB5, 0x29, 0xB9]).unwrap()
         );
     }
 

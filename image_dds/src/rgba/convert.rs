@@ -183,6 +183,14 @@ pub fn unorm8_to_unorm16(x: u8) -> u16 {
     x as u16 * 257
 }
 
+pub fn unorm5_to_unorm8(x: u8) -> u8 {
+    ((x as u16 * 527 + 23) >> 6) as u8
+}
+
+pub fn unorm8_to_unorm5(x: u8) -> u8 {
+    ((x as u16 * 249 + 1014) >> 11) as u8
+}
+
 // TODO: Find an efficient way to do this and add tests.
 pub fn snorm16_to_unorm8(x: u16) -> u8 {
     // Remap [-1, 1] to [0, 1] to fit in an unsigned integer.
@@ -299,5 +307,27 @@ mod tests {
         }
         // Explictly test the value with no true inverse.
         assert_eq!(snorm16_to_float(32768), -1.0);
+    }
+
+    fn unorm5_to_unorm8_reference(x: u8) -> u8 {
+        (x as f32 / 31.0 * 255.0).round() as u8
+    }
+
+    fn unorm8_to_unorm5_reference(x: u8) -> u8 {
+        (x as f32 / 255.0 * 31.0).round() as u8
+    }
+
+    #[test]
+    fn convert_unorm8_to_unorm5() {
+        for i in 0..=255 {
+            assert_eq!(unorm8_to_unorm5(i), unorm8_to_unorm5_reference(i));
+        }
+    }
+
+    #[test]
+    fn convert_unorm5_to_unorm8() {
+        for i in 0..=31 {
+            assert_eq!(unorm5_to_unorm8(i), unorm5_to_unorm8_reference(i));
+        }
     }
 }
