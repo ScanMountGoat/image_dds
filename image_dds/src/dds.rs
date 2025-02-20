@@ -261,7 +261,7 @@ fn image_format_from_dxgi(format: DxgiFormat) -> Option<ImageFormat> {
         DxgiFormat::R32G32_Float => Some(ImageFormat::Rg32Float),
         DxgiFormat::R8G8B8A8_SNorm => Some(ImageFormat::Rgba8Snorm),
         DxgiFormat::R32G32B32_Float => Some(ImageFormat::Rgb32Float),
-        DxgiFormat::B5G5R5A1_UNorm => Some(ImageFormat::Rgb5A1Unorm),
+        DxgiFormat::B5G5R5A1_UNorm => Some(ImageFormat::Bgr5A1Unorm),
         _ => None,
     }
 }
@@ -284,7 +284,7 @@ fn image_format_from_d3d(format: D3DFormat) -> Option<ImageFormat> {
         D3DFormat::A32B32G32R32F => Some(ImageFormat::Rgba32Float),
         D3DFormat::G16R16 => Some(ImageFormat::Rg16Unorm),
         D3DFormat::A16B16G16R16 => Some(ImageFormat::Rgba16Unorm),
-        D3DFormat::A1R5G5B5 => Some(ImageFormat::Rgb5A1Unorm),
+        D3DFormat::A1R5G5B5 => Some(ImageFormat::Bgr5A1Unorm),
         _ => None,
     }
 }
@@ -348,7 +348,7 @@ fn d3d_from_image_format(value: ImageFormat) -> Option<D3DFormat> {
         ImageFormat::R32Float => Some(D3DFormat::R32F),
         ImageFormat::Rgba8Snorm => None,
         ImageFormat::Rgb32Float => None,
-        ImageFormat::Rgb5A1Unorm => Some(D3DFormat::A1R5G5B5),
+        ImageFormat::Bgr5A1Unorm => Some(D3DFormat::A1R5G5B5),
     }
 }
 
@@ -392,7 +392,7 @@ fn dxgi_from_image_format(value: ImageFormat) -> Option<DxgiFormat> {
         ImageFormat::R32Float => Some(DxgiFormat::R32_Float),
         ImageFormat::Rgba8Snorm => Some(DxgiFormat::R8G8B8A8_SNorm),
         ImageFormat::Rgb32Float => Some(DxgiFormat::R32G32B32_Float),
-        ImageFormat::Rgb5A1Unorm => Some(DxgiFormat::B5G5R5A1_UNorm),
+        ImageFormat::Bgr5A1Unorm => Some(DxgiFormat::B5G5R5A1_UNorm),
     }
 }
 

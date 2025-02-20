@@ -151,7 +151,7 @@ impl Decode for u8 {
             F::R16Float => decode_rgba::<Rf16, u8>(width, height, data),
             F::R32Float => decode_rgba::<Rf32, u8>(width, height, data),
             F::Rgb32Float => decode_rgba::<Rgbf32, u8>(width, height, data),
-            F::Rgb5A1Unorm => decode_rgba::<Bgr5A1, u8>(width, height, data),
+            F::Bgr5A1Unorm => decode_rgba::<Bgr5A1, u8>(width, height, data),
         }
     }
 }

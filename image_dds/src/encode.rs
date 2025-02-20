@@ -424,7 +424,7 @@ impl Encode for u8 {
             F::Rg32Float => encode_rgba::<Rgf32, u8>(width, height, data),
             F::Rgb32Float => encode_rgba::<Rgbf32, u8>(width, height, data),
             F::Rgba32Float => encode_rgba::<Rgbaf32, u8>(width, height, data),
-            F::Rgb5A1Unorm => encode_rgba::<Bgr5A1, u8>(width, height, data),
+            F::Bgr5A1Unorm => encode_rgba::<Bgr5A1, u8>(width, height, data),
         }
     }
 }
