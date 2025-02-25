@@ -1,6 +1,60 @@
-//! # Introduction
-//! DDS can store the vast majority of both compressed and uncompressed GPU texture data.
-//! This includes uncompressed formats like [ImageFormat::Rgba8Unorm].
+//! # image_dds
+//! image_dds enables converting uncompressed image data to and from compressed formats.
+//!
+//! Start converting image data by creating a [Surface] and using one of the provided methods.
+//!
+//! # Usage
+//! The main conversion functions [image_from_dds] and [dds_from_image] convert between [ddsfile] and [image].
+//! For working with floating point images like EXR files, use [imagef32_from_dds] and [dds_from_imagef32].
+//!
+//! These functions are wrappers over conversion methods for [Surface], [SurfaceRgba8], and [SurfaceRgba32Float].
+//! These methods are ideal for internal conversions in libraries
+//! or applications that want to use [Surface] instead of DDS as an intermediate format.
+//!
+//! Surfaces may use owned or borrowed data depending on whether the operation is lossless or not.
+//! A [SurfaceRgba8] can represent a view over an [image::RgbaImage] without any copies, for example.
+//!
+//! For working with custom texture file formats like in video games,
+//! consider defining conversion methods to and from [Surface] to enable chaining operations.
+//! These methods may need to return an error if not all texture formats are supported by [ImageFormat].
+//!
+//! ```rust no_run
+//! # struct CustomTex;
+//! # struct
+//! # impl CustomTex {
+//! #     fn to_surface(&self) -> Result<image_dds::Surface<Vec<u8>>, Box<dyn std::error::Error>> {
+//! #         todo!()
+//! #     }
+//! #     fn from_surface<T: AsRef<[u8]>>(
+//! #         surface: image_dds::Surface<T>,
+//! #     ) -> Result<image_dds::Surface<Vec<u8>>, Box<dyn std::error::Error>> {
+//! #         todo!()
+//! #     }
+//! # }
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # let custom_tex = CustomTex;
+//! let dds = custom_tex.to_surface()?.to_dds()?;
+//!
+//! let image = image::open("cat.png").unwrap().to_rgba8();
+//! let surface = image_dds::SurfaceRgba8::from_image(image).encode(
+//!     image_dds::ImageFormat::Bc7RgbaUnorm,
+//!     image_dds::Quality::Normal,
+//!     image_dds::Mipmaps::GeneratedAutomatic,
+//! )?;
+//! let new_custom_tex = CustomTex::from_surface(surface)?;
+//! # Ok(()) }
+//! ```
+//!
+//! # Features
+//! Despite the name, neither the `ddsfile` nor `image` crates are required
+//! and can be disabled in the Cargo.toml by setting `default-features = false`.
+//! The `"ddsfile"` and `"image"` features can then be enabled individually.
+//! The `"encode"` feature is enabled by default but can be disabled
+//! to resolve compilation errors on some targets if not needed.
+//!
+//! # Direct Draw Surface (DDS)
+//! DDS can store GPU texture data in a variety of formats.
+//! This includes compressed formats like [ImageFormat::BC7RgbaUnorm] or uncompressed formats like [ImageFormat::Rgba8Unorm].
 //! Libraries and applications for working with custom GPU texture file formats often support DDS.
 //! This makes DDS a good interchange format for texture conversion workflows.
 //!
@@ -14,33 +68,16 @@
 //! conversions to and from image and DDS provided by image_dds.
 //!
 //! Although widely supported by modern desktop and console hardware, not all contexts
-//! support compressed texture formats. DDS plugins for image editors often don't support newer
-//! compression formats like BC7. Rendering APIs may not support compressed formats or only make it available
+//! support compressed texture formats. DDS plugins for image editors may not support newer
+//! compression formats like BC7. Rendering APIs may not support some compressed formats or only make it available
 //! via an extension such as in the browser.
 //! image_dds supports decoding surfaces to RGBA `u8` or `f32` for
 //! better compatibility at the cost of increased memory usage.
 //!
-//! # Usage
-//! The main conversion functions [image_from_dds] and [dds_from_image] convert between [ddsfile] and [image].
-//! For working with floating point images like EXR files, use [imagef32_from_dds] and [dds_from_imagef32].
-//!
-//! These functions are wrappers over conversion methods for [Surface], [SurfaceRgba8], and [SurfaceRgba32Float].
-//! These methods are ideal for internal conversions in libraries
-//! or applications that want to use [Surface] instead of DDS as an intermediate format.
-//!
-//! Surfaces may use owned or borrowed data depending on whether the operation is lossless or not.
-//! A [SurfaceRgba8] can represent a view over an [image::RgbaImage] without any copies, for example.
-//!
-//! # Features
-//! Despite the name, neither the `ddsfile` nor `image` crates are required
-//! and can be disabled in the Cargo.toml by setting `default-features = false`.
-//! The `"ddsfile"` and `"image"` features can then be enabled individually.
-//! The `"encode"` feature is enabled by default but can be disabled
-//! to resolve compilation errors on some targets if not needed.
-//!
 //! # Limitations
 //! Not all targets will compile by default due to intel-tex-rs-2 using the Intel ISPC compiler
 //! and lacking precompiled kernels for all targets.
+//! Disable the `"encode"` feature if not needed.
 
 mod bcn;
 mod rgba;
