@@ -348,7 +348,6 @@ impl<T: AsRef<[f32]>> SurfaceRgba32Float<T> {
     /// The dimensions of the returned data should be calculated using [mip_dimension].
     /// Returns [None] if the expected range is not fully contained within the buffer.
     pub fn get(&self, layer: u32, depth_level: u32, mipmap: u32) -> Option<&[f32]> {
-        // TODO: Is it safe to cast like this?
         get_mipmap(
             self.data.as_ref(),
             (self.width, self.height, self.depth),
@@ -358,7 +357,6 @@ impl<T: AsRef<[f32]>> SurfaceRgba32Float<T> {
             depth_level,
             mipmap,
         )
-        .map(bytemuck::cast_slice)
     }
 
     /// Get the image corresponding to the specified `layer`, `depth_level`, and `mipmap`.

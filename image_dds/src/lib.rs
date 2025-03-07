@@ -20,7 +20,6 @@
 //!
 //! ```rust no_run
 //! # struct CustomTex;
-//! # struct
 //! # impl CustomTex {
 //! #     fn to_surface(&self) -> Result<image_dds::Surface<Vec<u8>>, Box<dyn std::error::Error>> {
 //! #         todo!()
@@ -36,8 +35,8 @@
 //! let dds = custom_tex.to_surface()?.to_dds()?;
 //!
 //! let image = image::open("cat.png").unwrap().to_rgba8();
-//! let surface = image_dds::SurfaceRgba8::from_image(image).encode(
-//!     image_dds::ImageFormat::Bc7RgbaUnorm,
+//! let surface = image_dds::SurfaceRgba8::from_image(&image).encode(
+//!     image_dds::ImageFormat::BC7RgbaUnorm,
 //!     image_dds::Quality::Normal,
 //!     image_dds::Mipmaps::GeneratedAutomatic,
 //! )?;
@@ -340,16 +339,6 @@ fn downsample_rgba<T: Channel>(
     new_data
 }
 
-#[inline(always)]
-fn div_round_up(x: usize, d: usize) -> usize {
-    (x + d - 1) / d
-}
-
-#[inline(always)]
-fn round_up(x: usize, n: usize) -> usize {
-    ((x + n - 1) / n) * n
-}
-
 fn calculate_offset(
     layer: u32,
     depth_level: u32,
@@ -415,9 +404,10 @@ fn mip_size(
     block_depth: usize,
     block_size_in_bytes: usize,
 ) -> Option<usize> {
-    div_round_up(width, block_width)
-        .checked_mul(div_round_up(height, block_height))
-        .and_then(|v| v.checked_mul(div_round_up(depth, block_depth)))
+    width
+        .div_ceil(block_width)
+        .checked_mul(height.div_ceil(block_height))
+        .and_then(|v| v.checked_mul(depth.div_ceil(block_depth)))
         .and_then(|v| v.checked_mul(block_size_in_bytes))
 }
 

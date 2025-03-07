@@ -11,8 +11,6 @@ pub trait BcnDecode<Pixel> {
     // Fixing the length should reduce the amount of bounds checking.
     fn decompress_block(block: &Self::CompressedBlock) -> [[Pixel; BLOCK_WIDTH]; BLOCK_HEIGHT];
 }
-
-// Allows block types to read and copy buffer data to enforce alignment.
 pub trait ReadBlock {
     const SIZE_IN_BYTES: usize;
 
@@ -103,7 +101,7 @@ impl BcnDecode<[u8; 4]> for Bc4 {
             for x in 0..BLOCK_WIDTH {
                 // It's a convention in some programs display BC4 in the red channel.
                 // Use grayscale instead to avoid confusing it with colored data.
-                // TODO: Match how channels handled when compressing RGBA data to BC4?
+                // TODO: Match how channels are handled when compressing RGBA data to BC4?
                 let r = decompressed_r[y][x];
                 decompressed[y][x] = [r, r, r, 255u8];
             }
@@ -133,7 +131,7 @@ impl BcnDecode<[u8; 4]> for Bc4S {
             for x in 0..BLOCK_WIDTH {
                 // It's a convention in some programs to display BC4 in the red channel.
                 // Use grayscale instead to avoid confusing it with colored data.
-                // TODO: Match how channels handled when compressing RGBA data to BC4?
+                // TODO: Match how channels are handled when compressing RGBA data to BC4?
                 let r = snorm8_to_unorm8(decompressed_r[y][x]);
                 decompressed[y][x] = [r, r, r, 255u8];
             }
@@ -271,7 +269,6 @@ impl BcnDecode<[f32; 4]> for Bc6 {
         // Convert to single precision since f32 is better supported on CPUs.
         let mut decompressed_rgb = [[[0.0; 3]; BLOCK_WIDTH]; BLOCK_HEIGHT];
 
-        // Cast the pointer to a less strictly aligned type.
         // The pitch is in terms of floats rather than bytes.
         bcdec_rs::bc6h_float(
             block,
@@ -362,12 +359,9 @@ where
     let mut block_start = 0;
     for y in (0..height).step_by(BLOCK_HEIGHT) {
         for x in (0..width).step_by(BLOCK_WIDTH) {
-            // Use a special type to enforce alignment.
             let block = F::CompressedBlock::read_block(data, block_start);
-            // TODO: Add rgba8 and rgbaf32 variants for decompress block.
             let decompressed_block = F::decompress_block(&block);
 
-            // TODO: This can be generic over the pixel type to also support float.
             // Each block is 4x4, so we need to update multiple rows.
             put_rgba_block(
                 &mut rgba,
@@ -412,8 +406,6 @@ fn put_rgba_block<T: Pod>(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // TODO: Add decoding tests?
 
     #[test]
     fn put_rgba_block_4x4() {

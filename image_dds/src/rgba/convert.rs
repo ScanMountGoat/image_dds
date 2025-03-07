@@ -130,12 +130,10 @@ impl Channel for f32 {
 
 pub fn snorm8_to_unorm8(x: u8) -> u8 {
     // Validated against decoding R8Snorm DDS with GPU and paint.net (DirectXTex).
-    if x < 128 {
-        x + 128
-    } else if x == 128 {
-        0
-    } else {
-        x - 129
+    match x.cmp(&128) {
+        std::cmp::Ordering::Less => x + 128,
+        std::cmp::Ordering::Equal => 0,
+        std::cmp::Ordering::Greater => x - 129,
     }
 }
 

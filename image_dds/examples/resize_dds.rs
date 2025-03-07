@@ -40,7 +40,7 @@ fn main() {
                 height,
                 image::imageops::FilterType::Triangle,
             );
-            data.extend_from_slice(&resized_image.as_raw());
+            data.extend_from_slice(resized_image.as_raw());
         }
     }
 

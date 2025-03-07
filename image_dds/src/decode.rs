@@ -296,7 +296,6 @@ mod tests {
 
     #[test]
     fn decode_layers_mipmaps_rgba8_no_mipmaps() {
-        // TODO: How to handle this?
         let rgba8 = Surface {
             width: 4,
             height: 4,
@@ -351,7 +350,6 @@ mod tests {
 
     #[test]
     fn decode_layers_mipmaps_rgbaf32_no_mipmaps() {
-        // TODO: How to handle this?
         let rgbaf32 = Surface {
             width: 4,
             height: 4,

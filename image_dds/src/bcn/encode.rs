@@ -318,7 +318,7 @@ mod tests {
     // TODO: Add tests for validating the input length.
     // TODO: Will compression fail for certain pixel values (test with fuzz tests?)
     fn check_compress_bcn<T: BcnEncode<u8>>(rgba: &[u8], quality: Quality) {
-        encode_bcn::<T, u8>(4, 4, &rgba, quality).unwrap();
+        encode_bcn::<T, u8>(4, 4, rgba, quality).unwrap();
     }
 
     #[test]

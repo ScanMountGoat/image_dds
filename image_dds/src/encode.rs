@@ -7,8 +7,8 @@ use crate::rgba::{
     R8,
 };
 use crate::{
-    downsample_rgba, error::SurfaceError, max_mipmap_count, mip_dimension, round_up, ImageFormat,
-    Mipmaps, Quality, Surface, SurfaceRgba8,
+    downsample_rgba, error::SurfaceError, max_mipmap_count, mip_dimension, ImageFormat, Mipmaps,
+    Quality, Surface, SurfaceRgba8,
 };
 use crate::{
     rgba::convert::{float_to_snorm8, Channel},
@@ -321,9 +321,9 @@ fn physical_dimensions(
     // https://learn.microsoft.com/en-us/windows/win32/direct3d10/d3d10-graphics-programming-guide-resources-block-compression
     let (block_width, block_height, block_depth) = block_dimensions;
     (
-        round_up(width as usize, block_width as usize),
-        round_up(height as usize, block_height as usize),
-        round_up(depth as usize, block_depth as usize),
+        width.next_multiple_of(block_width) as usize,
+        height.next_multiple_of(block_height) as usize,
+        depth.next_multiple_of(block_depth) as usize,
     )
 }
 
