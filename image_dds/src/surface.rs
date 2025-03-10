@@ -248,12 +248,13 @@ impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
     pub fn to_image(&self, mipmap: u32) -> Result<image::RgbaImage, CreateImageError> {
         // Mipmaps have different dimensions.
         // A single 2D image can only represent data from a single mip level across layers.
-        let image_data: Vec<_> = (0..self.layers)
-            .flat_map(|layer| {
-                (0..self.depth).flat_map(move |level| self.get(layer, level, mipmap).unwrap())
-            })
-            .copied()
-            .collect();
+        let mut image_data = Vec::new();
+        for layer in 0..self.layers {
+            for level in 0..self.depth {
+                let data = self.get(layer, level, mipmap).unwrap();
+                image_data.extend_from_slice(&data);
+            }
+        }
         let data_length = image_data.len();
 
         // Arrange depth and array layers vertically.
@@ -443,12 +444,13 @@ impl<T: AsRef<[f32]>> SurfaceRgba32Float<T> {
     pub fn to_image(&self, mipmap: u32) -> Result<image::Rgba32FImage, CreateImageError> {
         // Mipmaps have different dimensions.
         // A single 2D image can only represent data from a single mip level across layers.
-        let image_data: Vec<_> = (0..self.layers)
-            .flat_map(|layer| {
-                (0..self.depth).flat_map(move |level| self.get(layer, level, mipmap).unwrap())
-            })
-            .copied()
-            .collect();
+        let mut image_data = Vec::new();
+        for layer in 0..self.layers {
+            for level in 0..self.depth {
+                let data = self.get(layer, level, mipmap).unwrap();
+                image_data.extend_from_slice(&data);
+            }
+        }
         let data_length = image_data.len();
 
         // Arrange depth slices horizontally and array layers vertically.

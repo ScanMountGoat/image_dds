@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 * Improved accuracy for encoding to `Bgra4Unorm`.
+* Optimized performance of `SurfaceRgba8::to_image` and `SurfaceRgbaf32Float::to_image`.
 
 ## 0.7.1 - 2025-01-28
 ### Added
