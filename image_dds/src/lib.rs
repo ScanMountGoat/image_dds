@@ -34,7 +34,7 @@
 //! # let custom_tex = CustomTex;
 //! let dds = custom_tex.to_surface()?.to_dds()?;
 //!
-//! let image = image::open("cat.png").unwrap().to_rgba8();
+//! let image = image::open("cat.png")?.to_rgba8();
 //! let surface = image_dds::SurfaceRgba8::from_image(&image).encode(
 //!     image_dds::ImageFormat::BC7RgbaUnorm,
 //!     image_dds::Quality::Normal,
