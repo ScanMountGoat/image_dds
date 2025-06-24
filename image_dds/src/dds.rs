@@ -441,4 +441,96 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn dds_to_from_surface_3d() {
+        for image_format in ImageFormat::iter() {
+            let data = vec![0u8; 4 * 4 * 4 * image_format.block_size_in_bytes()];
+            let surface = Surface {
+                width: 4,
+                height: 4,
+                depth: 4,
+                layers: 1,
+                mipmaps: 1,
+                image_format,
+                data: data.as_slice(),
+            };
+            assert_eq!(
+                surface,
+                Surface::from_dds(&surface.to_dds().unwrap()).unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn dds_from_image_formats() {
+        let image = image::RgbaImage::new(4, 8);
+        for image_format in ImageFormat::iter() {
+            let dds = dds_from_image(
+                &image,
+                image_format,
+                Quality::Fast,
+                Mipmaps::GeneratedAutomatic,
+            )
+            .unwrap();
+            assert_eq!(4, dds.get_width());
+            assert_eq!(8, dds.get_height());
+        }
+    }
+
+    #[test]
+    fn image_from_dds_formats() {
+        for image_format in ImageFormat::iter() {
+            let data = vec![0u8; 4 * 8 * image_format.block_size_in_bytes()];
+            let surface = Surface {
+                width: 4,
+                height: 8,
+                depth: 1,
+                layers: 1,
+                mipmaps: 1,
+                image_format,
+                data: data.as_slice(),
+            };
+            let dds = surface.to_dds().unwrap();
+
+            let image = image_from_dds(&dds, 0).unwrap();
+            assert_eq!((4, 8), image.dimensions());
+        }
+    }
+
+    #[test]
+    fn dds_from_imagef32_formats() {
+        let image = image::Rgba32FImage::new(4, 8);
+        for image_format in ImageFormat::iter() {
+            let dds = dds_from_imagef32(
+                &image,
+                image_format,
+                Quality::Fast,
+                Mipmaps::GeneratedAutomatic,
+            )
+            .unwrap();
+            assert_eq!(4, dds.get_width());
+            assert_eq!(8, dds.get_height());
+        }
+    }
+
+    #[test]
+    fn imagef32_from_dds_formats() {
+        for image_format in ImageFormat::iter() {
+            let data = vec![0u8; 4 * 8 * image_format.block_size_in_bytes()];
+            let surface = Surface {
+                width: 4,
+                height: 8,
+                depth: 1,
+                layers: 1,
+                mipmaps: 1,
+                image_format,
+                data: data.as_slice(),
+            };
+            let dds = surface.to_dds().unwrap();
+
+            let image = imagef32_from_dds(&dds, 0).unwrap();
+            assert_eq!((4, 8), image.dimensions());
+        }
+    }
 }
