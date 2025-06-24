@@ -252,7 +252,7 @@ impl<T: AsRef<[u8]>> SurfaceRgba8<T> {
         for layer in 0..self.layers {
             for level in 0..self.depth {
                 let data = self.get(layer, level, mipmap).unwrap();
-                image_data.extend_from_slice(&data);
+                image_data.extend_from_slice(data);
             }
         }
         let data_length = image_data.len();
@@ -448,7 +448,7 @@ impl<T: AsRef<[f32]>> SurfaceRgba32Float<T> {
         for layer in 0..self.layers {
             for level in 0..self.depth {
                 let data = self.get(layer, level, mipmap).unwrap();
-                image_data.extend_from_slice(&data);
+                image_data.extend_from_slice(data);
             }
         }
         let data_length = image_data.len();
