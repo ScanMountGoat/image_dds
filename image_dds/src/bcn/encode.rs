@@ -376,4 +376,15 @@ mod tests {
         check_compress_bcn::<Bc7>(&rgba, Quality::Normal);
         check_compress_bcn::<Bc7>(&rgba, Quality::Slow);
     }
+
+    #[test]
+    fn encode_bcn_not_enough_data() {
+        assert_eq!(
+            Err(SurfaceError::NotEnoughData {
+                expected: 64,
+                actual: 60
+            }),
+            encode_bcn::<Bc7, u8>(4, 4, &[0; 60], Quality::Fast)
+        );
+    }
 }

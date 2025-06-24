@@ -542,3 +542,283 @@ fn get_mipmap<T>(
     let count = size_in_bytes / std::mem::size_of::<T>();
     data.get(start..start + count)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn surface_as_ref() {
+        assert_eq!(
+            Surface {
+                width: 4,
+                height: 4,
+                depth: 1,
+                layers: 1,
+                mipmaps: 1,
+                image_format: ImageFormat::BC7RgbaUnorm,
+                data: &[0u8; 4 * 4][..],
+            },
+            Surface {
+                width: 4,
+                height: 4,
+                depth: 1,
+                layers: 1,
+                mipmaps: 1,
+                image_format: ImageFormat::BC7RgbaUnorm,
+                data: vec![0u8; 4 * 4],
+            }
+            .as_ref()
+        );
+    }
+
+    #[test]
+    fn surface_rgba8_as_ref() {
+        assert_eq!(
+            SurfaceRgba8 {
+                width: 4,
+                height: 5,
+                depth: 1,
+                layers: 1,
+                mipmaps: 1,
+                data: &[0u8; 4 * 5 * 4][..],
+            },
+            SurfaceRgba8 {
+                width: 4,
+                height: 5,
+                depth: 1,
+                layers: 1,
+                mipmaps: 1,
+                data: vec![0u8; 4 * 5 * 4],
+            }
+            .as_ref()
+        );
+    }
+
+    #[test]
+    fn surface_rgbaf32_as_ref() {
+        assert_eq!(
+            SurfaceRgba32Float {
+                width: 4,
+                height: 5,
+                depth: 1,
+                layers: 1,
+                mipmaps: 1,
+                data: &[0.0; 4 * 5 * 4][..],
+            },
+            SurfaceRgba32Float {
+                width: 4,
+                height: 5,
+                depth: 1,
+                layers: 1,
+                mipmaps: 1,
+                data: vec![0.0; 4 * 5 * 4],
+            }
+            .as_ref()
+        );
+    }
+
+    #[test]
+    fn surface_rgba8_to_image() {
+        assert_eq!(
+            image::RgbaImage::new(4, 5),
+            SurfaceRgba8 {
+                width: 4,
+                height: 5,
+                depth: 1,
+                layers: 1,
+                mipmaps: 1,
+                data: vec![0u8; 4 * 5 * 4],
+            }
+            .to_image(0)
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn surface_rgba8_into_image() {
+        assert_eq!(
+            image::RgbaImage::new(4, 5),
+            SurfaceRgba8 {
+                width: 4,
+                height: 5,
+                depth: 1,
+                layers: 1,
+                mipmaps: 1,
+                data: vec![0u8; 4 * 5 * 4],
+            }
+            .into_image()
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn surface_rgba8_get_image() {
+        assert_eq!(
+            image::RgbaImage::new(4, 5),
+            SurfaceRgba8 {
+                width: 4,
+                height: 5,
+                depth: 1,
+                layers: 1,
+                mipmaps: 1,
+                data: vec![0u8; 4 * 5 * 4],
+            }
+            .get_image(0, 0, 0)
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn surface_rgba8_into_image_invalid_mipmaps() {
+        assert_eq!(
+            Err(CreateImageError::UnexpectedMipmapCount {
+                mipmaps: 2,
+                max_mipmaps: 1
+            }),
+            SurfaceRgba8 {
+                width: 4,
+                height: 4,
+                depth: 1,
+                layers: 1,
+                mipmaps: 2,
+                data: vec![0u8; 4 * 4 * 2 * 4],
+            }
+            .into_image()
+        );
+    }
+
+    #[test]
+    fn surface_rgbaf32_to_image() {
+        assert_eq!(
+            image::Rgba32FImage::new(4, 5),
+            SurfaceRgba32Float {
+                width: 4,
+                height: 5,
+                depth: 1,
+                layers: 1,
+                mipmaps: 1,
+                data: vec![0.0; 4 * 5 * 4],
+            }
+            .to_image(0)
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn surface_rgbaf32_into_image() {
+        assert_eq!(
+            image::Rgba32FImage::new(4, 5),
+            SurfaceRgba32Float {
+                width: 4,
+                height: 5,
+                depth: 1,
+                layers: 1,
+                mipmaps: 1,
+                data: vec![0.0; 4 * 5 * 4],
+            }
+            .into_image()
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn surface_rgbaf32_into_image_invalid_mipmaps() {
+        assert_eq!(
+            Err(CreateImageError::UnexpectedMipmapCount {
+                mipmaps: 2,
+                max_mipmaps: 1
+            }),
+            SurfaceRgba32Float {
+                width: 4,
+                height: 4,
+                depth: 1,
+                layers: 1,
+                mipmaps: 2,
+                data: vec![0.0; 4 * 4 * 2 * 4],
+            }
+            .into_image()
+        );
+    }
+
+    #[test]
+    fn surface_rgbaf32_get_image() {
+        assert_eq!(
+            image::Rgba32FImage::new(4, 5),
+            SurfaceRgba32Float {
+                width: 4,
+                height: 5,
+                depth: 1,
+                layers: 1,
+                mipmaps: 1,
+                data: vec![0.0; 4 * 5 * 4],
+            }
+            .get_image(0, 0, 0)
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn surface_rgba_from_image_depth() {
+        let image = image::RgbaImage::new(4, 24);
+        assert_eq!(
+            SurfaceRgba8 {
+                width: 4,
+                height: 4,
+                depth: 6,
+                layers: 1,
+                mipmaps: 1,
+                data: &[0; 4 * 4 * 6 * 4][..],
+            },
+            SurfaceRgba8::from_image_depth(&image, 6)
+        );
+    }
+
+    #[test]
+    fn surface_rgbaf32_from_image_depth() {
+        let image = image::Rgba32FImage::new(4, 24);
+        assert_eq!(
+            SurfaceRgba32Float {
+                width: 4,
+                height: 4,
+                depth: 6,
+                layers: 1,
+                mipmaps: 1,
+                data: &[0.0; 4 * 4 * 6 * 4][..],
+            },
+            SurfaceRgba32Float::from_image_depth(&image, 6)
+        );
+    }
+
+    #[test]
+    fn surface_rgba_from_image_layers() {
+        let image = image::RgbaImage::new(4, 24);
+        assert_eq!(
+            SurfaceRgba8 {
+                width: 4,
+                height: 4,
+                depth: 1,
+                layers: 6,
+                mipmaps: 1,
+                data: &[0; 4 * 4 * 6 * 4][..],
+            },
+            SurfaceRgba8::from_image_layers(&image, 6)
+        );
+    }
+
+    #[test]
+    fn surface_rgbaf32_from_image_layers() {
+        let image = image::Rgba32FImage::new(4, 24);
+        assert_eq!(
+            SurfaceRgba32Float {
+                width: 4,
+                height: 4,
+                depth: 1,
+                layers: 6,
+                mipmaps: 1,
+                data: &[0.0; 4 * 4 * 6 * 4][..],
+            },
+            SurfaceRgba32Float::from_image_layers(&image, 6)
+        );
+    }
+}
