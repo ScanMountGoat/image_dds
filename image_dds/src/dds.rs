@@ -88,7 +88,7 @@ impl<R: Read> DDSDecoder<R> {
 
     fn init(mut reader: R) -> ImageResult<Self> {
         let dds = Self::init_image(&mut reader)
-        .map_err(|e| ImageError::Decoding(DecodingError::new(ImageFormatHint::Unknown, e)))?;
+            .map_err(|e| ImageError::Decoding(DecodingError::new(ImageFormatHint::Unknown, e)))?;
 
         let ddsdecoder = Self {
             reader,
@@ -110,7 +110,10 @@ impl<R: Read> image::ImageDecoder for DDSDecoder<R> {
     }
 
     fn color_type(&self) -> image::ColorType {
-        let format = dds_image_format(&self.dds).unwrap();
+        let format = dds_image_format(&self.dds).unwrap_or(
+            // if fail, reply with r8 since `read_image` will fail anyways
+            ImageFormat::R8Unorm
+        );
         match format {
         ImageFormat::R16Unorm 
         | ImageFormat::R16Snorm 
@@ -131,7 +134,11 @@ impl<R: Read> image::ImageDecoder for DDSDecoder<R> {
     }
 
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
-        let format = dds_image_format(&self.dds).unwrap();
+        let format = dds_image_format(&self.dds)
+                    .map_err(|e| ImageError::Decoding(DecodingError::new(
+                        ImageFormatHint::Unknown, 
+                        format!("Unknown format: {:?}", e.fourcc)
+                    )))?;
         match format {
             ImageFormat::R16Unorm 
             | ImageFormat::R16Snorm 
@@ -150,7 +157,8 @@ impl<R: Read> image::ImageDecoder for DDSDecoder<R> {
                     &self.dds,
                     0..layers,
                     0..0 + 1
-                ).unwrap();
+                )
+                .map_err(|e| ImageError::Decoding(DecodingError::new(ImageFormatHint::Unknown, e)))?;
                 let data = file.data;
                 let slice: &[u8] = bytemuck::cast_slice(&data);
                 buf.copy_from_slice(&slice);
@@ -161,7 +169,8 @@ impl<R: Read> image::ImageDecoder for DDSDecoder<R> {
                     &self.dds,
                     0..layers,
                     0..0 + 1
-                ).unwrap();
+                )
+                .map_err(|e| ImageError::Decoding(DecodingError::new(ImageFormatHint::Unknown, e)))?;
                 let data = file.data;
                 buf.copy_from_slice(&data);
             }
