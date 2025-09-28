@@ -3,6 +3,9 @@ use std::str::FromStr;
 fn main() {
     let args: Vec<_> = std::env::args().collect();
 
+    // Register DDS support with the image crate.
+    image_dds::register_decoding_hook();
+
     // Don't assume the image comes with an alpha channel.
     let image = image::open(&args[1]).unwrap().to_rgba32f();
 

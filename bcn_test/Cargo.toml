@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 image_dds = { path = "../image_dds" }
-image = "0.25.1"
+image = "0.25.8"

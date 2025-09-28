@@ -335,7 +335,7 @@ fn pad_mipmap_rgba<T>(
     new_height: usize,
     new_depth: usize,
     data: &[T],
-) -> Cow<[T]>
+) -> Cow<'_, [T]>
 where
     T: Default + Copy,
 {

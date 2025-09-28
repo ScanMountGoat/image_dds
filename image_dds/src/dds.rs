@@ -1,9 +1,14 @@
+#[cfg(feature = "image")]
+use std::marker::PhantomData;
 use std::{io::Read, ops::Range};
 
 use ddsfile::{Caps2, D3DFormat, Dds, DxgiFormat, FourCC};
 
 #[cfg(feature = "image")]
-use image::{ImageResult, error::{DecodingError, ImageFormatHint}, ImageError};
+use image::{
+    error::{DecodingError, ImageFormatHint},
+    ImageError, ImageResult,
+};
 
 use thiserror::Error;
 
@@ -76,31 +81,27 @@ pub fn imagef32_from_dds(dds: &Dds, mipmap: u32) -> Result<image::Rgba32FImage, 
 /// Implements [`ImageDecoder`][image::ImageDecoder]
 /// Currently converts images to either [`Rgba8`][image::ColorType::Rgba8] or [`Rgba32F`][image::ColorType::Rgba32F].
 pub struct DDSDecoder<R> {
-    reader: R,
     dds: Dds,
+    _phantom: PhantomData<R>,
 }
 
 #[cfg(feature = "image")]
 impl<R: Read> DDSDecoder<R> {
     pub fn new(reader: R) -> ImageResult<Self> {
-        Self::init(reader)
+        let dds = ddsfile::Dds::read(reader).map_err(image_error)?;
+        Ok(Self {
+            dds,
+            _phantom: PhantomData,
+        })
     }
+}
 
-    fn init(mut reader: R) -> ImageResult<Self> {
-        let dds = Self::init_image(&mut reader)
-            .map_err(|e| ImageError::Decoding(DecodingError::new(ImageFormatHint::Unknown, e)))?;
-
-        let ddsdecoder = Self {
-            reader,
-            dds
-        };
-        Ok(ddsdecoder)
-    }
-
-    fn init_image(reader: &mut R) -> Result<Dds, ddsfile::Error> {
-        let dds = ddsfile::Dds::read(reader)?;
-        Ok(dds)
-    }
+#[cfg(feature = "image")]
+fn image_error(e: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> ImageError {
+    ImageError::Decoding(DecodingError::new(
+        ImageFormatHint::Exact(image::ImageFormat::Dds),
+        e,
+    ))
 }
 
 #[cfg(feature = "image")]
@@ -111,77 +112,53 @@ impl<R: Read> image::ImageDecoder for DDSDecoder<R> {
 
     fn color_type(&self) -> image::ColorType {
         let format = dds_image_format(&self.dds).unwrap_or(
-            // if fail, reply with r8 since `read_image` will fail anyways
-            ImageFormat::R8Unorm
+            // Use R8 on failure since `read_image` will fail anyways.
+            ImageFormat::R8Unorm,
         );
-        match format {
-        ImageFormat::R16Unorm 
-        | ImageFormat::R16Snorm 
-        | ImageFormat::Rg16Unorm 
-        | ImageFormat::Rg16Snorm 
-        | ImageFormat::Rgba16Unorm 
-        | ImageFormat::Rgba16Snorm 
-        | ImageFormat::R16Float 
-        | ImageFormat::Rg16Float 
-        | ImageFormat::Rgba32Float 
-        | ImageFormat::R32Float 
-        | ImageFormat::Rg32Float 
-        | ImageFormat::Rgb32Float => {
+        if should_use_f32(format) {
             image::ColorType::Rgba32F
-        },
-        _ => image::ColorType::Rgba8,
+        } else {
+            image::ColorType::Rgba8
         }
     }
 
     fn read_image(self, buf: &mut [u8]) -> ImageResult<()> {
         let format = dds_image_format(&self.dds)
-                    .map_err(|e| ImageError::Decoding(DecodingError::new(
-                        ImageFormatHint::Unknown, 
-                        format!("Unknown format: {:?}", e.fourcc)
-                    )))?;
-        match format {
-            ImageFormat::R16Unorm 
-            | ImageFormat::R16Snorm 
-            | ImageFormat::Rg16Unorm 
-            | ImageFormat::Rg16Snorm 
-            | ImageFormat::Rgba16Unorm 
-            | ImageFormat::Rgba16Snorm 
-            | ImageFormat::R16Float 
-            | ImageFormat::Rg16Float 
-            | ImageFormat::Rgba32Float 
-            | ImageFormat::R32Float 
-            | ImageFormat::Rg32Float 
-            | ImageFormat::Rgb32Float => {
-                let layers = array_layer_count(&self.dds);
-                let file = SurfaceRgba32Float::decode_layers_mipmaps_dds(
-                    &self.dds,
-                    0..layers,
-                    0..0 + 1
-                )
-                .map_err(|e| ImageError::Decoding(DecodingError::new(ImageFormatHint::Unknown, e)))?;
-                let data = file.data;
-                let slice: &[u8] = bytemuck::cast_slice(&data);
-                buf.copy_from_slice(&slice);
-            },
-            _ => {
-                let layers = array_layer_count(&self.dds);
-                let file = SurfaceRgba8::decode_layers_mipmaps_dds(
-                    &self.dds,
-                    0..layers,
-                    0..0 + 1
-                )
-                .map_err(|e| ImageError::Decoding(DecodingError::new(ImageFormatHint::Unknown, e)))?;
-                let data = file.data;
-                buf.copy_from_slice(&data);
-            }
-        };
-        
+            .map_err(|e| image_error(format!("Unknown format: {:?}", e.fourcc)))?;
+        if should_use_f32(format) {
+            let image = imagef32_from_dds(&self.dds, 0).map_err(image_error)?;
+            let data = image.into_vec();
+            let slice = bytemuck::cast_slice(&data);
+            buf.copy_from_slice(slice);
+        } else {
+            let image = image_from_dds(&self.dds, 0).map_err(image_error)?;
+            buf.copy_from_slice(&image.into_vec());
+        }
         Ok(())
     }
 
     fn read_image_boxed(self: Box<Self>, buf: &mut [u8]) -> ImageResult<()> {
         (*self).read_image(buf)
     }
+}
+
+#[cfg(feature = "image")]
+fn should_use_f32(format: ImageFormat) -> bool {
+    matches!(
+        format,
+        ImageFormat::R16Unorm
+            | ImageFormat::R16Snorm
+            | ImageFormat::Rg16Unorm
+            | ImageFormat::Rg16Snorm
+            | ImageFormat::Rgba16Unorm
+            | ImageFormat::Rgba16Snorm
+            | ImageFormat::R16Float
+            | ImageFormat::Rg16Float
+            | ImageFormat::Rgba32Float
+            | ImageFormat::R32Float
+            | ImageFormat::Rg32Float
+            | ImageFormat::Rgb32Float
+    )
 }
 
 /// Registers the decoder with the `image` crate so that non-format-specific calls such as
