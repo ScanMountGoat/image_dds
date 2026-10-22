@@ -1,4 +1,4 @@
-// #![no_std]
+#![no_std]
 //! A safe, no_std, pure Rust port of [bcdec](https://github.com/iOrange/bcdec).
 
 // A mostly 1:1 translation of the code and comments found here:
