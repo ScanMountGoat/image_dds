@@ -25,6 +25,26 @@ serde = { version = "1.0", features = ["derive"], optional = true }
 criterion = { version = "0.5.1", features = ["html_reports"] }
 image = { version = "0.25.8", default-features = true }
 
+[[example]]
+name = "dds2img"
+required-features = ["image"]
+
+[[example]]
+name = "dds2imgf32"
+required-features = ["image"]
+
+[[example]]
+name = "resize_dds"
+required-features = ["image", "encode"]
+
+[[example]]
+name = "img2dds"
+required-features = ["image", "encode"]
+
+[[example]]
+name = "img2ddsf32"
+required-features = ["image", "encode"]
+
 [[bench]]
 name = "dds_from_image"
 harness = false
